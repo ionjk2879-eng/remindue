@@ -17,6 +17,14 @@ const DEADLINE_LABEL: Record<PurchaseType, string> = {
   RECURRING_DELIVERY: '다음 배송일',
 };
 
+const TYPE_SHORT_LABEL: Record<PurchaseType, string> = {
+  ELECTRONICS: '전자제품',
+  ONLINE_ORDER: '온라인주문',
+  RECURRING_DELIVERY: '정기배송',
+};
+
+const PURCHASE_TYPES: PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY'];
+
 export default function DashboardPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [type, setType] = useState<PurchaseType>('ELECTRONICS');
@@ -87,6 +95,15 @@ export default function DashboardPage() {
         </button>
       </div>
 
+      <div className="type-legend">
+        {PURCHASE_TYPES.map((t) => (
+          <span className="type-legend__item" key={t}>
+            <span className={`type-dot type-dot--${t}`} aria-hidden="true" />
+            {TYPE_SHORT_LABEL[t]}
+          </span>
+        ))}
+      </div>
+
       {urgent.length > 0 && (
         <div className="urgent-banner">
           <span className="urgent-banner__tag">
@@ -107,11 +124,14 @@ export default function DashboardPage() {
         <div className="register-form__row">
           <div className="field field--narrow">
             <label htmlFor="type">종류</label>
-            <select id="type" value={type} onChange={(e) => setType(e.target.value as PurchaseType)}>
-              <option value="ELECTRONICS">전자제품</option>
-              <option value="ONLINE_ORDER">온라인 주문</option>
-              <option value="RECURRING_DELIVERY">정기배송</option>
-            </select>
+            <div className="type-select-row">
+              <span className={`type-dot type-dot--${type}`} aria-hidden="true" />
+              <select id="type" value={type} onChange={(e) => setType(e.target.value as PurchaseType)}>
+                <option value="ELECTRONICS">전자제품</option>
+                <option value="ONLINE_ORDER">온라인 주문</option>
+                <option value="RECURRING_DELIVERY">정기배송</option>
+              </select>
+            </div>
           </div>
 
           <div className="field">
@@ -176,6 +196,7 @@ export default function DashboardPage() {
       <div className="ticket-list">
         {purchases.map((p) => (
           <div className="ticket-card" key={p.id}>
+            <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
             <div className="ticket-card__body">
               <span className="ticket-card__type">{TYPE_LABEL[p.type]}</span>
               <h3 className="ticket-card__title">{p.itemName}</h3>

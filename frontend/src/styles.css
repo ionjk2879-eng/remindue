@@ -19,6 +19,11 @@
   --overdue-grey: #8b8b85;
   --overdue-grey-light: #a7a79f;
 
+  /* 종류(type) 색상 — D-day 긴급도 색과는 완전히 분리된 팔레트 */
+  --type-electronics: #3b5ba9;
+  --type-online-order: #7d5a79;
+  --type-recurring: #6b7a3a;
+
   --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
@@ -283,6 +288,56 @@ select {
 }
 
 /* --------------------------------------------------------------------------
+   Type dot / legend — 종류(type) 색상, D-day 긴급도 색과는 별개의 시각 요소
+   -------------------------------------------------------------------------- */
+
+.type-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.type-dot--ELECTRONICS {
+  background: var(--type-electronics);
+}
+
+.type-dot--ONLINE_ORDER {
+  background: var(--type-online-order);
+}
+
+.type-dot--RECURRING_DELIVERY {
+  background: var(--type-recurring);
+}
+
+.type-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.type-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.type-select-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.type-select-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --------------------------------------------------------------------------
    Urgent banner
    -------------------------------------------------------------------------- */
 
@@ -390,6 +445,25 @@ select {
 .ticket-card:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-lift);
+}
+
+/* 종류(type) 책갈피 탭 — flex의 첫 아이템이라 데스크톱에선 왼쪽 세로 바,
+   모바일 stacking(column)에선 자동으로 위쪽 가로 바가 된다. */
+.ticket-card__type-tab {
+  flex: 0 0 5px;
+  align-self: stretch;
+}
+
+.ticket-card__type-tab--ELECTRONICS {
+  background: var(--type-electronics);
+}
+
+.ticket-card__type-tab--ONLINE_ORDER {
+  background: var(--type-online-order);
+}
+
+.ticket-card__type-tab--RECURRING_DELIVERY {
+  background: var(--type-recurring);
 }
 
 .ticket-card__body {
