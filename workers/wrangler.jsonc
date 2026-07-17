@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "remindue-workers",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "remindue-db",
+      "database_id": "861b23b1-a395-4a79-8e0d-cfd74457ffc0",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "vars": {
+    // JWT_SECRET은 여기 두지 않는다 — 로컬은 .dev.vars(gitignore됨), 배포본은 `wrangler secret put JWT_SECRET`으로 관리한다.
+    "CORS_ORIGIN": "http://localhost:5173"
+  }
+}
