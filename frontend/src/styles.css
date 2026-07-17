@@ -512,7 +512,44 @@ select {
 .ticket-card__actions {
   margin-top: 8px;
   display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+/* "이번 회차 수령 확인"을 오늘 눌렀을 때의 확인 표시 — 배송일 자체(D-day/스탬프)와는
+   별개의 상태이므로 의도적으로 다른 색(녹색)·다른 모양(알약형 배지)을 쓴다. */
+.confirm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--safe-teal);
+  background: #e3f0ec;
+  border: 1px solid var(--safe-teal);
+  border-radius: 999px;
+  padding: 3px 10px;
+  animation: confirmPopIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.confirm-badge--sm {
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 0.72rem;
+}
+
+@keyframes confirmPopIn {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .ticket-card__perforation {
@@ -621,7 +658,8 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stamp-badge {
+  .stamp-badge,
+  .confirm-badge {
     animation: none;
   }
   .ticket-card,

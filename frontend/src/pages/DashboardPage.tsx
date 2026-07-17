@@ -31,6 +31,16 @@ function formatShortDate(dateStr: string): string {
   return `${month}/${day}`;
 }
 
+/** 백엔드(todayDateOnly)와 동일하게 UTC 기준 오늘 날짜(yyyy-MM-dd)를 구한다. */
+function todayUTC(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** 정기배송 항목을 오늘 "이번 회차 수령 확인"으로 눌렀는지 — dDay와 무관하게 확인 자체의 완료 여부. */
+function isConfirmedToday(p: Purchase): boolean {
+  return p.type === 'RECURRING_DELIVERY' && p.lastDeliveredDate === todayUTC();
+}
+
 export default function DashboardPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [type, setType] = useState<PurchaseType>('ELECTRONICS');
@@ -119,6 +129,7 @@ export default function DashboardPage() {
             {urgent.map((p) => (
               <li key={p.id}>
                 {p.itemName} — {DEADLINE_LABEL[p.type]} <span className="mono">{p.deadline}</span>
+                {isConfirmedToday(p) && <span className="confirm-badge confirm-badge--sm">✓ 확인완료</span>}
               </li>
             ))}
           </ul>
@@ -221,11 +232,14 @@ export default function DashboardPage() {
                 </p>
               )}
               <div className="ticket-card__actions">
-                {p.type === 'RECURRING_DELIVERY' && (
-                  <button className="btn-text" onClick={() => handleMarkDelivered(p.id)}>
-                    이번 회차 수령 확인
-                  </button>
-                )}
+                {p.type === 'RECURRING_DELIVERY' &&
+                  (isConfirmedToday(p) ? (
+                    <span className="confirm-badge">✓ 확인완료</span>
+                  ) : (
+                    <button className="btn-text" onClick={() => handleMarkDelivered(p.id)}>
+                      이번 회차 수령 확인
+                    </button>
+                  ))}
                 <button className="btn-text" onClick={() => handleDelete(p.id)}>
                   삭제
                 </button>
