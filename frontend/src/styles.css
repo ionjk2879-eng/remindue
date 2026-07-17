@@ -690,6 +690,13 @@ select {
   font-size: 0.92rem;
 }
 
+.tucked-away-note {
+  text-align: center;
+  color: var(--ink-soft);
+  padding: 14px 0 4px;
+  font-size: 0.8rem;
+}
+
 /* --------------------------------------------------------------------------
    Responsive
    -------------------------------------------------------------------------- */
