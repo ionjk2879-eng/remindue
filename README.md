@@ -34,14 +34,35 @@
 ## 로컬 실행 방법
 
 ```bash
-# 백엔드
+# 백엔드 (Cloudflare Workers + D1 — 실사용 백엔드)
+cd workers
+npm install
+npm run db:migrate:local
+npm run dev             # http://localhost:8787
+
+# 백엔드 (Spring Boot — backend/는 로직 참고용으로만 유지, 배포 안 함)
 cd backend
-./gradlew bootRun     # http://localhost:8080
+./gradlew bootRun       # http://localhost:8080
 
 # 프론트엔드
 cd frontend
 npm install
-npm run dev            # http://localhost:5173
+npm run dev              # http://localhost:5173
+```
+
+## 배포
+
+GitHub `main` 브랜치에 push하면 Cloudflare Workers Builds가 각각 자동 배포한다.
+
+| 프로젝트 | Root directory | 배포 URL |
+| --- | --- | --- |
+| 백엔드 (`workers/`) | `workers` | https://remindue.ionjk2879.workers.dev |
+| 프론트엔드 (`frontend/`) | `frontend` | https://remindue-frontend.ionjk2879.workers.dev |
+
+수동 배포:
+```bash
+cd workers && npm run deploy
+cd frontend && npm run deploy
 ```
 
 ## API 요약
