@@ -3,7 +3,7 @@
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
-import { InvalidPurchaseOperationError, nextLastDeliveredDate } from '../lib/purchase-logic';
+import { InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
 import { BadRequestError, ForbiddenError } from '../lib/errors';
 import { PURCHASE_TYPES } from '../types';
 import type { Env, PurchaseRequestBody, PurchaseRow, UserRow } from '../types';
@@ -67,8 +67,9 @@ purchases.post('/', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   const body = validatePurchaseRequest(await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({})));
 
-  // PrePersist: RECURRING_DELIVERY이고 lastDeliveredDate가 없으면 baseDate로 초기화
-  const lastDeliveredDate = body.type === 'RECURRING_DELIVERY' ? body.baseDate : null;
+  // lastDeliveredDate는 이제 "마지막 수령 확인" 참고 로그일 뿐 배송일 계산에 쓰이지 않으므로,
+  // 등록 시점엔 아직 아무것도 확인된 게 없다는 뜻으로 null로 둔다.
+  const lastDeliveredDate = null;
 
   const insert = await c.env.DB.prepare(
     `INSERT INTO purchases
@@ -135,7 +136,10 @@ purchases.delete('/:id', async (c) => {
   return c.body(null, 204);
 });
 
-/** 정기배송 전용 — "오늘 배송 받았어요" 처리. 다음 배송일 계산 기준을 오늘로 갱신한다. */
+/**
+ * 정기배송 전용 — "이번 회차 수령 확인" 처리. last_delivered_date에 참고용 로그만 남기고,
+ * 다음 배송일(고정 스케줄) 계산에는 영향을 주지 않는다.
+ */
 purchases.post('/:id/mark-delivered', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   const id = Number(c.req.param('id'));
@@ -143,13 +147,17 @@ purchases.post('/:id/mark-delivered', async (c) => {
 
   let today: string;
   try {
-    today = nextLastDeliveredDate(existing.type);
+    today = confirmReceiptToday(existing.type);
   } catch (e) {
     if (e instanceof InvalidPurchaseOperationError) throw new BadRequestError(e.message);
     throw e;
   }
 
-  await c.env.DB.prepare(`UPDATE purchases SET last_delivered_date = ?, updated_at = datetime('now') WHERE id = ?`)
+  await c.env.DB.prepare(
+    `UPDATE purchases
+        SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1, updated_at = datetime('now')
+      WHERE id = ?`
+  )
     .bind(today, id)
     .run();
 

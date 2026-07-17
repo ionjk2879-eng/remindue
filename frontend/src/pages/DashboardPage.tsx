@@ -25,6 +25,12 @@ const TYPE_SHORT_LABEL: Record<PurchaseType, string> = {
 
 const PURCHASE_TYPES: PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY'];
 
+/** "2026-08-15" -> "8/15" */
+function formatShortDate(dateStr: string): string {
+  const [, month, day] = dateStr.split('-').map(Number);
+  return `${month}/${day}`;
+}
+
 export default function DashboardPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [type, setType] = useState<PurchaseType>('ELECTRONICS');
@@ -200,13 +206,24 @@ export default function DashboardPage() {
             <div className="ticket-card__body">
               <span className="ticket-card__type">{TYPE_LABEL[p.type]}</span>
               <h3 className="ticket-card__title">{p.itemName}</h3>
-              <p className="ticket-card__deadline">
-                {DEADLINE_LABEL[p.type]} · <span className="mono">{p.deadline}</span>
-              </p>
+              {p.type === 'RECURRING_DELIVERY' && p.deliveryRound !== null ? (
+                <p className="ticket-card__deadline">
+                  다음 배송: <span className="mono">{p.deliveryRound}회차</span> ({formatShortDate(p.deadline)})
+                </p>
+              ) : (
+                <p className="ticket-card__deadline">
+                  {DEADLINE_LABEL[p.type]} · <span className="mono">{p.deadline}</span>
+                </p>
+              )}
+              {p.type === 'RECURRING_DELIVERY' && !!p.missedConfirmations && p.missedConfirmations > 0 && (
+                <p className="ticket-card__hint">
+                  ⚠ 확인을 놓친 배송이 있을 수 있어요 — <span className="mono">{p.missedConfirmations}</span>건 확인 누락 가능성
+                </p>
+              )}
               <div className="ticket-card__actions">
                 {p.type === 'RECURRING_DELIVERY' && (
                   <button className="btn-text" onClick={() => handleMarkDelivered(p.id)}>
-                    배송 받음
+                    이번 회차 수령 확인
                   </button>
                 )}
                 <button className="btn-text" onClick={() => handleDelete(p.id)}>

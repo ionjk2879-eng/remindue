@@ -13,6 +13,8 @@ export interface Purchase {
   lastDeliveredDate: string | null;
   deadline: string;
   dDay: number;
+  deliveryRound: number | null;
+  missedConfirmations: number | null;
   createdAt: string;
 }
 

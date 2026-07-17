@@ -499,6 +499,16 @@ select {
   color: var(--ink);
 }
 
+.ticket-card__hint {
+  font-size: 0.76rem;
+  color: var(--stamp-amber);
+  margin-top: 2px;
+}
+
+.ticket-card__hint .mono {
+  font-weight: 700;
+}
+
 .ticket-card__actions {
   margin-top: 8px;
   display: flex;

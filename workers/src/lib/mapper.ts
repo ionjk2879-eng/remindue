@@ -2,7 +2,11 @@ import { computeDDay, computeDeadline } from './purchase-logic';
 import type { PurchaseResponse, PurchaseRow } from '../types';
 
 export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
-  const deadline = computeDeadline(row);
+  const { deadline, deliveryRound } = computeDeadline(row);
+
+  // deliveryRound가 null이면(정기배송이 아니면) 회차 개념 자체가 없으므로 missedConfirmations도 null.
+  const missedConfirmations = deliveryRound === null ? null : Math.max(0, deliveryRound - row.delivery_confirm_count);
+
   return {
     id: row.id,
     type: row.type,
@@ -16,6 +20,8 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     lastDeliveredDate: row.last_delivered_date,
     deadline,
     dDay: computeDDay(deadline),
+    deliveryRound,
+    missedConfirmations,
     createdAt: row.created_at,
   };
 }

@@ -15,6 +15,7 @@ export interface PurchaseRow {
   return_deadline_days: number | null;
   interval_days: number | null;
   last_delivered_date: string | null;
+  delivery_confirm_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -41,6 +42,10 @@ export interface PurchaseResponse {
   lastDeliveredDate: string | null;
   deadline: string;
   dDay: number;
+  /** RECURRING_DELIVERY 전용 — 몇 회차 배송인지(1부터 시작). 그 외 타입은 null. */
+  deliveryRound: number | null;
+  /** RECURRING_DELIVERY 전용 — 계산상 회차 대비 "이번 회차 수령 확인" 누른 횟수가 부족한 만큼. 그 외 타입은 null. */
+  missedConfirmations: number | null;
   createdAt: string;
 }
 
