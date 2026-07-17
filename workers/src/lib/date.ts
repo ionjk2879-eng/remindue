@@ -1,4 +1,7 @@
-// Date-only (yyyy-MM-dd) arithmetic helpers, UTC-based to avoid timezone drift.
+// Date-only (yyyy-MM-dd) arithmetic helpers. The calendar math (addDays/addMonths/daysBetween)
+// operates on UTC internally since it's pure y-m-d arithmetic with no "current time" involved —
+// only todayDateOnly() needs a real timezone, since that's the one place we ask "what day is it
+// right now" (see its own comment for why that's KST, not UTC).
 // addMonths clamps to the last valid day of the target month, matching java.time.LocalDate#plusMonths
 // (e.g. 2026-01-31 + 1 month -> 2026-02-28, not an overflowed 2026-03-03).
 
@@ -38,6 +41,11 @@ export function daysBetween(fromStr: string, toStr: string): number {
   return Math.round((toMs - fromMs) / 86_400_000);
 }
 
+/**
+ * KST(Asia/Seoul, UTC+9, DST 없음) 기준 "오늘". UTC로 계산하면 한국 자정이 지나도
+ * UTC 자정(한국 시간 오전 9시)까지는 여전히 어제로 취급되는 버그가 있었다 —
+ * 예: 한국 시간 7/18 00:17은 UTC로는 아직 7/17 15:17이라 배송일 계산이 하루 안 넘어감.
+ */
 export function todayDateOnly(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
 }
