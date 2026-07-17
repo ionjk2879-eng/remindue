@@ -31,14 +31,13 @@ function formatShortDate(dateStr: string): string {
   return `${month}/${day}`;
 }
 
-/** 백엔드(todayDateOnly)와 동일하게 UTC 기준 오늘 날짜(yyyy-MM-dd)를 구한다. */
-function todayUTC(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-/** 정기배송 항목을 오늘 "이번 회차 수령 확인"으로 눌렀는지 — dDay와 무관하게 확인 자체의 완료 여부. */
-function isConfirmedToday(p: Purchase): boolean {
-  return p.type === 'RECURRING_DELIVERY' && p.lastDeliveredDate === todayUTC();
+/**
+ * 정기배송이고 계산상 회차만큼 "이번 회차 수령 확인"을 다 눌러서 놓친 게 없는 상태인지.
+ * (ELECTRONICS/ONLINE_ORDER는 확인 개념이 없으니 항상 false — 배너/스탬프가 "해결됨"으로
+ * 표시되지 않고 dDay가 지날 때까지 계속 챙겨야 할 항목으로 남는다.)
+ */
+function isFullyConfirmed(p: Purchase): boolean {
+  return p.type === 'RECURRING_DELIVERY' && p.missedConfirmations === 0;
 }
 
 export default function DashboardPage() {
@@ -99,6 +98,7 @@ export default function DashboardPage() {
   };
 
   const urgent = purchases.filter((p) => p.dDay >= 0 && p.dDay <= 7);
+  const urgentAllHandled = urgent.length > 0 && urgent.every(isFullyConfirmed);
 
   return (
     <div className="dashboard">
@@ -121,15 +121,17 @@ export default function DashboardPage() {
       </div>
 
       {urgent.length > 0 && (
-        <div className="urgent-banner">
-          <span className="urgent-banner__tag">
-            ⚠ 7일 이내 마감 <span className="mono">{urgent.length}</span>건
+        <div className={`urgent-banner${urgentAllHandled ? ' urgent-banner--ok' : ''}`}>
+          <span className={`urgent-banner__tag${urgentAllHandled ? ' urgent-banner__tag--ok' : ''}`}>
+            {urgentAllHandled ? '✓' : '⚠'} 7일 이내 {urgentAllHandled ? '배송 예정' : '마감'}{' '}
+            <span className="mono">{urgent.length}</span>건
+            {urgentAllHandled && ' — 놓친 배송 없음'}
           </span>
           <ul>
             {urgent.map((p) => (
               <li key={p.id}>
                 {p.itemName} — {DEADLINE_LABEL[p.type]} <span className="mono">{p.deadline}</span>
-                {isConfirmedToday(p) && <span className="confirm-badge confirm-badge--sm">✓ 확인완료</span>}
+                {isFullyConfirmed(p) && <span className="confirm-badge confirm-badge--sm">✓ 확인완료</span>}
               </li>
             ))}
           </ul>
@@ -233,7 +235,7 @@ export default function DashboardPage() {
               )}
               <div className="ticket-card__actions">
                 {p.type === 'RECURRING_DELIVERY' &&
-                  (isConfirmedToday(p) ? (
+                  (isFullyConfirmed(p) ? (
                     <span className="confirm-badge">✓ 확인완료</span>
                   ) : (
                     <button className="btn-text" onClick={() => handleMarkDelivered(p.id)}>

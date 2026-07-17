@@ -369,6 +369,21 @@ select {
   font-size: 0.88rem;
   color: var(--ink);
   margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 배너 안의 정기배송 항목이 전부 missedConfirmations=0(놓친 것 없음)이면
+   "경고" 색(빨강)이 아니라 "안심" 색(초록)으로 통째로 바뀐다. */
+.urgent-banner--ok {
+  background: #e3f0ec;
+  border-color: var(--safe-teal);
+}
+
+.urgent-banner__tag--ok {
+  color: var(--safe-teal);
 }
 
 /* --------------------------------------------------------------------------
