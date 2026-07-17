@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "remindue-workers",
+  "name": "remindue",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
   "observability": {
@@ -16,6 +16,7 @@
   ],
   "vars": {
     // JWT_SECRET은 여기 두지 않는다 — 로컬은 .dev.vars(gitignore됨), 배포본은 `wrangler secret put JWT_SECRET`으로 관리한다.
-    "CORS_ORIGIN": "http://localhost:5173"
+    // 로컬 개발용 CORS_ORIGIN(http://localhost:5173)도 .dev.vars에서 덮어쓴다.
+    "CORS_ORIGIN": "https://remindue-frontend.ionjk2879.workers.dev"
   }
 }
