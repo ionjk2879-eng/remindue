@@ -3,6 +3,7 @@ import { fetchPurchases, createPurchase, deletePurchase, markDelivered } from '.
 import type { Purchase, PurchaseType } from '../types';
 import { useAuth } from '../context/AuthContext';
 import StampBadge from '../components/StampBadge';
+import PushPermissionBanner from '../components/PushPermissionBanner';
 
 const TYPE_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '전자제품 (보증기간)',
@@ -103,6 +104,8 @@ export default function DashboardPage() {
           {nickname}님의 <span className="accent">챙길 목록</span>
         </h1>
       </div>
+
+      <PushPermissionBanner />
 
       <div className="type-legend">
         {PURCHASE_TYPES.map((t) => (

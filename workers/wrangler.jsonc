@@ -3,8 +3,14 @@
   "name": "remindue",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
+  // web-push 라이브러리가 내부적으로 node:crypto(ECDH/HKDF/AES-GCM)를 쓰기 때문에 필요.
+  "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true
+  },
+  // 한국시간(KST, UTC+9) 오전 9시 = UTC 0시. 매일 1회 D-day 다이제스트 이메일 발송.
+  "triggers": {
+    "crons": ["0 0 * * *"]
   },
   "d1_databases": [
     {

@@ -26,6 +26,8 @@ export interface UserRow {
   password_hash: string;
   nickname: string;
   created_at: string;
+  /** SQLite boolean(0/1) — 매일 D-day 다이제스트 이메일 수신 여부. 기본값 1(켜짐). */
+  email_notifications_enabled: number;
 }
 
 // API response shape — matches frontend/src/types/index.ts exactly (camelCase).
@@ -49,6 +51,23 @@ export interface PurchaseResponse {
   createdAt: string;
 }
 
+export interface PushSubscriptionRow {
+  id: number;
+  user_id: number;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  created_at: string;
+}
+
+export interface PushSubscriptionRequestBody {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
+
 export interface AuthResponse {
   accessToken: string;
   nickname: string;
@@ -69,4 +88,11 @@ export interface Env {
   DB: D1Database;
   JWT_SECRET: string;
   CORS_ORIGIN: string;
+  /** Resend API 키. 로컬은 .dev.vars, 배포본은 `wrangler secret put RESEND_API_KEY`로 관리한다. */
+  RESEND_API_KEY: string;
+  /** VAPID 키 쌍 — `npx web-push generate-vapid-keys`로 생성. 공개키는 프론트에도 노출되는 값이라 비밀은 아니지만, 개인키는 반드시 시크릿으로 관리한다. */
+  VAPID_PUBLIC_KEY: string;
+  VAPID_PRIVATE_KEY: string;
+  /** web-push 스펙상 필수인 연락처 식별자(mailto: 또는 https: URL). */
+  VAPID_SUBJECT: string;
 }

@@ -1,2 +1,7 @@
 JWT_SECRET=replace-with-a-long-random-local-dev-secret
 CORS_ORIGIN=http://localhost:5173
+RESEND_API_KEY=
+# npx web-push generate-vapid-keys 로 생성
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:you@example.com

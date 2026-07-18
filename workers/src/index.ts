@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import authRoutes from './routes/auth';
 import purchaseRoutes from './routes/purchases';
+import pushRoutes from './routes/push';
 import { HttpError } from './lib/errors';
+import { runDailyDigest } from './lib/digest';
 import type { Env } from './types';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -19,6 +21,7 @@ app.use('/api/*', async (c, next) => {
 
 app.route('/api/auth', authRoutes);
 app.route('/api/purchases', purchaseRoutes);
+app.route('/api/push', pushRoutes);
 
 // GlobalExceptionHandler.java와 동일한 매핑: {message}, 상태코드는 에러 종류에 따라 결정
 //
@@ -41,4 +44,16 @@ app.onError((err, c) => {
   return c.json({ message: 'Internal Server Error' }, 500);
 });
 
-export default app;
+export default {
+  fetch: app.fetch,
+  // Cron Trigger(wrangler.jsonc의 triggers.crons) — 매일 1회 D-day 다이제스트 이메일 발송.
+  scheduled: async (_event, env, ctx) => {
+    ctx.waitUntil(
+      runDailyDigest(env).then((result) => {
+        console.log(
+          `[daily-digest] 완료 — 대상 사용자 ${result.usersNotified}명, 이메일 ${result.emailsSent}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
+        );
+      })
+    );
+  },
+} satisfies ExportedHandler<Env>;
