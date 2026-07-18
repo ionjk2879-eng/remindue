@@ -43,15 +43,6 @@ function isFullyConfirmed(p: Purchase): boolean {
   return p.type === 'RECURRING_DELIVERY' && p.missedConfirmations === 0;
 }
 
-/**
- * 확인까지 다 끝났고 다음 배송도 한참 남은 정기배송은 목록에서 잠깐 숨긴다.
- * 실수로 또 누를 버튼 자체가 안 보이게 해서, 확인 후 재클릭 같은 실수를 원천적으로 막는다.
- * 다음 배송이 URGENT_WINDOW_DAYS 이내로 가까워지면(=배너에도 뜨는 시점) 자동으로 다시 보인다.
- */
-function isTuckedAway(p: Purchase): boolean {
-  return isFullyConfirmed(p) && p.dDay > URGENT_WINDOW_DAYS;
-}
-
 export default function DashboardPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [type, setType] = useState<PurchaseType>('ELECTRONICS');
@@ -111,8 +102,6 @@ export default function DashboardPage() {
 
   const urgent = purchases.filter((p) => p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS);
   const urgentAllHandled = urgent.length > 0 && urgent.every(isFullyConfirmed);
-  const visiblePurchases = purchases.filter((p) => !isTuckedAway(p));
-  const tuckedAwayCount = purchases.length - visiblePurchases.length;
 
   return (
     <div className="dashboard">
@@ -227,7 +216,7 @@ export default function DashboardPage() {
       </form>
 
       <div className="ticket-list">
-        {visiblePurchases.map((p) => (
+        {purchases.map((p) => (
           <div className="ticket-card" key={p.id}>
             <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
             <div className="ticket-card__body">
@@ -270,18 +259,6 @@ export default function DashboardPage() {
       </div>
 
       {purchases.length === 0 && <p className="empty-state">등록된 항목이 없습니다.</p>}
-
-      {purchases.length > 0 && visiblePurchases.length === 0 && (
-        <p className="empty-state">
-          전부 확인 완료 상태예요 — 다음 배송이 가까워지면 다시 보여드릴게요.
-        </p>
-      )}
-
-      {tuckedAwayCount > 0 && visiblePurchases.length > 0 && (
-        <p className="tucked-away-note">
-          확인 완료된 <span className="mono">{tuckedAwayCount}</span>건은 숨겨뒀어요 — 다음 배송이 가까워지면 다시 보여드릴게요.
-        </p>
-      )}
     </div>
   );
 }
