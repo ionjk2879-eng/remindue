@@ -82,6 +82,24 @@ backend/     Spring Boot — logic reference only, not deployed (Phase 0 origin)
   existing ones.
 - `npm run typecheck` before considering backend work done.
 
+## Premium plan (`users.is_premium`)
+
+Signup creates new users with `is_premium = 0` (free plan) — see `routes/auth.ts`.
+Free-plan users are capped at `FREE_PLAN_MAX_PURCHASES` (5, in
+`lib/purchase-logic.ts`) registered items; premium users are unlimited.
+There's no billing/upgrade flow yet, so the only way to flip a specific
+account to premium is directly in D1:
+
+```bash
+cd workers
+npx wrangler d1 execute remindue-db --remote --command "UPDATE users SET is_premium = 1 WHERE email = 'someone@example.com';"
+```
+
+Drop `--remote` to do the same against the local dev database instead.
+Existing accounts created before this flag existed already have
+`is_premium = 1` (the column's original default) and were left alone —
+only new signups get the free default.
+
 ## Frontend (frontend/)
 
 - `npx tsc -b` before considering frontend work done.

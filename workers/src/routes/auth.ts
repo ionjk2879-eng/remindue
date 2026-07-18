@@ -61,11 +61,13 @@ auth.post('/signup', async (c) => {
   const passwordHash = await hashPassword(password);
 
   // forwarding_token은 UNIQUE라 128비트 랜덤값이 우연히 겹치는 극히 드문 경우에만 재시도한다.
+  // is_premium은 컬럼 기본값(1)에 기대지 않고 여기서 명시적으로 0을 넣는다 — 결제 연동 전까지
+  // 신규 가입자는 무료 플랜으로 시작한다. 기존에 만들어져 있던 계정들은 건드리지 않는다.
   let inserted = false;
   for (let attempt = 0; attempt < 5 && !inserted; attempt++) {
     try {
       await c.env.DB.prepare(
-        'INSERT INTO users (email, password_hash, nickname, forwarding_token) VALUES (?, ?, ?, ?)'
+        'INSERT INTO users (email, password_hash, nickname, forwarding_token, is_premium) VALUES (?, ?, ?, ?, 0)'
       )
         .bind(email, passwordHash, nickname, generateForwardingToken())
         .run();
@@ -80,8 +82,7 @@ auth.post('/signup', async (c) => {
   }
 
   const accessToken = await signJwt(email, c.env.JWT_SECRET, ACCESS_TOKEN_EXPIRATION_SECONDS);
-  // 새로 가입한 사용자는 항상 users.is_premium의 기본값(1)을 그대로 받으므로 재조회 없이 true로 둔다.
-  const response: AuthResponse = { accessToken, nickname, isPremium: true };
+  const response: AuthResponse = { accessToken, nickname, isPremium: false };
   return c.json(response);
 });
 
