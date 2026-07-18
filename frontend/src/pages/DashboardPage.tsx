@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { fetchPurchases, createPurchase, deletePurchase, markDelivered } from '../api/purchases';
 import type { Purchase, PurchaseType } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import StampBadge from '../components/StampBadge';
 
 const TYPE_LABEL: Record<PurchaseType, string> = {
@@ -52,8 +51,7 @@ export default function DashboardPage() {
   const [returnDeadlineDays, setReturnDeadlineDays] = useState('7');
   const [intervalDays, setIntervalDays] = useState('30');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { nickname, logout } = useAuth();
-  const navigate = useNavigate();
+  const { nickname } = useAuth();
 
   const load = async () => {
     const data = await fetchPurchases();
@@ -95,11 +93,6 @@ export default function DashboardPage() {
     await load();
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
   const urgent = purchases.filter((p) => p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS);
   const urgentAllHandled = urgent.length > 0 && urgent.every(isFullyConfirmed);
 
@@ -109,9 +102,6 @@ export default function DashboardPage() {
         <h1>
           {nickname}님의 <span className="accent">챙길 목록</span>
         </h1>
-        <button className="btn btn-outline btn-sm" onClick={handleLogout}>
-          로그아웃
-        </button>
       </div>
 
       <div className="type-legend">
