@@ -42,17 +42,18 @@ push.post('/subscribe', async (c) => {
   return c.body(null, 204);
 });
 
-push.use('/unsubscribe', authMiddleware);
+/**
+ * 인증을 요구하지 않는다 — endpoint 자체가 해당 구독을 아는 것만으로 소유를 증명하는
+ * 값이라(추측 불가능한 URL), 로그인 세션이 없는 서비스 워커(pushsubscriptionchange 등,
+ * 페이지의 accessToken에 접근 불가)에서도 곧바로 정리를 요청할 수 있어야 하기 때문.
+ */
 push.post('/unsubscribe', async (c) => {
-  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   const body = await c.req.json<{ endpoint?: string }>().catch(() => ({}) as { endpoint?: string });
   if (!body.endpoint) {
     throw new BadRequestError('endpoint는 필수입니다');
   }
 
-  await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?')
-    .bind(body.endpoint, user.id)
-    .run();
+  await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(body.endpoint).run();
 
   return c.body(null, 204);
 });

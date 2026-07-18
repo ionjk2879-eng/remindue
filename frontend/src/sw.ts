@@ -40,3 +40,25 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
   const url = (event.notification.data as { url?: string } | undefined)?.url ?? '/';
   event.waitUntil(self.clients.openWindow(url));
 });
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787/api';
+
+/**
+ * 브라우저가 구독을 스스로 무효화/회전시켰을 때(예: 사용자가 알림 권한을 껐을 때) 발생.
+ * 다음 발송 시도의 404/410로 뒤늦게(다음날 크론) 정리되는 걸 기다리지 않고, 이 자리에서
+ * 바로 서버에 정리를 요청한다. 재구독은 시도하지 않는다 — 서비스 워커는 로그인한
+ * 사용자의 accessToken에 접근할 수 없어 새 구독을 다시 사용자에게 연결(subscribe)할
+ * 방법이 없기 때문에, 다음에 앱을 열었을 때 배너를 통해 다시 구독하도록 둔다.
+ */
+self.addEventListener('pushsubscriptionchange', (event: Event) => {
+  const oldEndpoint = (event as unknown as { oldSubscription?: PushSubscription }).oldSubscription?.endpoint;
+  if (!oldEndpoint) return;
+
+  event.waitUntil(
+    fetch(`${API_BASE}/push/unsubscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: oldEndpoint }),
+    }).catch(() => {})
+  );
+});

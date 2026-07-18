@@ -21,8 +21,11 @@
     }
   ],
   "vars": {
-    // JWT_SECRET은 여기 두지 않는다 — 로컬은 .dev.vars(gitignore됨), 배포본은 `wrangler secret put JWT_SECRET`으로 관리한다.
+    // JWT_SECRET/RESEND_API_KEY/VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY는 여기 두지 않는다 — 로컬은
+    // .dev.vars(gitignore됨), 배포본은 `wrangler secret put <NAME>`으로 관리한다.
     // 로컬 개발용 CORS_ORIGIN(http://localhost:5173)도 .dev.vars에서 덮어쓴다.
-    "CORS_ORIGIN": "https://remindue-frontend.ionjk2879.workers.dev"
+    "CORS_ORIGIN": "https://remindue-frontend.ionjk2879.workers.dev",
+    // web-push 스펙상 필수인 연락처 식별자 — 비밀값이 아니라 그냥 vars로 둔다.
+    "VAPID_SUBJECT": "mailto:ionjk2879@gmail.com"
   }
 }
