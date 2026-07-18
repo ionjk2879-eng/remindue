@@ -103,15 +103,15 @@ purchases.put('/:id', async (c) => {
   await getOwnedPurchase(c.env.DB, user.id, id);
   const body = validatePurchaseRequest(await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({})));
 
-  // Purchase.update()와 동일하게 type은 변경하지 않는다.
   await c.env.DB.prepare(
     `UPDATE purchases
-        SET item_name = ?, base_date = ?, amount = ?, memo = ?,
+        SET type = ?, item_name = ?, base_date = ?, amount = ?, memo = ?,
             warranty_months = ?, return_deadline_days = ?, interval_days = ?,
             updated_at = datetime('now')
       WHERE id = ?`
   )
     .bind(
+      body.type,
       body.itemName,
       body.baseDate,
       body.amount,
