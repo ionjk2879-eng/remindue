@@ -478,7 +478,6 @@ select {
   font-size: 0.82rem;
   letter-spacing: 0.02em;
   color: var(--stamp-red);
-  transform: rotate(-2deg);
 }
 
 .urgent-banner ul {

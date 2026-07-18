@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { fetchPurchases, createPurchase, deletePurchase, markDelivered } from '../api/purchases';
+import { fetchPurchases, createPurchase, updatePurchase, deletePurchase, markDelivered } from '../api/purchases';
 import type { Purchase, PurchaseType } from '../types';
 import { useAuth } from '../context/AuthContext';
 import StampBadge from '../components/StampBadge';
@@ -45,6 +45,7 @@ function isFullyConfirmed(p: Purchase): boolean {
 
 export default function DashboardPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [type, setType] = useState<PurchaseType>('ELECTRONICS');
   const [itemName, setItemName] = useState('');
   const [baseDate, setBaseDate] = useState('');
@@ -63,23 +64,55 @@ export default function DashboardPage() {
     load();
   }, []);
 
-  const handleAdd = async (e: FormEvent) => {
+  const resetForm = () => {
+    setEditingId(null);
+    setType('ELECTRONICS');
+    setItemName('');
+    setBaseDate('');
+    setWarrantyMonths('12');
+    setReturnDeadlineDays('7');
+    setIntervalDays('30');
+  };
+
+  const handleEditClick = (p: Purchase) => {
+    setErrorMessage(null);
+    setEditingId(p.id);
+    setType(p.type);
+    setItemName(p.itemName);
+    setBaseDate(p.baseDate);
+    setWarrantyMonths(String(p.warrantyMonths ?? 12));
+    setReturnDeadlineDays(String(p.returnDeadlineDays ?? 7));
+    setIntervalDays(String(p.intervalDays ?? 30));
+  };
+
+  const handleCancelEdit = () => {
+    setErrorMessage(null);
+    resetForm();
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    const input = {
+      type,
+      itemName,
+      baseDate,
+      warrantyMonths: type === 'ELECTRONICS' ? Number(warrantyMonths) : undefined,
+      returnDeadlineDays: type === 'ONLINE_ORDER' ? Number(returnDeadlineDays) : undefined,
+      intervalDays: type === 'RECURRING_DELIVERY' ? Number(intervalDays) : undefined,
+    };
     try {
-      await createPurchase({
-        type,
-        itemName,
-        baseDate,
-        warrantyMonths: type === 'ELECTRONICS' ? Number(warrantyMonths) : undefined,
-        returnDeadlineDays: type === 'ONLINE_ORDER' ? Number(returnDeadlineDays) : undefined,
-        intervalDays: type === 'RECURRING_DELIVERY' ? Number(intervalDays) : undefined,
-      });
-      setItemName('');
-      setBaseDate('');
+      if (editingId !== null) {
+        await updatePurchase(editingId, input);
+      } else {
+        await createPurchase(input);
+      }
+      resetForm();
       await load();
     } catch (err) {
-      setErrorMessage('등록하지 못했습니다. 입력값을 확인해주세요.');
+      setErrorMessage(
+        editingId !== null ? '수정하지 못했습니다. 입력값을 확인해주세요.' : '등록하지 못했습니다. 입력값을 확인해주세요.'
+      );
       console.error(err);
     }
   };
@@ -136,14 +169,19 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <form className="register-form" onSubmit={handleAdd}>
-        <p className="register-form__title">새 항목 등록</p>
+      <form className="register-form" onSubmit={handleSubmit}>
+        <p className="register-form__title">{editingId !== null ? '항목 수정' : '새 항목 등록'}</p>
         <div className="register-form__row">
           <div className="field field--narrow">
             <label htmlFor="type">종류</label>
             <div className="type-select-row">
               <span className={`type-dot type-dot--${type}`} aria-hidden="true" />
-              <select id="type" value={type} onChange={(e) => setType(e.target.value as PurchaseType)}>
+              <select
+                id="type"
+                value={type}
+                onChange={(e) => setType(e.target.value as PurchaseType)}
+                disabled={editingId !== null}
+              >
                 <option value="ELECTRONICS">전자제품</option>
                 <option value="ONLINE_ORDER">온라인 주문</option>
                 <option value="RECURRING_DELIVERY">정기배송</option>
@@ -204,8 +242,13 @@ export default function DashboardPage() {
           )}
 
           <button type="submit" className="btn">
-            등록
+            {editingId !== null ? '수정 완료' : '등록'}
           </button>
+          {editingId !== null && (
+            <button type="button" className="btn-text" onClick={handleCancelEdit}>
+              취소
+            </button>
+          )}
         </div>
         {errorMessage && <p className="form-error" style={{ marginTop: 12 }}>{errorMessage}</p>}
       </form>
@@ -240,6 +283,9 @@ export default function DashboardPage() {
                       이번 회차 수령 확인
                     </button>
                   ))}
+                <button className="btn-text" onClick={() => handleEditClick(p)}>
+                  수정
+                </button>
                 <button className="btn-text" onClick={() => handleDelete(p.id)}>
                   삭제
                 </button>
