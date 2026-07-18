@@ -94,7 +94,9 @@ export default function DashboardPage() {
     await load();
   };
 
-  const urgent = purchases.filter((p) => p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS);
+  const urgent = purchases
+    .filter((p) => p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
+    .sort((a, b) => a.dDay - b.dDay);
   const urgentAllHandled = urgent.length > 0 && urgent.every(isFullyConfirmed);
 
   return (

@@ -3,6 +3,7 @@
 // 실제 도메인을 Resend에 등록하면 이 상수만 바꾸면 된다.
 
 import type { PurchaseType } from '../types';
+import { buildDigestTitle, buildItemClause, formatDDay, type DigestItem } from './messages';
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 const FROM_ADDRESS = 'Remindue <onboarding@resend.dev>';
@@ -13,16 +14,8 @@ const TYPE_SHORT_LABEL: Record<PurchaseType, string> = {
   RECURRING_DELIVERY: '정기배송',
 };
 
-export interface DigestItem {
-  itemName: string;
-  type: PurchaseType;
-  dDay: number;
-  deadline: string;
-}
-
-export function formatDDay(dDay: number): string {
-  return dDay === 0 ? 'D-DAY' : `D-${dDay}`;
-}
+export type { DigestItem };
+export { formatDDay };
 
 /** dDay<=3은 긴급(레드), 그 외(=7)는 임박(앰버) — 프론트 StampBadge 색 구간과 동일한 기준. */
 function dDayColor(dDay: number): string {
@@ -48,6 +41,9 @@ export function buildDigestEmailHtml(nickname: string, items: DigestItem[], dash
         <tr>
           <td style="padding:10px 8px;border-bottom:1px solid #E2E0D6;font-size:14px;color:#1F2937;font-weight:700;">
             ${escapeHtml(item.itemName)}
+            <div style="margin-top:2px;font-size:12px;font-weight:400;color:${dDayColor(item.dDay)};">
+              ${escapeHtml(buildItemClause(item))}
+            </div>
           </td>
           <td style="padding:10px 8px;border-bottom:1px solid #E2E0D6;font-size:12px;color:#6B7280;white-space:nowrap;">
             ${TYPE_SHORT_LABEL[item.type]}
@@ -78,7 +74,7 @@ export function buildDigestEmailHtml(nickname: string, items: DigestItem[], dash
             <tr>
               <td style="padding:16px 28px 4px;">
                 <h1 style="margin:0;font-size:19px;line-height:1.4;color:#1F2937;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
-                  ${escapeHtml(nickname)}님, 오늘 챙길 게 <span style="color:#C13B3B;">${items.length}건</span> 있어요
+                  ${escapeHtml(nickname)}님, <span style="color:#C13B3B;">${escapeHtml(buildDigestTitle(items))}</span>
                 </h1>
               </td>
             </tr>

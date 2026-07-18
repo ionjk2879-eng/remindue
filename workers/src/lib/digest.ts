@@ -5,7 +5,8 @@
 // 곧 "받겠다"는 의사표시라 그 플래그와 무관하게(구독이 있으면) 보낸다.
 
 import { computeDDay, computeDeadline } from './purchase-logic';
-import { buildDigestEmailHtml, formatDDay, sendDigestEmail, type DigestItem } from './email';
+import { buildDigestEmailHtml, sendDigestEmail } from './email';
+import { buildDigestTitle, buildItemMessage, type DigestItem } from './messages';
 import { sendPush } from './push';
 import type { Env, PurchaseRow, PushSubscriptionRow } from '../types';
 
@@ -32,8 +33,9 @@ export interface DigestRunResult {
   pushSubscriptionsPruned: number;
 }
 
+/** items는 호출부에서 이미 dDay 오름차순으로 정렬돼 있다고 가정한다 — 가장 급한 문구가 앞에 온다. */
 function buildPushBody(items: DigestItem[]): string {
-  const summary = items.map((item) => `${item.itemName} (${formatDDay(item.dDay)})`).join(', ');
+  const summary = items.map((item) => buildItemMessage(item)).join(' / ');
   return summary.length > PUSH_BODY_MAX_LENGTH ? `${summary.slice(0, PUSH_BODY_MAX_LENGTH - 1)}…` : summary;
 }
 
@@ -68,8 +70,9 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
   let pushSubscriptionsPruned = 0;
 
   for (const [userId, { email, nickname, emailEnabled, items }] of itemsByUserId) {
+    // 급한 순서(0 → 1 → 3 → 7)로 정렬 — 다이제스트 상단과 제목 모두 이 순서를 기준으로 삼는다.
     items.sort((a, b) => a.dDay - b.dDay);
-    const subject = `챙길 게 ${items.length}건 있어요 — Remindue`;
+    const subject = `${buildDigestTitle(items)} — Remindue`;
 
     if (emailEnabled) {
       const html = buildDigestEmailHtml(nickname, items, dashboardUrl);
