@@ -9,9 +9,13 @@ import type { AuthResponse, Env, UserRow } from '../types';
 const ACCESS_TOKEN_EXPIRATION_SECONDS = 60 * 60; // 1시간 — application.yml의 access-token-expiration-ms와 동일
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** add-{token}@{도메인} 형태의 개인 포워딩 주소에 쓸 16자리 hex 토큰. */
+/**
+ * add-{token}@{도메인} 형태의 개인 포워딩 주소에 쓸 32자리(16바이트=128비트) hex 토큰.
+ * 이 주소를 아는 것만으로 어느 계정으로 항목이 등록될지 결정되므로, 추측/무차별 대입이
+ * 사실상 불가능한 길이(요구사항: 최소 20자 이상)로 잡는다.
+ */
 function generateForwardingToken(): string {
-  const bytes = new Uint8Array(8);
+  const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
@@ -56,7 +60,7 @@ auth.post('/signup', async (c) => {
 
   const passwordHash = await hashPassword(password);
 
-  // forwarding_token은 UNIQUE라 64비트 랜덤값이 우연히 겹치는 극히 드문 경우에만 재시도한다.
+  // forwarding_token은 UNIQUE라 128비트 랜덤값이 우연히 겹치는 극히 드문 경우에만 재시도한다.
   let inserted = false;
   for (let attempt = 0; attempt < 5 && !inserted; attempt++) {
     try {

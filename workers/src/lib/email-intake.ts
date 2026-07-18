@@ -2,14 +2,16 @@
 // add-{forwarding_token}@{도메인} 형태의 개인 수신 주소로 온 메일만 처리한다 — 토큰으로 어느
 // 사용자의 메일인지 식별하고, Claude로 "온라인 쇼핑 주문확인 메일이 맞는지 + 상품명/일자"를
 // 추출해서 pending_purchases에 확인 대기 상태로만 넣는다(바로 purchases에 등록하지 않음).
+//
+// 개인정보 보호: 원본 메일(제목/본문)은 파싱 직후 이 함수의 지역 변수로만 존재하다가 함수가
+// 끝나면 버려진다 — DB에도, 로그에도 남기지 않는다. DB에는 Claude가 추출한 구조화 필드
+// (상품명/날짜)만 저장한다.
 
 import PostalMime from 'postal-mime';
 import { extractOrderConfirmation } from './email-extract';
 import type { Env, UserRow } from '../types';
 
 const TO_LOCAL_PART_PATTERN = /^add-([a-z0-9]+)$/i;
-// 사용자가 대시보드에서 "이게 무슨 메일이었지"를 확인할 수 있게 남기는 정도의 짧은 발췌.
-const RAW_EXCERPT_MAX_CHARS = 300;
 
 function extractForwardingToken(toAddress: string): string | null {
   const localPart = toAddress.split('@')[0] ?? '';
@@ -45,24 +47,23 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
   const bodyText = parsed.text?.trim() || (parsed.html ? stripHtml(parsed.html) : '');
 
   if (!bodyText) {
-    console.warn(`[email-intake] 본문을 읽을 수 없어 무시합니다 (수신자: ${user.email}, 제목: ${subject})`);
+    console.warn(`[email-intake] 본문을 읽을 수 없어 무시합니다 (수신자: ${user.email})`);
     return;
   }
 
+  // subject/bodyText는 여기서만 쓰이고 함수 종료와 함께 버려진다 — 어디에도 저장/로그하지 않는다.
   const extracted = await extractOrderConfirmation(env.ANTHROPIC_API_KEY, subject, bodyText);
   if (!extracted || !extracted.isOrderConfirmation) {
-    console.log(`[email-intake] 주문확인 메일이 아니라고 판단되어 무시합니다 (수신자: ${user.email}, 제목: ${subject})`);
+    console.log(`[email-intake] 주문확인 메일이 아니라고 판단되어 무시합니다 (수신자: ${user.email})`);
     return;
   }
-
-  const rawExcerpt = `${subject}\n\n${bodyText}`.slice(0, RAW_EXCERPT_MAX_CHARS);
 
   await env.DB.prepare(
     `INSERT INTO pending_purchases
-       (user_id, source, item_name, order_date, return_deadline, expected_delivery_date, raw_excerpt)
-     VALUES (?, 'email', ?, ?, ?, ?, ?)`
+       (user_id, source, item_name, order_date, return_deadline, expected_delivery_date)
+     VALUES (?, 'email', ?, ?, ?, ?)`
   )
-    .bind(user.id, extracted.itemName, extracted.orderDate, extracted.returnDeadline, extracted.expectedDeliveryDate, rawExcerpt)
+    .bind(user.id, extracted.itemName, extracted.orderDate, extracted.returnDeadline, extracted.expectedDeliveryDate)
     .run();
 
   console.log(`[email-intake] 확인 대기 항목 추가 (수신자: ${user.email}, 상품명: ${extracted.itemName ?? '(없음)'})`);

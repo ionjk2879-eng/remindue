@@ -213,6 +213,10 @@ export default function DashboardPage() {
           <p className="forwarding-banner__hint">
             쇼핑몰 주문확인 메일을 이 주소로 전달(포워딩)하면 자동으로 아래 "확인 대기" 목록에 올라와요.
           </p>
+          <p className="forwarding-banner__privacy">
+            🔒 전달하신 이메일은 상품명·날짜 추출을 위해 Claude API(Anthropic)로 처리되며, 처리 후
+            원본은 저장되지 않습니다.
+          </p>
         </div>
       )}
 

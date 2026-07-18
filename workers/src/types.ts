@@ -35,7 +35,8 @@ export interface UserRow {
 export type PendingPurchaseSource = 'email' | 'image';
 export type PendingPurchaseStatus = 'pending' | 'confirmed' | 'ignored';
 
-// D1 row shape (snake_case columns from migrations/0006_add_pending_purchases.sql)
+// D1 row shape (snake_case columns from migrations/0006_add_pending_purchases.sql,
+// raw_excerpt dropped in 0007 — 원본 메일은 저장하지 않는다).
 export interface PendingPurchaseRow {
   id: number;
   user_id: number;
@@ -44,7 +45,6 @@ export interface PendingPurchaseRow {
   order_date: string | null;
   return_deadline: string | null;
   expected_delivery_date: string | null;
-  raw_excerpt: string | null;
   status: PendingPurchaseStatus;
   created_at: string;
 }
@@ -57,7 +57,6 @@ export interface PendingPurchaseResponse {
   orderDate: string | null;
   returnDeadline: string | null;
   expectedDeliveryDate: string | null;
-  rawExcerpt: string | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

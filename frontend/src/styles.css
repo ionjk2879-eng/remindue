@@ -545,6 +545,14 @@ select {
   color: var(--ink-soft);
 }
 
+.forwarding-banner__privacy {
+  margin-top: 6px;
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+  border-top: 1px dashed var(--hairline);
+  padding-top: 6px;
+}
+
 /* --------------------------------------------------------------------------
    Pending purchases ("확인 대기 중인 항목")
    -------------------------------------------------------------------------- */

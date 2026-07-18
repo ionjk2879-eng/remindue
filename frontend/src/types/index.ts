@@ -44,7 +44,6 @@ export interface PendingPurchase {
   orderDate: string | null; // yyyy-MM-dd
   returnDeadline: string | null; // yyyy-MM-dd
   expectedDeliveryDate: string | null; // yyyy-MM-dd
-  rawExcerpt: string | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }
