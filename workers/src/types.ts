@@ -36,15 +36,20 @@ export type PendingPurchaseSource = 'email' | 'image';
 export type PendingPurchaseStatus = 'pending' | 'confirmed' | 'ignored';
 
 // D1 row shape (snake_case columns from migrations/0006_add_pending_purchases.sql,
-// raw_excerpt dropped in 0007 — 원본 메일은 저장하지 않는다).
+// raw_excerpt dropped in 0007 — 원본 메일은 저장하지 않는다. type/return_deadline_days/
+// return_deadline_estimated는 0009에서 추가, return_deadline(절대 날짜)는 0009에서 제거).
 export interface PendingPurchaseRow {
   id: number;
   user_id: number;
   source: PendingPurchaseSource;
+  type: PurchaseType;
   item_name: string | null;
   order_date: string | null;
-  return_deadline: string | null;
   expected_delivery_date: string | null;
+  /** AI가 추정한 반품/교환 가능 일수(명시 안 됐으면 서버가 법정 최소 기준 7일로 채움). */
+  return_deadline_days: number | null;
+  /** SQLite boolean(0/1) — true면 return_deadline_days가 메일에 명시된 값이 아니라 추정값. */
+  return_deadline_estimated: number;
   status: PendingPurchaseStatus;
   created_at: string;
 }
@@ -53,10 +58,12 @@ export interface PendingPurchaseRow {
 export interface PendingPurchaseResponse {
   id: number;
   source: PendingPurchaseSource;
+  type: PurchaseType;
   itemName: string | null;
   orderDate: string | null;
-  returnDeadline: string | null;
   expectedDeliveryDate: string | null;
+  returnDeadlineDays: number | null;
+  returnDeadlineEstimated: boolean;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

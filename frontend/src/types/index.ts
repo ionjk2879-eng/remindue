@@ -40,10 +40,14 @@ export type PendingPurchaseStatus = 'pending' | 'confirmed' | 'ignored';
 export interface PendingPurchase {
   id: number;
   source: PendingPurchaseSource;
+  type: PurchaseType;
   itemName: string | null;
   orderDate: string | null; // yyyy-MM-dd
-  returnDeadline: string | null; // yyyy-MM-dd
   expectedDeliveryDate: string | null; // yyyy-MM-dd
+  /** AI가 추정한 반품/교환 가능 일수. */
+  returnDeadlineDays: number | null;
+  /** true면 메일에 명시된 값이 아니라 법정 최소 기준(7일)으로 추정한 값. */
+  returnDeadlineEstimated: boolean;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

@@ -30,10 +30,12 @@ export function toPendingPurchaseResponse(row: PendingPurchaseRow): PendingPurch
   return {
     id: row.id,
     source: row.source,
+    type: row.type,
     itemName: row.item_name,
     orderDate: row.order_date,
-    returnDeadline: row.return_deadline,
     expectedDeliveryDate: row.expected_delivery_date,
+    returnDeadlineDays: row.return_deadline_days,
+    returnDeadlineEstimated: row.return_deadline_estimated === 1,
     status: row.status,
     createdAt: row.created_at,
   };

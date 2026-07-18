@@ -9,9 +9,20 @@
 
 import PostalMime from 'postal-mime';
 import { extractOrderConfirmation } from './email-extract';
-import type { Env, UserRow } from '../types';
+import { DEFAULT_RETURN_DEADLINE_DAYS } from './purchase-logic';
+import { PURCHASE_TYPES, type Env, type PurchaseType, type UserRow } from '../types';
 
 const TO_LOCAL_PART_PATTERN = /^add-([a-z0-9]+)$/i;
+
+/** AI가 준 종류 추정값이 유효한 3종 중 하나가 아니면(모델 오류 등) 안전하게 기본값으로 되돌린다. */
+function sanitizeEstimatedType(value: string | null): PurchaseType {
+  return PURCHASE_TYPES.includes(value as PurchaseType) ? (value as PurchaseType) : 'ONLINE_ORDER';
+}
+
+/** AI가 준 반품기한 일수가 비정상(0 이하 등)이면 안전하게 기본값으로 되돌린다. */
+function sanitizeReturnDeadlineDays(days: number | null): number {
+  return typeof days === 'number' && Number.isInteger(days) && days > 0 ? days : DEFAULT_RETURN_DEADLINE_DAYS;
+}
 
 function extractForwardingToken(toAddress: string): string | null {
   const localPart = toAddress.split('@')[0] ?? '';
@@ -58,12 +69,20 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
     return;
   }
 
+  const type = sanitizeEstimatedType(extracted.estimatedType);
+  // 메일에 반품기한이 구체적으로 명시되지 않았으면 전자상거래법 최소 기준(7일)으로 채우고
+  // return_deadline_estimated=1로 표시해서 확인 대기 화면에서 "추정값" 경고를 보여줄 수 있게 한다.
+  const returnDeadlineDays = extracted.foundExplicitDeadline
+    ? sanitizeReturnDeadlineDays(extracted.returnDeadlineDays)
+    : DEFAULT_RETURN_DEADLINE_DAYS;
+  const returnDeadlineEstimated = extracted.foundExplicitDeadline ? 0 : 1;
+
   await env.DB.prepare(
     `INSERT INTO pending_purchases
-       (user_id, source, item_name, order_date, return_deadline, expected_delivery_date)
-     VALUES (?, 'email', ?, ?, ?, ?)`
+       (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated)
+     VALUES (?, 'email', ?, ?, ?, ?, ?, ?)`
   )
-    .bind(user.id, extracted.itemName, extracted.orderDate, extracted.returnDeadline, extracted.expectedDeliveryDate)
+    .bind(user.id, type, extracted.itemName, extracted.orderDate, extracted.expectedDeliveryDate, returnDeadlineDays, returnDeadlineEstimated)
     .run();
 
   console.log(`[email-intake] 확인 대기 항목 추가 (수신자: ${user.email}, 상품명: ${extracted.itemName ?? '(없음)'})`);

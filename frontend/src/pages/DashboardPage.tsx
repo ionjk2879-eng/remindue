@@ -44,18 +44,6 @@ function isFullyConfirmed(p: Purchase): boolean {
   return p.type === 'RECURRING_DELIVERY' && p.missedConfirmations === 0;
 }
 
-/**
- * 확인 대기 항목의 주문일/반품기한 날짜 둘 다 있으면 그 차이(일수)를, 없으면 기존 기본값(7일)을 쓴다.
- * "등록" 폼에 프리필할 때만 쓰는 값이라 사용자가 프리필 이후 언제든 직접 고칠 수 있다.
- */
-function computeReturnDeadlineDays(item: PendingPurchase): number {
-  if (item.orderDate && item.returnDeadline) {
-    const days = Math.round((new Date(item.returnDeadline).getTime() - new Date(item.orderDate).getTime()) / 86_400_000);
-    if (days > 0) return days;
-  }
-  return 7;
-}
-
 export default function DashboardPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -115,14 +103,20 @@ export default function DashboardPage() {
     resetForm();
   };
 
-  /** 확인 대기 항목 하나를 등록 폼에 프리필한다 — 수정은 자유롭게 가능하고, 제출하면 정식 등록 + 대기 항목은 확인 처리된다. */
+  /**
+   * 확인 대기 항목 하나를 등록 폼에 프리필한다 — AI가 추정한 종류(type)를 그대로 프리필하되,
+   * 폼 자체가 이미 종류를 자유롭게 바꿀 수 있고 종류에 맞는 입력 필드로 전환되므로 별도 UI 없이
+   * "등록 전 확인 단계에서 종류까지 수정 가능"이 자연스럽게 충족된다.
+   */
   const handlePendingRegisterClick = (item: PendingPurchase) => {
     setErrorMessage(null);
     resetForm();
-    setType('ONLINE_ORDER');
+    setType(item.type);
     setItemName(item.itemName ?? '');
     setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
-    setReturnDeadlineDays(String(computeReturnDeadlineDays(item)));
+    if (item.returnDeadlineDays !== null) {
+      setReturnDeadlineDays(String(item.returnDeadlineDays));
+    }
     setPendingConfirmId(item.id);
   };
 
@@ -229,26 +223,40 @@ export default function DashboardPage() {
             {pendingItems.map((item) => (
               <div className="pending-card" key={item.id}>
                 <div className="pending-card__body">
-                  <p className="pending-card__name">{item.itemName ?? '(상품명 미확인)'}</p>
+                  <p className="pending-card__name">
+                    <span className={`type-dot type-dot--${item.type}`} aria-hidden="true" />
+                    {item.itemName ?? '(상품명 미확인)'}
+                    <span className="pending-card__type">{TYPE_SHORT_LABEL[item.type]}</span>
+                  </p>
                   <p className="pending-card__meta">
                     {item.orderDate && (
                       <>
                         주문일 <span className="mono">{item.orderDate}</span>
                       </>
                     )}
-                    {item.returnDeadline && (
+                    {item.type === 'ONLINE_ORDER' && item.returnDeadlineDays !== null && (
                       <>
                         {item.orderDate && ' · '}
-                        반품기한 <span className="mono">{item.returnDeadline}</span>
+                        반품기한 <span className="mono">{item.returnDeadlineDays}일</span>
                       </>
                     )}
                     {item.expectedDeliveryDate && (
                       <>
-                        {(item.orderDate || item.returnDeadline) && ' · '}
+                        {(item.orderDate || (item.type === 'ONLINE_ORDER' && item.returnDeadlineDays !== null)) && ' · '}
                         예상배송일 <span className="mono">{item.expectedDeliveryDate}</span>
                       </>
                     )}
                   </p>
+                  {item.type === 'ONLINE_ORDER' && item.returnDeadlineEstimated && (
+                    <p className="pending-card__hint">
+                      ⚠️ 반품기한이 명시되어 있지 않아 법정 최소 기간(7일)으로 추정했어요. 실제 구매처 주문내역에서 확인해주세요.
+                    </p>
+                  )}
+                  {item.type === 'RECURRING_DELIVERY' && (
+                    <p className="pending-card__hint">
+                      ⚠️ 배송 주기는 원본에 명시되지 않으면 정확하지 않을 수 있어요. 확인 후 등록해주세요.
+                    </p>
+                  )}
                 </div>
                 <div className="pending-card__actions">
                   <button type="button" className="btn btn-sm" onClick={() => handlePendingRegisterClick(item)}>
