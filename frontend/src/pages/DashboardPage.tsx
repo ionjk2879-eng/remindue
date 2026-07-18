@@ -300,12 +300,7 @@ export default function DashboardPage() {
             <label htmlFor="type">종류</label>
             <div className="type-select-row">
               <span className={`type-dot type-dot--${type}`} aria-hidden="true" />
-              <select
-                id="type"
-                value={type}
-                onChange={(e) => setType(e.target.value as PurchaseType)}
-                disabled={editingId !== null}
-              >
+              <select id="type" value={type} onChange={(e) => setType(e.target.value as PurchaseType)}>
                 <option value="ELECTRONICS">전자제품</option>
                 <option value="ONLINE_ORDER">온라인 주문</option>
                 <option value="RECURRING_DELIVERY">정기배송</option>
