@@ -33,6 +33,9 @@
     // 배포한다(CLAUDE.md 참고) — Workers Builds의 non-production branch build를 켜지 않아도
     // 항상 이 고정 주소로 접근 가능하다.
     "CORS_ORIGIN": "https://remindue.kr,https://remindue-frontend.ionjk2879.workers.dev,https://dev-remindue-frontend.ionjk2879.workers.dev",
+    // 다이제스트 이메일/푸시 링크에 쓰는 단일 대시보드 출처 — CORS_ORIGIN(콤마로 구분된 여러
+    // 출처 허용 목록)과는 용도가 다르다. 실서비스 프론트엔드 주소 하나만 가리킨다.
+    "APP_URL": "https://remindue.kr",
     // web-push 스펙상 필수인 연락처 식별자 — 비밀값이 아니라 그냥 vars로 둔다.
     "VAPID_SUBJECT": "mailto:ionjk2879@gmail.com",
     // Email Routing이 붙어있는 도메인 — 사용자 전용 수신 주소(add-{token}@{도메인}) 조립에 쓴다.

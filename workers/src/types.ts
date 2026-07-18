@@ -120,6 +120,8 @@ export interface Env {
   JWT_SECRET: string;
   /** 콤마로 구분된 허용 출처 목록(예: "https://remindue.kr,https://remindue-frontend.ionjk2879.workers.dev"). index.ts의 allowedOrigins()가 파싱한다. */
   CORS_ORIGIN: string;
+  /** 다이제스트 이메일/푸시에 넣을 대시보드 링크의 기준 출처(단일 URL). CORS_ORIGIN은 콤마로 구분된 여러 출처를 담을 수 있어 링크 조립에는 쓸 수 없다. */
+  APP_URL: string;
   /** Resend API 키. 로컬은 .dev.vars, 배포본은 `wrangler secret put RESEND_API_KEY`로 관리한다. */
   RESEND_API_KEY: string;
   /** VAPID 키 쌍 — `npx web-push generate-vapid-keys`로 생성. 공개키는 프론트에도 노출되는 값이라 비밀은 아니지만, 개인키는 반드시 시크릿으로 관리한다. */

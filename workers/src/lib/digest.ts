@@ -64,7 +64,7 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
     itemsByUserId.set(row.user_id, bucket);
   }
 
-  const dashboardUrl = `${env.CORS_ORIGIN}/dashboard`;
+  const dashboardUrl = `${env.APP_URL}/dashboard`;
   let emailsSent = 0;
   let pushSent = 0;
   let pushSubscriptionsPruned = 0;
