@@ -3,8 +3,8 @@
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
-import { InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
-import { BadRequestError, ForbiddenError } from '../lib/errors';
+import { FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
+import { BadRequestError, ForbiddenError, PaymentRequiredError } from '../lib/errors';
 import { PURCHASE_TYPES } from '../types';
 import type { Env, PurchaseRequestBody, PurchaseRow, UserRow } from '../types';
 
@@ -66,6 +66,17 @@ purchases.get('/', async (c) => {
 purchases.post('/', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   const body = validatePurchaseRequest(await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({})));
+
+  if (user.is_premium !== 1) {
+    const { count } = (await c.env.DB.prepare('SELECT COUNT(*) AS count FROM purchases WHERE user_id = ?')
+      .bind(user.id)
+      .first<{ count: number }>())!;
+    if (count >= FREE_PLAN_MAX_PURCHASES) {
+      throw new PaymentRequiredError(
+        `무료 플랜은 최대 ${FREE_PLAN_MAX_PURCHASES}개까지 등록 가능해요. 무제한으로 이용하려면 프리미엄으로 업그레이드하세요.`
+      );
+    }
+  }
 
   // lastDeliveredDate는 이제 "마지막 수령 확인" 참고 로그일 뿐 배송일 계산에 쓰이지 않으므로,
   // 등록 시점엔 아직 아무것도 확인된 게 없다는 뜻으로 null로 둔다.

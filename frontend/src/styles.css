@@ -279,6 +279,16 @@ select {
   padding: 8px 10px;
 }
 
+.premium-upsell {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--safe-teal);
+  background: #e3f0ec;
+  border: 1px dashed var(--safe-teal);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
 .auth-switch {
   margin-top: 20px;
   font-size: 0.85rem;
@@ -314,6 +324,18 @@ select {
 .dashboard-header h1 {
   font-size: 1.3rem;
   letter-spacing: -0.01em;
+}
+
+.plan-counter {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 4px 12px;
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------------------------------

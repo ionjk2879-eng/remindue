@@ -10,6 +10,8 @@ import type { PurchaseRow, PurchaseType } from '../types';
 export const DEFAULT_WARRANTY_MONTHS = 12;
 export const DEFAULT_RETURN_DEADLINE_DAYS = 7;
 export const DEFAULT_INTERVAL_DAYS = 30;
+/** 무료 플랜(is_premium=0)이 등록할 수 있는 최대 항목 개수. 프리미엄은 무제한. */
+export const FREE_PLAN_MAX_PURCHASES = 5;
 
 type DeadlineInput = Pick<PurchaseRow, 'type' | 'base_date' | 'warranty_months' | 'return_deadline_days' | 'interval_days'>;
 

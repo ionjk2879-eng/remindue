@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import axios from 'axios';
 import { fetchPurchases, createPurchase, updatePurchase, deletePurchase, markDelivered } from '../api/purchases';
 import { fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
 import type { PendingPurchase, Purchase, PurchaseType } from '../types';
@@ -29,6 +30,9 @@ const PURCHASE_TYPES: PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRIN
 /** "7일 이내" 배너와 동일한 기준 — 이 안으로 들어오면 다시 챙길 때가 된 것으로 본다. */
 const URGENT_WINDOW_DAYS = 7;
 
+/** 무료 플랜(isPremium=false) 최대 등록 개수 — 백엔드 purchase-logic.ts의 FREE_PLAN_MAX_PURCHASES와 값을 맞춘다. */
+const FREE_PLAN_MAX_PURCHASES = 5;
+
 /** "2026-08-15" -> "8/15" */
 function formatShortDate(dateStr: string): string {
   const [, month, day] = dateStr.split('-').map(Number);
@@ -54,6 +58,7 @@ export default function DashboardPage() {
   const [returnDeadlineDays, setReturnDeadlineDays] = useState('7');
   const [intervalDays, setIntervalDays] = useState('30');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showPremiumUpsell, setShowPremiumUpsell] = useState(false);
   const [forwardingEmail, setForwardingEmail] = useState('');
   const [pendingItems, setPendingItems] = useState<PendingPurchase[]>([]);
   const [pendingConfirmId, setPendingConfirmId] = useState<number | null>(null);
@@ -139,6 +144,7 @@ export default function DashboardPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setShowPremiumUpsell(false);
     const input = {
       type,
       itemName,
@@ -163,9 +169,14 @@ export default function DashboardPage() {
         await loadPending();
       }
     } catch (err) {
-      setErrorMessage(
-        editingId !== null ? '수정하지 못했습니다. 입력값을 확인해주세요.' : '등록하지 못했습니다. 입력값을 확인해주세요.'
-      );
+      if (axios.isAxiosError(err) && err.response?.status === 402) {
+        setErrorMessage(err.response.data?.message ?? '무료 플랜 등록 개수를 초과했습니다.');
+        setShowPremiumUpsell(true);
+      } else {
+        setErrorMessage(
+          editingId !== null ? '수정하지 못했습니다. 입력값을 확인해주세요.' : '등록하지 못했습니다. 입력값을 확인해주세요.'
+        );
+      }
       console.error(err);
     }
   };
@@ -196,6 +207,11 @@ export default function DashboardPage() {
         <h1>
           {nickname}님의 <span className="accent">챙길 목록</span>
         </h1>
+        {!isPremium && (
+          <span className="plan-counter mono">
+            {purchases.length}/{FREE_PLAN_MAX_PURCHASES}개 등록됨
+          </span>
+        )}
       </div>
 
       {isPremium && weeklyRecurring.length > 0 && (
@@ -398,6 +414,11 @@ export default function DashboardPage() {
           )}
         </div>
         {errorMessage && <p className="form-error" style={{ marginTop: 12 }}>{errorMessage}</p>}
+        {showPremiumUpsell && (
+          <p className="premium-upsell" style={{ marginTop: 6 }}>
+            ✨ 프리미엄으로 업그레이드하면 등록 개수 제한 없이 이용할 수 있어요. (결제 기능은 준비 중이에요)
+          </p>
+        )}
       </form>
 
       <div className="ticket-list">
