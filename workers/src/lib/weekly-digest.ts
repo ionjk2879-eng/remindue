@@ -5,11 +5,11 @@
 //
 // 두 가지를 모아서 보여준다:
 // 1. 이번 주(오늘부터 7일 이내) 배송 예정인 항목
-// 2. 계산상 회차(deliveryRound)보다 "이번 회차 수령 확인" 누른 횟수(delivery_confirm_count)가
-//    적어서 확인을 놓쳤을 가능성이 있는 항목(대시보드 티켓 카드에도 항상 표시되는 것과 동일한
-//    missedConfirmations 계산 — mapper.ts의 toPurchaseResponse와 로직을 맞춘다)
+// 2. 계산상 이미 도래한 회차보다 "이번 회차 수령 확인" 누른 횟수(delivery_confirm_count)가
+//    적어서 확인을 놓쳤을 가능성이 있는 항목(대시보드 티켓 카드와 동일한 계산 —
+//    purchase-logic.ts의 computeMissedConfirmations를 그대로 재사용한다)
 
-import { computeDDay, computeDeadline } from './purchase-logic';
+import { computeDDay, computeDeadline, computeMissedConfirmations } from './purchase-logic';
 import { buildWeeklyDigestEmailHtml, sendDigestEmail, type WeeklyItem } from './email';
 import { sendPush } from './push';
 import type { Env, PurchaseRow, PushSubscriptionRow } from '../types';
@@ -55,7 +55,7 @@ export async function runWeeklyDigest(env: Env): Promise<WeeklyDigestRunResult> 
 
     const { deadline, deliveryRound } = computeDeadline(row);
     const dDay = computeDDay(deadline);
-    const missedCount = deliveryRound === null ? 0 : Math.max(0, deliveryRound - row.delivery_confirm_count);
+    const missedCount = deliveryRound === null ? 0 : computeMissedConfirmations(deliveryRound, dDay, row.delivery_confirm_count);
 
     const isUpcoming = dDay >= 0 && dDay <= UPCOMING_WINDOW_DAYS;
     const isMissed = missedCount > 0;

@@ -1,11 +1,12 @@
-import { computeDDay, computeDeadline } from './purchase-logic';
+import { computeDDay, computeDeadline, computeMissedConfirmations } from './purchase-logic';
 import type { PendingPurchaseResponse, PendingPurchaseRow, PurchaseResponse, PurchaseRow } from '../types';
 
 export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
   const { deadline, deliveryRound } = computeDeadline(row);
+  const dDay = computeDDay(deadline);
 
   // deliveryRound가 null이면(정기배송이 아니면) 회차 개념 자체가 없으므로 missedConfirmations도 null.
-  const missedConfirmations = deliveryRound === null ? null : Math.max(0, deliveryRound - row.delivery_confirm_count);
+  const missedConfirmations = deliveryRound === null ? null : computeMissedConfirmations(deliveryRound, dDay, row.delivery_confirm_count);
 
   return {
     id: row.id,
@@ -19,7 +20,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     intervalDays: row.interval_days,
     lastDeliveredDate: row.last_delivered_date,
     deadline,
-    dDay: computeDDay(deadline),
+    dDay,
     deliveryRound,
     missedConfirmations,
     createdAt: row.created_at,
