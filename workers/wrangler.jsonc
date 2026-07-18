@@ -27,7 +27,9 @@
     // JWT_SECRET/RESEND_API_KEY/VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY는 여기 두지 않는다 — 로컬은
     // .dev.vars(gitignore됨), 배포본은 `wrangler secret put <NAME>`으로 관리한다.
     // 로컬 개발용 CORS_ORIGIN(http://localhost:5173)도 .dev.vars에서 덮어쓴다.
-    "CORS_ORIGIN": "https://remindue-frontend.ionjk2879.workers.dev",
+    // 콤마로 구분된 여러 출처를 허용한다 — 커스텀 도메인(remindue.kr)과 예전 workers.dev
+    // 프론트엔드 주소를 전환 기간 동안 둘 다 허용해둔다.
+    "CORS_ORIGIN": "https://remindue.kr,https://remindue-frontend.ionjk2879.workers.dev",
     // web-push 스펙상 필수인 연락처 식별자 — 비밀값이 아니라 그냥 vars로 둔다.
     "VAPID_SUBJECT": "mailto:ionjk2879@gmail.com",
     // Email Routing이 붙어있는 도메인 — 사용자 전용 수신 주소(add-{token}@{도메인}) 조립에 쓴다.

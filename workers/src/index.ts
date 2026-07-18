@@ -11,9 +11,17 @@ import type { Env } from './types';
 
 const app = new Hono<{ Bindings: Env }>();
 
+// CORS_ORIGIN은 콤마로 구분된 여러 출처를 담을 수 있다 — 커스텀 도메인(remindue.kr)을 붙인
+// 뒤에도 예전 workers.dev 프론트엔드 주소나 로컬 개발 주소가 계속 동작하게 하기 위함.
+function allowedOrigins(env: Env): string[] {
+  return env.CORS_ORIGIN.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
 app.use('/api/*', async (c, next) => {
   const corsMiddleware = cors({
-    origin: c.env.CORS_ORIGIN,
+    origin: allowedOrigins(c.env),
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -34,7 +42,7 @@ app.route('/api/pending-purchases', pendingPurchaseRoutes);
 // 그래서 에러 응답에도 동일한 CORS 헤더를 직접 다시 붙여준다.
 app.onError((err, c) => {
   const origin = c.req.header('Origin');
-  if (origin && origin === c.env.CORS_ORIGIN) {
+  if (origin && allowedOrigins(c.env).includes(origin)) {
     c.header('Access-Control-Allow-Origin', origin);
     c.header('Access-Control-Allow-Credentials', 'true');
     c.header('Vary', 'Origin');

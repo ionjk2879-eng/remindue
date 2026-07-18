@@ -119,6 +119,7 @@ export interface PurchaseRequestBody {
 export interface Env {
   DB: D1Database;
   JWT_SECRET: string;
+  /** 콤마로 구분된 허용 출처 목록(예: "https://remindue.kr,https://remindue-frontend.ionjk2879.workers.dev"). index.ts의 allowedOrigins()가 파싱한다. */
   CORS_ORIGIN: string;
   /** Resend API 키. 로컬은 .dev.vars, 배포본은 `wrangler secret put RESEND_API_KEY`로 관리한다. */
   RESEND_API_KEY: string;
