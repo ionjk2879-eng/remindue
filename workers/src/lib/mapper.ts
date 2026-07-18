@@ -1,5 +1,5 @@
 import { computeDDay, computeDeadline } from './purchase-logic';
-import type { PurchaseResponse, PurchaseRow } from '../types';
+import type { PendingPurchaseResponse, PendingPurchaseRow, PurchaseResponse, PurchaseRow } from '../types';
 
 export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
   const { deadline, deliveryRound } = computeDeadline(row);
@@ -22,6 +22,20 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     dDay: computeDDay(deadline),
     deliveryRound,
     missedConfirmations,
+    createdAt: row.created_at,
+  };
+}
+
+export function toPendingPurchaseResponse(row: PendingPurchaseRow): PendingPurchaseResponse {
+  return {
+    id: row.id,
+    source: row.source,
+    itemName: row.item_name,
+    orderDate: row.order_date,
+    returnDeadline: row.return_deadline,
+    expectedDeliveryDate: row.expected_delivery_date,
+    rawExcerpt: row.raw_excerpt,
+    status: row.status,
     createdAt: row.created_at,
   };
 }

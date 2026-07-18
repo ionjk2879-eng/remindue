@@ -12,6 +12,9 @@
   "triggers": {
     "crons": ["0 0 * * *"]
   },
+  // Email Routing으로 받는 메일을 처리하는 email() 핸들러(src/index.ts)는 wrangler.jsonc에 별도
+  // 설정이 필요 없다 — Cloudflare 대시보드에서 라우팅 규칙의 액션을 "Send to a Worker"로 잡고
+  // 이 Worker(remindue)를 선택하면 끝. 대시보드 설정 절차는 README.md 참고.
   "d1_databases": [
     {
       "binding": "DB",
@@ -26,6 +29,8 @@
     // 로컬 개발용 CORS_ORIGIN(http://localhost:5173)도 .dev.vars에서 덮어쓴다.
     "CORS_ORIGIN": "https://remindue-frontend.ionjk2879.workers.dev",
     // web-push 스펙상 필수인 연락처 식별자 — 비밀값이 아니라 그냥 vars로 둔다.
-    "VAPID_SUBJECT": "mailto:ionjk2879@gmail.com"
+    "VAPID_SUBJECT": "mailto:ionjk2879@gmail.com",
+    // Email Routing이 붙어있는 도메인 — 사용자 전용 수신 주소(add-{token}@{도메인}) 조립에 쓴다.
+    "FORWARDING_EMAIL_DOMAIN": "remindue.kr"
   }
 }

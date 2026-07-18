@@ -507,6 +507,102 @@ select {
 }
 
 /* --------------------------------------------------------------------------
+   Forwarding address banner ("이메일로 자동 등록")
+   -------------------------------------------------------------------------- */
+
+.forwarding-banner {
+  background: var(--paper-card);
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  margin-bottom: 22px;
+}
+
+.forwarding-banner__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.forwarding-banner__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.forwarding-banner__address {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.forwarding-banner__hint {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+/* --------------------------------------------------------------------------
+   Pending purchases ("확인 대기 중인 항목")
+   -------------------------------------------------------------------------- */
+
+.pending-section {
+  background: #fbf3e4;
+  border: 1.5px dashed var(--stamp-amber);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  margin-bottom: 22px;
+}
+
+.pending-section__title {
+  font-weight: 800;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  color: var(--stamp-amber);
+  margin-bottom: 10px;
+}
+
+.pending-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pending-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.pending-card__name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--ink);
+}
+
+.pending-card__meta {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.pending-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+/* --------------------------------------------------------------------------
    Registration form ("주문서")
    -------------------------------------------------------------------------- */
 

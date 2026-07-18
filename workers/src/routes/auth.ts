@@ -9,6 +9,13 @@ import type { AuthResponse, Env, UserRow } from '../types';
 const ACCESS_TOKEN_EXPIRATION_SECONDS = 60 * 60; // 1시간 — application.yml의 access-token-expiration-ms와 동일
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** add-{token}@{도메인} 형태의 개인 포워딩 주소에 쓸 16자리 hex 토큰. */
+function generateForwardingToken(): string {
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 interface SignupBody {
   email?: string;
   password?: string;
@@ -48,9 +55,25 @@ auth.post('/signup', async (c) => {
   }
 
   const passwordHash = await hashPassword(password);
-  await c.env.DB.prepare('INSERT INTO users (email, password_hash, nickname) VALUES (?, ?, ?)')
-    .bind(email, passwordHash, nickname)
-    .run();
+
+  // forwarding_token은 UNIQUE라 64비트 랜덤값이 우연히 겹치는 극히 드문 경우에만 재시도한다.
+  let inserted = false;
+  for (let attempt = 0; attempt < 5 && !inserted; attempt++) {
+    try {
+      await c.env.DB.prepare(
+        'INSERT INTO users (email, password_hash, nickname, forwarding_token) VALUES (?, ?, ?, ?)'
+      )
+        .bind(email, passwordHash, nickname, generateForwardingToken())
+        .run();
+      inserted = true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.includes('UNIQUE') || !message.includes('forwarding_token')) throw err;
+    }
+  }
+  if (!inserted) {
+    throw new Error('forwarding_token 발급에 반복 실패했습니다');
+  }
 
   const accessToken = await signJwt(email, c.env.JWT_SECRET, ACCESS_TOKEN_EXPIRATION_SECONDS);
   const response: AuthResponse = { accessToken, nickname };

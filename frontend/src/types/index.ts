@@ -33,3 +33,23 @@ export interface AuthResponse {
   accessToken: string;
   nickname: string;
 }
+
+export type PendingPurchaseSource = 'email' | 'image';
+export type PendingPurchaseStatus = 'pending' | 'confirmed' | 'ignored';
+
+export interface PendingPurchase {
+  id: number;
+  source: PendingPurchaseSource;
+  itemName: string | null;
+  orderDate: string | null; // yyyy-MM-dd
+  returnDeadline: string | null; // yyyy-MM-dd
+  expectedDeliveryDate: string | null; // yyyy-MM-dd
+  rawExcerpt: string | null;
+  status: PendingPurchaseStatus;
+  createdAt: string;
+}
+
+export interface PendingPurchasesResponse {
+  forwardingEmail: string;
+  items: PendingPurchase[];
+}

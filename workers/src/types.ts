@@ -28,6 +28,38 @@ export interface UserRow {
   created_at: string;
   /** SQLite boolean(0/1) — 매일 D-day 다이제스트 이메일 수신 여부. 기본값 1(켜짐). */
   email_notifications_enabled: number;
+  /** add-{forwarding_token}@{도메인}으로 온 메일을 이 사용자로 식별하는 고유 토큰. */
+  forwarding_token: string;
+}
+
+export type PendingPurchaseSource = 'email' | 'image';
+export type PendingPurchaseStatus = 'pending' | 'confirmed' | 'ignored';
+
+// D1 row shape (snake_case columns from migrations/0006_add_pending_purchases.sql)
+export interface PendingPurchaseRow {
+  id: number;
+  user_id: number;
+  source: PendingPurchaseSource;
+  item_name: string | null;
+  order_date: string | null;
+  return_deadline: string | null;
+  expected_delivery_date: string | null;
+  raw_excerpt: string | null;
+  status: PendingPurchaseStatus;
+  created_at: string;
+}
+
+// API response shape — matches frontend/src/types/index.ts exactly (camelCase).
+export interface PendingPurchaseResponse {
+  id: number;
+  source: PendingPurchaseSource;
+  itemName: string | null;
+  orderDate: string | null;
+  returnDeadline: string | null;
+  expectedDeliveryDate: string | null;
+  rawExcerpt: string | null;
+  status: PendingPurchaseStatus;
+  createdAt: string;
 }
 
 // API response shape — matches frontend/src/types/index.ts exactly (camelCase).
@@ -95,4 +127,8 @@ export interface Env {
   VAPID_PRIVATE_KEY: string;
   /** web-push 스펙상 필수인 연락처 식별자(mailto: 또는 https: URL). */
   VAPID_SUBJECT: string;
+  /** Claude API 키. 이메일 포워딩으로 들어온 주문확인 메일 파싱에 사용(claude-haiku-4-5). */
+  ANTHROPIC_API_KEY: string;
+  /** 이메일 포워딩 수신 주소에 쓰는 도메인(add-{token}@{도메인}). Cloudflare Email Routing이 붙어있는 도메인. */
+  FORWARDING_EMAIL_DOMAIN: string;
 }

@@ -5,3 +5,5 @@ RESEND_API_KEY=
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=mailto:you@example.com
+# platform.claude.com에서 발급 — 이메일 포워딩으로 온 주문확인 메일 파싱에 사용
+ANTHROPIC_API_KEY=

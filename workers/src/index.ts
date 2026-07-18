@@ -3,8 +3,10 @@ import { cors } from 'hono/cors';
 import authRoutes from './routes/auth';
 import purchaseRoutes from './routes/purchases';
 import pushRoutes from './routes/push';
+import pendingPurchaseRoutes from './routes/pending-purchases';
 import { HttpError } from './lib/errors';
 import { runDailyDigest } from './lib/digest';
+import { handleIncomingEmail } from './lib/email-intake';
 import type { Env } from './types';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -22,6 +24,7 @@ app.use('/api/*', async (c, next) => {
 app.route('/api/auth', authRoutes);
 app.route('/api/purchases', purchaseRoutes);
 app.route('/api/push', pushRoutes);
+app.route('/api/pending-purchases', pendingPurchaseRoutes);
 
 // GlobalExceptionHandler.java와 동일한 매핑: {message}, 상태코드는 에러 종류에 따라 결정
 //
@@ -55,5 +58,11 @@ export default {
         );
       })
     );
+  },
+  // Cloudflare Email Routing 라우팅 규칙(액션: "Send to a Worker")이 이 Worker로 넘겨주는 메일.
+  // add-{forwarding_token}@{도메인}으로 온 메일만 처리하고, 그 외 형식/미확인 토큰/주문확인이
+  // 아닌 메일은 email-intake.ts에서 조용히 무시한다.
+  email: async (message, env) => {
+    await handleIncomingEmail(message, env);
   },
 } satisfies ExportedHandler<Env>;

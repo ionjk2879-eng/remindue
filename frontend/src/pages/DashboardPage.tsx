@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { fetchPurchases, createPurchase, updatePurchase, deletePurchase, markDelivered } from '../api/purchases';
-import type { Purchase, PurchaseType } from '../types';
+import { fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
+import type { PendingPurchase, Purchase, PurchaseType } from '../types';
 import { useAuth } from '../context/AuthContext';
 import StampBadge from '../components/StampBadge';
 import PushPermissionBanner from '../components/PushPermissionBanner';
@@ -43,6 +44,18 @@ function isFullyConfirmed(p: Purchase): boolean {
   return p.type === 'RECURRING_DELIVERY' && p.missedConfirmations === 0;
 }
 
+/**
+ * 확인 대기 항목의 주문일/반품기한 날짜 둘 다 있으면 그 차이(일수)를, 없으면 기존 기본값(7일)을 쓴다.
+ * "등록" 폼에 프리필할 때만 쓰는 값이라 사용자가 프리필 이후 언제든 직접 고칠 수 있다.
+ */
+function computeReturnDeadlineDays(item: PendingPurchase): number {
+  if (item.orderDate && item.returnDeadline) {
+    const days = Math.round((new Date(item.returnDeadline).getTime() - new Date(item.orderDate).getTime()) / 86_400_000);
+    if (days > 0) return days;
+  }
+  return 7;
+}
+
 export default function DashboardPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -53,6 +66,10 @@ export default function DashboardPage() {
   const [returnDeadlineDays, setReturnDeadlineDays] = useState('7');
   const [intervalDays, setIntervalDays] = useState('30');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [forwardingEmail, setForwardingEmail] = useState('');
+  const [pendingItems, setPendingItems] = useState<PendingPurchase[]>([]);
+  const [pendingConfirmId, setPendingConfirmId] = useState<number | null>(null);
+  const [addressCopied, setAddressCopied] = useState(false);
   const { nickname } = useAuth();
 
   const load = async () => {
@@ -60,12 +77,20 @@ export default function DashboardPage() {
     setPurchases(data);
   };
 
+  const loadPending = async () => {
+    const data = await fetchPendingPurchases();
+    setForwardingEmail(data.forwardingEmail);
+    setPendingItems(data.items);
+  };
+
   useEffect(() => {
     load();
+    loadPending();
   }, []);
 
   const resetForm = () => {
     setEditingId(null);
+    setPendingConfirmId(null);
     setType('ELECTRONICS');
     setItemName('');
     setBaseDate('');
@@ -90,6 +115,33 @@ export default function DashboardPage() {
     resetForm();
   };
 
+  /** 확인 대기 항목 하나를 등록 폼에 프리필한다 — 수정은 자유롭게 가능하고, 제출하면 정식 등록 + 대기 항목은 확인 처리된다. */
+  const handlePendingRegisterClick = (item: PendingPurchase) => {
+    setErrorMessage(null);
+    resetForm();
+    setType('ONLINE_ORDER');
+    setItemName(item.itemName ?? '');
+    setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
+    setReturnDeadlineDays(String(computeReturnDeadlineDays(item)));
+    setPendingConfirmId(item.id);
+  };
+
+  const handleIgnorePending = async (id: number) => {
+    await ignorePendingPurchase(id);
+    await loadPending();
+  };
+
+  const handleCopyForwardingEmail = async () => {
+    if (!forwardingEmail) return;
+    try {
+      await navigator.clipboard.writeText(forwardingEmail);
+      setAddressCopied(true);
+      setTimeout(() => setAddressCopied(false), 1500);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -101,14 +153,21 @@ export default function DashboardPage() {
       returnDeadlineDays: type === 'ONLINE_ORDER' ? Number(returnDeadlineDays) : undefined,
       intervalDays: type === 'RECURRING_DELIVERY' ? Number(intervalDays) : undefined,
     };
+    const confirmingPendingId = pendingConfirmId;
     try {
       if (editingId !== null) {
         await updatePurchase(editingId, input);
       } else {
         await createPurchase(input);
+        if (confirmingPendingId !== null) {
+          await confirmPendingPurchase(confirmingPendingId);
+        }
       }
       resetForm();
       await load();
+      if (confirmingPendingId !== null) {
+        await loadPending();
+      }
     } catch (err) {
       setErrorMessage(
         editingId !== null ? '수정하지 못했습니다. 입력값을 확인해주세요.' : '등록하지 못했습니다. 입력값을 확인해주세요.'
@@ -142,6 +201,65 @@ export default function DashboardPage() {
 
       <PushPermissionBanner />
 
+      {forwardingEmail && (
+        <div className="forwarding-banner">
+          <span className="forwarding-banner__label">📧 주문확인 메일 자동 등록 주소</span>
+          <div className="forwarding-banner__row">
+            <span className="mono forwarding-banner__address">{forwardingEmail}</span>
+            <button type="button" className="btn-text" onClick={handleCopyForwardingEmail}>
+              {addressCopied ? '복사됨' : '복사'}
+            </button>
+          </div>
+          <p className="forwarding-banner__hint">
+            쇼핑몰 주문확인 메일을 이 주소로 전달(포워딩)하면 자동으로 아래 "확인 대기" 목록에 올라와요.
+          </p>
+        </div>
+      )}
+
+      {pendingItems.length > 0 && (
+        <div className="pending-section">
+          <p className="pending-section__title">
+            📥 확인 대기 중인 항목 <span className="mono">{pendingItems.length}</span>건
+          </p>
+          <div className="pending-list">
+            {pendingItems.map((item) => (
+              <div className="pending-card" key={item.id}>
+                <div className="pending-card__body">
+                  <p className="pending-card__name">{item.itemName ?? '(상품명 미확인)'}</p>
+                  <p className="pending-card__meta">
+                    {item.orderDate && (
+                      <>
+                        주문일 <span className="mono">{item.orderDate}</span>
+                      </>
+                    )}
+                    {item.returnDeadline && (
+                      <>
+                        {item.orderDate && ' · '}
+                        반품기한 <span className="mono">{item.returnDeadline}</span>
+                      </>
+                    )}
+                    {item.expectedDeliveryDate && (
+                      <>
+                        {(item.orderDate || item.returnDeadline) && ' · '}
+                        예상배송일 <span className="mono">{item.expectedDeliveryDate}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+                <div className="pending-card__actions">
+                  <button type="button" className="btn btn-sm" onClick={() => handlePendingRegisterClick(item)}>
+                    확인 후 등록
+                  </button>
+                  <button type="button" className="btn-text" onClick={() => handleIgnorePending(item.id)}>
+                    무시
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="type-legend">
         {PURCHASE_TYPES.map((t) => (
           <span className="type-legend__item" key={t}>
@@ -170,7 +288,9 @@ export default function DashboardPage() {
       )}
 
       <form className="register-form" onSubmit={handleSubmit}>
-        <p className="register-form__title">{editingId !== null ? '항목 수정' : '새 항목 등록'}</p>
+        <p className="register-form__title">
+          {editingId !== null ? '항목 수정' : pendingConfirmId !== null ? '확인 대기 항목 등록' : '새 항목 등록'}
+        </p>
         <div className="register-form__row">
           <div className="field field--narrow">
             <label htmlFor="type">종류</label>
@@ -244,7 +364,7 @@ export default function DashboardPage() {
           <button type="submit" className="btn">
             {editingId !== null ? '수정 완료' : '등록'}
           </button>
-          {editingId !== null && (
+          {(editingId !== null || pendingConfirmId !== null) && (
             <button type="button" className="btn-text" onClick={handleCancelEdit}>
               취소
             </button>
