@@ -39,6 +39,10 @@
     // web-push 스펙상 필수인 연락처 식별자 — 비밀값이 아니라 그냥 vars로 둔다.
     "VAPID_SUBJECT": "mailto:ionjk2879@gmail.com",
     // Email Routing이 붙어있는 도메인 — 사용자 전용 수신 주소(add-{token}@{도메인}) 조립에 쓴다.
-    "FORWARDING_EMAIL_DOMAIN": "remindue.kr"
+    "FORWARDING_EMAIL_DOMAIN": "remindue.kr",
+    // 배포된 모든 버전(운영 + dev 프리뷰 별칭)의 기본값. dev 프리뷰만 deploy:dev 스크립트가
+    // `--var ENVIRONMENT:development`로 이 값을 덮어쓴다 — 로컬은 .dev.vars가 덮어쓴다.
+    // 개발 전용 기능(테스트 시드 엔드포인트 등)이 production에 절대 켜지지 않게 하는 가드.
+    "ENVIRONMENT": "production"
   }
 }

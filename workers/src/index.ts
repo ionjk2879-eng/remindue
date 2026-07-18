@@ -4,6 +4,7 @@ import authRoutes from './routes/auth';
 import purchaseRoutes from './routes/purchases';
 import pushRoutes from './routes/push';
 import pendingPurchaseRoutes from './routes/pending-purchases';
+import devRoutes from './routes/dev';
 import { HttpError } from './lib/errors';
 import { runDailyDigest } from './lib/digest';
 import { runWeeklyDigest } from './lib/weekly-digest';
@@ -34,6 +35,7 @@ app.route('/api/auth', authRoutes);
 app.route('/api/purchases', purchaseRoutes);
 app.route('/api/push', pushRoutes);
 app.route('/api/pending-purchases', pendingPurchaseRoutes);
+app.route('/api/dev', devRoutes);
 
 // GlobalExceptionHandler.java와 동일한 매핑: {message}, 상태코드는 에러 종류에 따라 결정
 //
@@ -71,8 +73,10 @@ export default {
     // 크론은 매일 UTC 0시(KST 9시)에 도는데, 그 시각엔 UTC 날짜가 아직 안 넘어가 있어서
     // getUTCDay()가 KST 기준 요일과 그대로 일치한다(1=월요일). 정기배송 주간 리포트는
     // 프리미엄 알림 기능이라 매주 이때만 한 번 더 실행한다.
+    // 개발 환경(ENVIRONMENT=development)에서는 요일과 무관하게 항상 실행한다 — 월요일을
+    // 기다리지 않고 /cdn-cgi/handler/scheduled로 강제 트리거해서 바로 테스트할 수 있게.
     const isMonday = new Date(event.scheduledTime).getUTCDay() === 1;
-    if (isMonday) {
+    if (isMonday || env.ENVIRONMENT === 'development') {
       ctx.waitUntil(
         runWeeklyDigest(env).then((result) => {
           console.log(

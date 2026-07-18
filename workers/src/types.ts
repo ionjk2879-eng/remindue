@@ -143,4 +143,10 @@ export interface Env {
   ANTHROPIC_API_KEY: string;
   /** 이메일 포워딩 수신 주소에 쓰는 도메인(add-{token}@{도메인}). Cloudflare Email Routing이 붙어있는 도메인. */
   FORWARDING_EMAIL_DOMAIN: string;
+  /**
+   * "production"(기본, wrangler.jsonc) 또는 "development"(로컬 .dev.vars, dev 프리뷰 배포 시
+   * `--var ENVIRONMENT:development`). 개발 전용 기능(테스트 시드 엔드포인트, 주간 다이제스트
+   * 요일 제한 우회)을 production에서 절대 켜지지 않게 가드하는 용도.
+   */
+  ENVIRONMENT: string;
 }

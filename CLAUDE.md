@@ -100,6 +100,34 @@ Existing accounts created before this flag existed already have
 `is_premium = 1` (the column's original default) and were left alone —
 only new signups get the free default.
 
+### Dev-only testing tools (`routes/dev.ts`)
+
+`ENVIRONMENT` (a `vars` entry, not a secret) is `"production"` for every
+deployed version by default; `.dev.vars` sets it to `"development"` for
+local `wrangler dev`, and `deploy:dev` passes `--var
+ENVIRONMENT:development` so only the `dev`-alias preview gets it too. Two
+routes are gated on `ENVIRONMENT === 'development'` (404 otherwise, so they
+don't exist at all in production):
+
+- `POST /api/dev/seed-test-data` — seeds the logged-in account with two
+  RECURRING_DELIVERY purchases (a 90-days-ago/30-day-interval one and a
+  3-days-ago/7-day-interval one, both with 0 confirmations) so "missed
+  delivery" and "this week's deliveries" are visible immediately instead
+  of waiting on real historical data.
+- `POST /api/dev/run-weekly-digest` — runs `runWeeklyDigest` immediately,
+  bypassing the Monday-only gate. `scheduled()` itself also skips that
+  gate whenever `ENVIRONMENT === 'development'`, so
+  `/cdn-cgi/handler/scheduled` (local `wrangler dev` only — deployed
+  Workers have no HTTP-reachable way to fire cron manually) triggers the
+  weekly digest on any day too. Use this endpoint for the same thing
+  against a deployed `dev` preview, where `/cdn-cgi/handler/scheduled`
+  doesn't exist.
+
+If you edit `.dev.vars` while `wrangler dev` is already running, do a full
+restart (kill + `npm run dev` again) rather than trusting the file-watcher
+hot-reload — hot-reload picks up source changes but has been observed to
+serve a stale `vars`/`.dev.vars` snapshot until the process restarts.
+
 ## Frontend (frontend/)
 
 - `npx tsc -b` before considering frontend work done.
