@@ -507,6 +507,39 @@ select {
 }
 
 /* --------------------------------------------------------------------------
+   Weekly summary banner ("이번 주 배송 예정" — 프리미엄 알림 기능)
+   -------------------------------------------------------------------------- */
+
+.weekly-summary-banner {
+  background: #e3f0ec;
+  border: 1.5px dashed var(--safe-teal);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  margin-bottom: 22px;
+}
+
+.weekly-summary-banner__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  color: var(--safe-teal);
+}
+
+.weekly-summary-banner ul {
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+
+.weekly-summary-banner li {
+  font-size: 0.88rem;
+  color: var(--ink);
+  margin-bottom: 3px;
+}
+
+/* --------------------------------------------------------------------------
    Forwarding address banner ("이메일로 자동 등록")
    -------------------------------------------------------------------------- */
 

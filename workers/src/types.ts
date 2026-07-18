@@ -30,6 +30,8 @@ export interface UserRow {
   email_notifications_enabled: number;
   /** add-{forwarding_token}@{도메인}으로 온 메일을 이 사용자로 식별하는 고유 토큰. */
   forwarding_token: string;
+  /** SQLite boolean(0/1) — 프리미엄 알림 기능(놓친 배송 감지/주간 요약) 접근 권한. 결제 연동 전까지는 기본값 1(전부 무료로 열어둠). */
+  is_premium: number;
 }
 
 export type PendingPurchaseSource = 'email' | 'image';
@@ -109,6 +111,7 @@ export interface PushSubscriptionRequestBody {
 export interface AuthResponse {
   accessToken: string;
   nickname: string;
+  isPremium: boolean;
 }
 
 export interface PurchaseRequestBody {

@@ -6,6 +6,7 @@ import pushRoutes from './routes/push';
 import pendingPurchaseRoutes from './routes/pending-purchases';
 import { HttpError } from './lib/errors';
 import { runDailyDigest } from './lib/digest';
+import { runWeeklyDigest } from './lib/weekly-digest';
 import { handleIncomingEmail } from './lib/email-intake';
 import type { Env } from './types';
 
@@ -58,7 +59,7 @@ app.onError((err, c) => {
 export default {
   fetch: app.fetch,
   // Cron Trigger(wrangler.jsonc의 triggers.crons) — 매일 1회 D-day 다이제스트 이메일 발송.
-  scheduled: async (_event, env, ctx) => {
+  scheduled: async (event, env, ctx) => {
     ctx.waitUntil(
       runDailyDigest(env).then((result) => {
         console.log(
@@ -66,6 +67,20 @@ export default {
         );
       })
     );
+
+    // 크론은 매일 UTC 0시(KST 9시)에 도는데, 그 시각엔 UTC 날짜가 아직 안 넘어가 있어서
+    // getUTCDay()가 KST 기준 요일과 그대로 일치한다(1=월요일). 정기배송 주간 리포트는
+    // 프리미엄 알림 기능이라 매주 이때만 한 번 더 실행한다.
+    const isMonday = new Date(event.scheduledTime).getUTCDay() === 1;
+    if (isMonday) {
+      ctx.waitUntil(
+        runWeeklyDigest(env).then((result) => {
+          console.log(
+            `[weekly-digest] 완료 — 대상 사용자 ${result.usersNotified}명, 이메일 ${result.emailsSent}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
+          );
+        })
+      );
+    }
   },
   // Cloudflare Email Routing 라우팅 규칙(액션: "Send to a Worker")이 이 Worker로 넘겨주는 메일.
   // add-{forwarding_token}@{도메인}으로 온 메일만 처리하고, 그 외 형식/미확인 토큰/주문확인이

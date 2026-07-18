@@ -58,7 +58,7 @@ export default function DashboardPage() {
   const [pendingItems, setPendingItems] = useState<PendingPurchase[]>([]);
   const [pendingConfirmId, setPendingConfirmId] = useState<number | null>(null);
   const [addressCopied, setAddressCopied] = useState(false);
-  const { nickname } = useAuth();
+  const { nickname, isPremium } = useAuth();
 
   const load = async () => {
     const data = await fetchPurchases();
@@ -185,6 +185,11 @@ export default function DashboardPage() {
     .sort((a, b) => a.dDay - b.dDay);
   const urgentAllHandled = urgent.length > 0 && urgent.every(isFullyConfirmed);
 
+  /** 프리미엄 알림 기능(주간 요약) — 정기배송 중 이번 주(오늘부터 7일 이내) 배송 예정인 것만. */
+  const weeklyRecurring = purchases
+    .filter((p) => p.type === 'RECURRING_DELIVERY' && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
+    .sort((a, b) => a.dDay - b.dDay);
+
   return (
     <div className="dashboard">
       <div className="dashboard-header">
@@ -192,6 +197,21 @@ export default function DashboardPage() {
           {nickname}님의 <span className="accent">챙길 목록</span>
         </h1>
       </div>
+
+      {isPremium && weeklyRecurring.length > 0 && (
+        <div className="weekly-summary-banner">
+          <span className="weekly-summary-banner__tag">
+            📦 이번 주 배송 예정 <span className="mono">{weeklyRecurring.length}</span>건
+          </span>
+          <ul>
+            {weeklyRecurring.map((p) => (
+              <li key={p.id}>
+                {p.itemName} — <span className="mono">{formatShortDate(p.deadline)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <PushPermissionBanner />
 

@@ -32,6 +32,7 @@ export interface PurchaseInput {
 export interface AuthResponse {
   accessToken: string;
   nickname: string;
+  isPremium: boolean;
 }
 
 export type PendingPurchaseSource = 'email' | 'image';

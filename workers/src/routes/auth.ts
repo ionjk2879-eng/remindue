@@ -80,7 +80,8 @@ auth.post('/signup', async (c) => {
   }
 
   const accessToken = await signJwt(email, c.env.JWT_SECRET, ACCESS_TOKEN_EXPIRATION_SECONDS);
-  const response: AuthResponse = { accessToken, nickname };
+  // 새로 가입한 사용자는 항상 users.is_premium의 기본값(1)을 그대로 받으므로 재조회 없이 true로 둔다.
+  const response: AuthResponse = { accessToken, nickname, isPremium: true };
   return c.json(response);
 });
 
@@ -98,7 +99,7 @@ auth.post('/login', async (c) => {
   }
 
   const accessToken = await signJwt(email, c.env.JWT_SECRET, ACCESS_TOKEN_EXPIRATION_SECONDS);
-  const response: AuthResponse = { accessToken, nickname: user.nickname };
+  const response: AuthResponse = { accessToken, nickname: user.nickname, isPremium: user.is_premium === 1 };
   return c.json(response);
 });
 
