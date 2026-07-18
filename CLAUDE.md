@@ -5,16 +5,49 @@ the product/feature overview — this file is about *how* to work here.
 
 ## Git workflow
 
-- **New features go on a branch, not `main`.** Create a feature branch
-  (`git checkout -b <descriptive-name>`), commit there, and `git push -u origin
-  <branch-name>`. Stop after pushing — **do not merge into `main`** (no
-  `git merge`, no fast-forward, no merging a PR) unless the user explicitly asks.
-  The user checks the branch's Cloudflare Workers Builds preview URL themselves
-  before requesting the merge.
+- **New features go on the `dev` branch — reuse it, don't create a new branch
+  per feature.** `git checkout dev` (create it from `main` if it doesn't exist
+  yet), commit there, `git push origin dev`. Stop after pushing — **do not
+  merge into `main`** (no `git merge`, no fast-forward, no merging a PR) unless
+  the user explicitly asks. The user checks `dev`'s preview URLs (see below)
+  themselves before requesting the merge.
 - Small fixes to something already broken/live in production (e.g. a
   misconfigured CORS origin) can go straight to `main` — that's a hotfix, not a
   new feature. If it's ambiguous which category a change falls into, ask.
 - Only commit when the user explicitly asks you to.
+
+## `dev` preview environment
+
+Both Workers projects are on Cloudflare's free `workers.dev` subdomain
+`ionjk2879`, which supports **aliased preview URLs**: `wrangler versions
+upload --preview-alias <alias>` deploys a version without touching the live
+production deployment, reachable at a **fixed** `https://<alias>-<worker-name>.
+ionjk2879.workers.dev`. Using alias `dev` gives:
+
+- Backend: `https://dev-remindue.ionjk2879.workers.dev`
+- Frontend: `https://dev-remindue-frontend.ionjk2879.workers.dev`
+
+These addresses don't change between pushes — re-running the upload just
+replaces what they point to. This is deliberate instead of relying on Workers
+Builds' automatic non-production-branch preview deploys, because those (a)
+require "non-production branch builds" to be toggled on in the dashboard
+(something only the human user can do) and (b) default to a random
+per-version-hash URL, not a fixed one, unless the branch's deploy command is
+customized to pass `--preview-alias dev` too.
+
+**To (re)publish the `dev` preview after changing code:**
+
+```bash
+cd workers && npm run deploy:dev     # wrangler versions upload --preview-alias dev
+cd frontend && npm run deploy:dev    # builds with .env.dev, then the same upload
+```
+
+`frontend/.env.dev` points `VITE_API_BASE_URL` at the dev backend alias above;
+`frontend/.env.production` points at the real production backend. Both are
+committed (they're not secret, just a base URL) — Vite picks the right one via
+`--mode dev` / the default production mode. `workers/wrangler.jsonc`'s
+`CORS_ORIGIN` permanently allows the dev frontend alias alongside prod — don't
+remove it when editing the allowlist.
 
 ## Project structure
 
@@ -34,6 +67,16 @@ backend/     Spring Boot — logic reference only, not deployed (Phase 0 origin)
   `.dev.vars` locally (gitignored) and via `wrangler secret put <NAME>` in prod.
 - New migration: add `migrations/000N_description.sql`, then
   `npm run db:migrate:local` before testing.
+- **`wrangler deploy` / `wrangler versions upload` do NOT run migrations.**
+  `npm run db:migrate:local` only touches the local D1 — remote (prod) needs
+  its own explicit `npm run db:migrate:remote` (or
+  `wrangler d1 migrations apply remindue-db --remote`). This bit us once
+  already: 0005/0006 were merged, deployed, and worked fine locally, but
+  nobody ran the `--remote` migration, so signup 500'd in production for a
+  while with no obvious cause (code was fine, schema wasn't there). Whenever a
+  migration lands on `main`/gets deployed live, apply it remotely in the same
+  breath — check `wrangler d1 migrations list remindue-db --remote` if signup
+  or any DB write starts 500ing for no visible reason.
 - `CORS_ORIGIN` is a comma-separated allowlist (see `allowedOrigins()` in
   `src/index.ts`) — add new frontend origins there rather than replacing the
   existing ones.
@@ -43,7 +86,8 @@ backend/     Spring Boot — logic reference only, not deployed (Phase 0 origin)
 
 - `npx tsc -b` before considering frontend work done.
 - API base URL comes from `VITE_API_BASE_URL` at build time (see
-  `src/api/client.ts`); defaults to `http://localhost:8787/api` for local dev.
+  `src/api/client.ts` and `.env.production` / `.env.dev`); defaults to
+  `http://localhost:8787/api` for local `vite` dev.
 
 ## Verifying changes
 

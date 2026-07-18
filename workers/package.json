@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "deploy:dev": "wrangler versions upload --preview-alias dev",
     "db:migrate:local": "wrangler d1 migrations apply remindue-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply remindue-db --remote",
     "typecheck": "tsc --noEmit",
