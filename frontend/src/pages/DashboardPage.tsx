@@ -323,28 +323,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="type-filter" role="tablist" aria-label="종류별 필터">
-        {FILTER_OPTIONS.map((opt) => {
-          const count = opt.key === 'ALL' ? purchases.length : purchases.filter((p) => p.type === opt.key).length;
-          return (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filterType === opt.key}
-              key={opt.key}
-              className={`type-filter__btn${opt.key !== 'ALL' ? ` type-filter__btn--${opt.key}` : ''}${
-                filterType === opt.key ? ' type-filter__btn--active' : ''
-              }`}
-              onClick={() => setFilterType(opt.key)}
-            >
-              {opt.key !== 'ALL' && <span className={`type-dot type-dot--${opt.key}`} aria-hidden="true" />}
-              {opt.label}
-              <span className="mono type-filter__count">{count}</span>
-            </button>
-          );
-        })}
-      </div>
-
       {urgent.length > 0 && (
         <div className={`urgent-banner${urgentAllHandled ? ' urgent-banner--ok' : ''}`}>
           <span className={`urgent-banner__tag${urgentAllHandled ? ' urgent-banner__tag--ok' : ''}`}>
@@ -448,6 +426,28 @@ export default function DashboardPage() {
           </p>
         )}
       </form>
+
+      <div className="type-filter" role="tablist" aria-label="종류별 필터">
+        {FILTER_OPTIONS.map((opt) => {
+          const count = opt.key === 'ALL' ? purchases.length : purchases.filter((p) => p.type === opt.key).length;
+          return (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filterType === opt.key}
+              key={opt.key}
+              className={`type-filter__btn${opt.key !== 'ALL' ? ` type-filter__btn--${opt.key}` : ''}${
+                filterType === opt.key ? ' type-filter__btn--active' : ''
+              }`}
+              onClick={() => setFilterType(opt.key)}
+            >
+              {opt.key !== 'ALL' && <span className={`type-dot type-dot--${opt.key}`} aria-hidden="true" />}
+              {opt.label}
+              <span className="mono type-filter__count">{count}</span>
+            </button>
+          );
+        })}
+      </div>
 
       <div className="ticket-list">
         {displayedPurchases.map((p) => (
