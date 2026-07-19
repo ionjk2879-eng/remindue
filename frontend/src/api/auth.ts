@@ -10,3 +10,7 @@ export async function login(email: string, password: string) {
   const { data } = await apiClient.post<AuthResponse>('/auth/login', { email, password });
   return data;
 }
+
+export async function deleteAccount(password: string) {
+  await apiClient.delete('/auth/account', { data: { password } });
+}

@@ -3,6 +3,7 @@
 import { Hono } from 'hono';
 import { hashPassword, verifyPassword } from '../lib/password';
 import { signJwt } from '../lib/jwt';
+import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { BadRequestError, ConflictError } from '../lib/errors';
 import type { AuthResponse, Env, UserRow } from '../types';
 
@@ -38,7 +39,7 @@ function requireEmail(email: unknown): string {
   return email;
 }
 
-const auth = new Hono<{ Bindings: Env }>();
+const auth = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
 auth.post('/signup', async (c) => {
   const body = await c.req.json<SignupBody>().catch(() => ({}) as SignupBody);
@@ -102,6 +103,38 @@ auth.post('/login', async (c) => {
   const accessToken = await signJwt(email, c.env.JWT_SECRET, ACCESS_TOKEN_EXPIRATION_SECONDS);
   const response: AuthResponse = { accessToken, nickname: user.nickname, isPremium: user.is_premium === 1 };
   return c.json(response);
+});
+
+/**
+ * 회원탈퇴 — 비밀번호 재확인 후 계정과 관련 데이터를 전부 지운다. D1은 요청마다 다른 커넥션을
+ * 쓸 수 있어 PRAGMA foreign_keys(및 그에 따른 ON DELETE CASCADE)를 안정적으로 믿을 수 없으므로,
+ * users 테이블을 참조하는 모든 테이블을 명시적으로 먼저 지우고 마지막에 users 행을 지운다.
+ * shared_access는 owner_user_id(내가 초대한 것)만 지운다 — 남이 나를 초대한 행은 shared_with_email이
+ * 이메일 문자열 매칭일 뿐 FK가 아니라서, 계정이 없어져도 그냥 상대방 쪽에 매칭 안 되는 초대로 남는다.
+ */
+auth.delete('/account', authMiddleware, async (c) => {
+  const email = c.get('userEmail');
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>();
+  if (!user) {
+    throw new BadRequestError(`사용자를 찾을 수 없습니다: ${email}`);
+  }
+
+  const body = await c.req.json<{ password?: string }>().catch(() => ({}) as { password?: string });
+  if (!body.password || !(await verifyPassword(body.password, user.password_hash))) {
+    throw new BadRequestError('비밀번호가 올바르지 않습니다');
+  }
+
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM purchases WHERE user_id = ?').bind(user.id),
+    c.env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(user.id),
+    c.env.DB.prepare('DELETE FROM pending_purchases WHERE user_id = ?').bind(user.id),
+    c.env.DB.prepare('DELETE FROM subscriptions WHERE user_id = ?').bind(user.id),
+    c.env.DB.prepare('DELETE FROM payments WHERE user_id = ?').bind(user.id),
+    c.env.DB.prepare('DELETE FROM shared_access WHERE owner_user_id = ?').bind(user.id),
+    c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id),
+  ]);
+
+  return c.body(null, 204);
 });
 
 export default auth;

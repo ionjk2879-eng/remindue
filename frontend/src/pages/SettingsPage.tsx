@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { fetchNotificationDays, updateNotificationDays } from '../api/settings';
 import { acceptInvite, fetchReceivedInvites, fetchSentInvites, inviteMember, revokeShare } from '../api/sharing';
 import { cancelSubscription, fetchBillingStatus } from '../api/billing';
+import { deleteAccount } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 import type { BillingStatus, SharedAccess } from '../types';
 
@@ -26,7 +27,8 @@ function formatDayLabel(day: number): string {
 }
 
 export default function SettingsPage() {
-  const { isPremium } = useAuth();
+  const { isPremium, logout } = useAuth();
+  const navigate = useNavigate();
 
   const [selectedDays, setSelectedDays] = useState<number[]>(FREE_PLAN_FIXED_DAYS);
   const [savingDays, setSavingDays] = useState(false);
@@ -41,6 +43,10 @@ export default function SettingsPage() {
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
+
+  const [withdrawPassword, setWithdrawPassword] = useState('');
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [withdrawing, setWithdrawing] = useState(false);
 
   const loadBillingStatus = async () => {
     const data = await fetchBillingStatus();
@@ -126,6 +132,27 @@ export default function SettingsPage() {
       setCancelMessage(message ?? '해지하지 못했어요.');
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleWithdraw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setWithdrawError(null);
+
+    const confirmed = window.confirm(
+      '정말 탈퇴하시겠어요? 등록된 항목, 결제 내역, 공유 정보가 모두 삭제되며 되돌릴 수 없습니다.'
+    );
+    if (!confirmed) return;
+
+    setWithdrawing(true);
+    try {
+      await deleteAccount(withdrawPassword);
+      logout();
+      navigate('/');
+    } catch (err) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setWithdrawError(message ?? '탈퇴하지 못했어요.');
+      setWithdrawing(false);
     }
   };
 
@@ -242,6 +269,27 @@ export default function SettingsPage() {
             </ul>
           </div>
         )}
+      </section>
+
+      <section className="settings-section settings-section--danger">
+        <h2>회원탈퇴</h2>
+        <p className="settings-section__hint">
+          탈퇴하면 등록된 항목, 결제 내역, 공유 정보가 모두 삭제되고 되돌릴 수 없어요.
+          {isPremium && ' 진행 중인 정기결제가 있다면 먼저 위에서 해지해주세요.'}
+        </p>
+        <form className="withdraw-form" onSubmit={handleWithdraw}>
+          <input
+            type="password"
+            placeholder="비밀번호 확인"
+            value={withdrawPassword}
+            onChange={(e) => setWithdrawPassword(e.target.value)}
+            required
+          />
+          <button type="submit" className="btn btn-sm btn-danger" disabled={withdrawing}>
+            {withdrawing ? '탈퇴 중...' : '회원탈퇴'}
+          </button>
+        </form>
+        {withdrawError && <p className="form-error">{withdrawError}</p>}
       </section>
     </div>
   );
