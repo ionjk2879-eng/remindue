@@ -85,11 +85,27 @@ backend/     Spring Boot — logic reference only, not deployed (Phase 0 origin)
 ## Premium plan (`users.is_premium`)
 
 Signup creates new users with `is_premium = 0` (free plan) — see `routes/auth.ts`.
-Free-plan users are capped at `FREE_PLAN_MAX_PURCHASES` (5, in
-`lib/purchase-logic.ts`) registered items; premium users are unlimited and also
-get the weekly recurring-delivery digest/summary and the in-app "놓친 배송
-감지" (missed-delivery) hint (both gated on `isPremium` at the call sites, not
-inside `purchase-logic.ts` itself).
+Six things are gated on `isPremium`, all checked at the call site (not inside
+`purchase-logic.ts`):
+1. **Unlimited registration** — free is capped at `FREE_PLAN_MAX_PURCHASES` (5,
+   in `lib/purchase-logic.ts`); `routes/purchases.ts`'s `POST /` 402s past that.
+2. **Weekly recurring-delivery summary** — email/push + in-app banner, gated in
+   `lib/weekly-digest.ts` and `DashboardPage.tsx`.
+3. **Custom notification days** — see `## Notification preferences` below.
+4. **CSV/PDF export** — see `## Data export` below.
+5. **Family/member sharing** — see `## Sharing` below.
+6. **Archive (이력 보관)** — see `## Archive` below.
+
+(A "놓친 배송 감지" / missed-delivery-detection feature used to be premium
+benefit #2 — it compared computed delivery rounds against
+`delivery_confirm_count` and flagged a mismatch as "possibly missed." It was
+removed (not just hidden) because that comparison false-positived often enough
+(late/early real deliveries, confirm-button not clicked promptly) to be
+actively misleading. `delivery_confirm_count` itself is still tracked — the
+"이번 회차 수령 확인" button still increments it — just nothing computes a
+"missed count" from it anymore. If this comes back, don't resurrect
+`computeMissedConfirmations` verbatim; it's gone from `purchase-logic.ts` for
+a reason.)
 
 Premium is now billing-managed (see `## Billing` below) via `users.premium_expires_at`.
 `is_premium` is still the fast read-path every route checks, but the source of
@@ -192,6 +208,74 @@ If you edit `.dev.vars` while `wrangler dev` is already running, do a full
 restart (kill + `npm run dev` again) rather than trusting the file-watcher
 hot-reload — hot-reload picks up source changes but has been observed to
 serve a stale `vars`/`.dev.vars` snapshot until the process restarts.
+
+## Notification preferences (`users.notification_days`)
+
+Free plan is hard-locked to `7,3,1,0` regardless of what's stored in the
+column — `lib/notification-prefs.ts`'s `effectiveNotificationDays(isPremium,
+raw)` is the only place that's allowed to decide what days actually apply, and
+both `lib/digest.ts` (daily D-day mail/push) and `routes/settings.ts`
+(`GET`/`PUT /api/settings/notification-days`) go through it. Premium users can
+pick any 1–10 integers in `[0, 60]` from `NOTIFICATION_DAY_OPTIONS` (`[10, 7,
+5, 3, 2, 1, 0]` — mirrored as a plain array literal in
+`frontend/src/pages/SettingsPage.tsx` since there's no shared package between
+frontend/backend). Downgrading to free doesn't clear the stored value — it's
+just ignored until premium comes back, so a lapsed subscriber's custom
+schedule reappears automatically on renewal instead of needing to be re-entered.
+
+## Data export (CSV/PDF)
+
+`GET /api/purchases/export?format=csv|pdf` (premium-gated, 402 for free) in
+`routes/purchases.ts`, built by `lib/export.ts`. Exports **all** items
+(active + archived) — export is meant to be a full-history dump, unlike the
+dashboard's default active-only view.
+
+- **CSV**: UTF-8 BOM prefix + CRLF line endings so Excel doesn't mangle Hangul
+  or word-wrap wrong.
+- **PDF**: `pdf-lib` + `@pdf-lib/fontkit`, embedding Noto Sans KR fetched at
+  request time from `fonts.gstatic.com` (cached via the Workers Cache API —
+  `caches.default` — so it's only actually downloaded once per edge location,
+  not per request) rather than bundled into the Worker, which would blow past
+  Cloudflare's free-plan script-size limit. Two hard-won gotchas if you touch
+  `lib/export.ts`:
+  - **`embedFont(..., { subset: true })` is broken for this font/runtime
+    combination** — verified by hand that it silently drops entire glyphs
+    (not just renders them wrong). Stay on `subset: false` (full font embed,
+    ~3MB per generated PDF) until/unless this gets re-verified against a newer
+    `pdf-lib`/`@pdf-lib/fontkit` release.
+  - **A literal space (U+0020) between two Hangul characters renders as a
+    missing glyph** in this font via `page.drawText` — e.g. "삼성 냉장고"
+    would lose the space and look broken, which matters because that's a
+    completely ordinary Korean item name. Latin↔Hangul-adjacent spaces are
+    fine; only Hangul-space-Hangul breaks. Worked around with `drawTextSafe()`
+    in that file, which never asks the font to shape a real space glyph —  it
+    splits on spaces and manually advances the cursor between words instead.
+    Any new text drawn in this file must go through `drawTextSafe`, not raw
+    `page.drawText`, or this bug comes back.
+
+## Sharing (`shared_access` table)
+
+Premium-gated invite (`POST /api/sharing/invite`, owner must be premium) by
+raw email — no invite token/link. `shared_with_email` just has to match
+whatever email the invitee eventually logs in with; if they don't have an
+account yet, the invite sits `pending` until they sign up with that exact
+address. `GET /api/sharing/received` doesn't require the viewer to be
+premium — anyone can be invited and view what's shared with them, only
+*inviting* is gated. Accepted shares are read-only (`GET
+/api/sharing/:id/purchases` — active/non-archived items only, no
+mutation endpoints exposed to the invitee). `routes/sharing.ts` has the full
+invite/accept/revoke/view lifecycle.
+
+## Archive (`purchases.archived_at`)
+
+Premium-gated action (`POST /api/purchases/:id/archive`, 402 for free),
+but **unarchive is not gated** (`POST /api/purchases/:id/unarchive`) — a
+downgraded user can still pull old items back into their active list, they
+just can't send new ones to the archive. `GET /api/purchases` defaults to
+`archived_at IS NULL`; pass `?archived=true` for the archive view instead.
+Archived items are excluded from both digest crons (`lib/digest.ts`,
+`lib/weekly-digest.ts` both filter `archived_at IS NULL`) — archiving means
+"stop bothering me about this," not just "hide it from the main list."
 
 ## Frontend (frontend/)
 

@@ -5,6 +5,8 @@ import purchaseRoutes from './routes/purchases';
 import pushRoutes from './routes/push';
 import pendingPurchaseRoutes from './routes/pending-purchases';
 import billingRoutes from './routes/billing';
+import settingsRoutes from './routes/settings';
+import sharingRoutes from './routes/sharing';
 import devRoutes from './routes/dev';
 import { HttpError } from './lib/errors';
 import { runDailyDigest } from './lib/digest';
@@ -38,6 +40,8 @@ app.route('/api/purchases', purchaseRoutes);
 app.route('/api/push', pushRoutes);
 app.route('/api/pending-purchases', pendingPurchaseRoutes);
 app.route('/api/billing', billingRoutes);
+app.route('/api/settings', settingsRoutes);
+app.route('/api/sharing', sharingRoutes);
 app.route('/api/dev', devRoutes);
 
 // GlobalExceptionHandler.java와 동일한 매핑: {message}, 상태코드는 에러 종류에 따라 결정

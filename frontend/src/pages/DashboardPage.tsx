@@ -1,9 +1,19 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { fetchPurchases, createPurchase, updatePurchase, deletePurchase, markDelivered } from '../api/purchases';
+import {
+  fetchPurchases,
+  createPurchase,
+  updatePurchase,
+  deletePurchase,
+  markDelivered,
+  archivePurchase,
+  unarchivePurchase,
+  downloadExport,
+} from '../api/purchases';
 import { fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
-import type { PendingPurchase, Purchase, PurchaseType } from '../types';
+import { fetchReceivedInvites, fetchSharedPurchases } from '../api/sharing';
+import type { PendingPurchase, Purchase, PurchaseType, SharedAccess } from '../types';
 import { useAuth } from '../context/AuthContext';
 import StampBadge from '../components/StampBadge';
 import PushPermissionBanner from '../components/PushPermissionBanner';
@@ -50,13 +60,18 @@ function formatShortDate(dateStr: string): string {
   return `${month}/${day}`;
 }
 
+/** date.ts의 backend todayDateOnly()와 동일한 기준(KST) — "이번 회차 수령 확인"을 오늘 이미 눌렀는지 비교에 쓴다. */
+function todayDateOnly(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
+}
+
 /**
- * 정기배송이고 계산상 회차만큼 "이번 회차 수령 확인"을 다 눌러서 놓친 게 없는 상태인지.
- * (ELECTRONICS/ONLINE_ORDER는 확인 개념이 없으니 항상 false — 배너/스탬프가 "해결됨"으로
- * 표시되지 않고 dDay가 지날 때까지 계속 챙겨야 할 항목으로 남는다.)
+ * 정기배송이고 오늘 이미 "이번 회차 수령 확인"을 눌렀는지. (예전에는 계산상 회차 수와
+ * delivery_confirm_count를 비교해서 "놓친 배송"까지 판단했지만, 실제 배송 지연 등으로 오탐이
+ * 잦아 그 비교 로직 자체를 제거했다 — 지금은 "오늘 확인 버튼을 눌렀는가"만 본다.)
  */
 function isFullyConfirmed(p: Purchase): boolean {
-  return p.type === 'RECURRING_DELIVERY' && p.missedConfirmations === 0;
+  return p.type === 'RECURRING_DELIVERY' && p.lastDeliveredDate === todayDateOnly();
 }
 
 export default function DashboardPage() {
@@ -75,6 +90,12 @@ export default function DashboardPage() {
   const [pendingConfirmId, setPendingConfirmId] = useState<number | null>(null);
   const [addressCopied, setAddressCopied] = useState(false);
   const [filterType, setFilterType] = useState<FilterType>('ALL');
+  const [view, setView] = useState<'ACTIVE' | 'ARCHIVED' | 'SHARED'>('ACTIVE');
+  const [archivedPurchases, setArchivedPurchases] = useState<Purchase[]>([]);
+  const [acceptedShares, setAcceptedShares] = useState<SharedAccess[]>([]);
+  const [selectedShareId, setSelectedShareId] = useState<number | null>(null);
+  const [sharedPurchases, setSharedPurchases] = useState<Purchase[]>([]);
+  const [exporting, setExporting] = useState(false);
   const { nickname, isPremium } = useAuth();
 
   const load = async () => {
@@ -88,10 +109,41 @@ export default function DashboardPage() {
     setPendingItems(data.items);
   };
 
+  const loadArchived = async () => {
+    const data = await fetchPurchases({ archived: true });
+    setArchivedPurchases(data);
+  };
+
+  const loadAcceptedShares = async () => {
+    const invites = await fetchReceivedInvites();
+    const accepted = invites.filter((i) => i.status === 'accepted');
+    setAcceptedShares(accepted);
+    return accepted;
+  };
+
   useEffect(() => {
     load();
     loadPending();
+    loadAcceptedShares();
   }, []);
+
+  useEffect(() => {
+    if (view === 'ARCHIVED') loadArchived();
+  }, [view]);
+
+  useEffect(() => {
+    if (view === 'SHARED' && selectedShareId !== null) {
+      fetchSharedPurchases(selectedShareId).then(setSharedPurchases);
+    }
+  }, [view, selectedShareId]);
+
+  const handleSelectSharedView = async () => {
+    setView('SHARED');
+    if (selectedShareId === null) {
+      const accepted = acceptedShares.length > 0 ? acceptedShares : await loadAcceptedShares();
+      if (accepted.length > 0) setSelectedShareId(accepted[0].id);
+    }
+  };
 
   const resetForm = () => {
     setEditingId(null);
@@ -201,6 +253,28 @@ export default function DashboardPage() {
   const handleMarkDelivered = async (id: number) => {
     await markDelivered(id);
     await load();
+  };
+
+  const handleArchive = async (id: number) => {
+    await archivePurchase(id);
+    await load();
+  };
+
+  const handleUnarchive = async (id: number) => {
+    await unarchivePurchase(id);
+    await loadArchived();
+    await load();
+  };
+
+  const handleExport = async (format: 'csv' | 'pdf') => {
+    setExporting(true);
+    try {
+      await downloadExport(format);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const urgent = purchases
@@ -329,7 +403,7 @@ export default function DashboardPage() {
           <span className={`urgent-banner__tag${urgentAllHandled ? ' urgent-banner__tag--ok' : ''}`}>
             {urgentAllHandled ? '✓' : '⚠'} 7일 이내 {urgentAllHandled ? '배송 예정' : '마감'}{' '}
             <span className="mono">{urgent.length}</span>건
-            {urgentAllHandled && ' — 놓친 배송 없음'}
+            {urgentAllHandled && ' — 오늘 확인 완료'}
           </span>
           <ul>
             {urgent.map((p) => (
@@ -429,77 +503,178 @@ export default function DashboardPage() {
         )}
       </form>
 
-      <div className="type-filter" role="tablist" aria-label="종류별 필터">
-        {FILTER_OPTIONS.map((opt) => {
-          const count = opt.key === 'ALL' ? purchases.length : purchases.filter((p) => p.type === opt.key).length;
-          return (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filterType === opt.key}
-              key={opt.key}
-              className={`type-filter__btn${opt.key !== 'ALL' ? ` type-filter__btn--${opt.key}` : ''}${
-                filterType === opt.key ? ' type-filter__btn--active' : ''
-              }`}
-              onClick={() => setFilterType(opt.key)}
-            >
-              {opt.key !== 'ALL' && <span className={`type-dot type-dot--${opt.key}`} aria-hidden="true" />}
-              {opt.label}
-              <span className="mono type-filter__count">{count}</span>
+      <div className="view-tabs" role="tablist" aria-label="목록 종류">
+        <button type="button" className={`view-tabs__btn${view === 'ACTIVE' ? ' view-tabs__btn--active' : ''}`} onClick={() => setView('ACTIVE')}>
+          내 목록
+        </button>
+        <button type="button" className={`view-tabs__btn${view === 'ARCHIVED' ? ' view-tabs__btn--active' : ''}`} onClick={() => setView('ARCHIVED')}>
+          보관함
+        </button>
+        {acceptedShares.length > 0 && (
+          <button
+            type="button"
+            className={`view-tabs__btn${view === 'SHARED' ? ' view-tabs__btn--active' : ''}`}
+            onClick={handleSelectSharedView}
+          >
+            공유받은 목록
+          </button>
+        )}
+        {isPremium && view === 'ACTIVE' && (
+          <div className="view-tabs__export">
+            <button type="button" className="btn-text" disabled={exporting} onClick={() => handleExport('csv')}>
+              CSV 내보내기
             </button>
-          );
-        })}
-      </div>
-
-      <div className="ticket-list">
-        {displayedPurchases.map((p) => (
-          <div className="ticket-card" key={p.id}>
-            <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
-            <div className="ticket-card__body">
-              <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
-              <h3 className="ticket-card__title">{p.itemName}</h3>
-              {p.type === 'RECURRING_DELIVERY' && p.deliveryRound !== null ? (
-                <p className="ticket-card__deadline">
-                  다음 배송: <span className="mono">{p.deliveryRound}회차</span> ({formatShortDate(p.deadline)})
-                </p>
-              ) : (
-                <p className="ticket-card__deadline">
-                  {DEADLINE_LABEL[p.type]} · <span className="mono">{p.deadline}</span>
-                </p>
-              )}
-              {isPremium && p.type === 'RECURRING_DELIVERY' && !!p.missedConfirmations && p.missedConfirmations > 0 && (
-                <p className="ticket-card__hint">
-                  ⚠ 확인을 놓친 배송이 있을 수 있어요 — <span className="mono">{p.missedConfirmations}</span>건 확인 누락 가능성
-                </p>
-              )}
-              <div className="ticket-card__actions">
-                {p.type === 'RECURRING_DELIVERY' &&
-                  (isFullyConfirmed(p) ? (
-                    <span className="confirm-badge">✓ 확인완료</span>
-                  ) : (
-                    <button className="btn-text" onClick={() => handleMarkDelivered(p.id)}>
-                      이번 회차 수령 확인
-                    </button>
-                  ))}
-                <button className="btn-text" onClick={() => handleEditClick(p)}>
-                  수정
-                </button>
-                <button className="btn-text" onClick={() => handleDelete(p.id)}>
-                  삭제
-                </button>
-              </div>
-            </div>
-            <div className="ticket-card__perforation" aria-hidden="true" />
-            <div className="ticket-card__stub">
-              <StampBadge dDay={p.dDay} seed={p.id} />
-            </div>
+            <button type="button" className="btn-text" disabled={exporting} onClick={() => handleExport('pdf')}>
+              PDF 내보내기
+            </button>
           </div>
-        ))}
+        )}
       </div>
 
-      {purchases.length === 0 && <p className="empty-state">등록된 항목이 없습니다.</p>}
-      {purchases.length > 0 && displayedPurchases.length === 0 && (
-        <p className="empty-state">해당 종류의 항목이 없습니다.</p>
+      {view === 'ACTIVE' && (
+        <>
+          <div className="type-filter" role="tablist" aria-label="종류별 필터">
+            {FILTER_OPTIONS.map((opt) => {
+              const count = opt.key === 'ALL' ? purchases.length : purchases.filter((p) => p.type === opt.key).length;
+              return (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={filterType === opt.key}
+                  key={opt.key}
+                  className={`type-filter__btn${opt.key !== 'ALL' ? ` type-filter__btn--${opt.key}` : ''}${
+                    filterType === opt.key ? ' type-filter__btn--active' : ''
+                  }`}
+                  onClick={() => setFilterType(opt.key)}
+                >
+                  {opt.key !== 'ALL' && <span className={`type-dot type-dot--${opt.key}`} aria-hidden="true" />}
+                  {opt.label}
+                  <span className="mono type-filter__count">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="ticket-list">
+            {displayedPurchases.map((p) => (
+              <div className="ticket-card" key={p.id}>
+                <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
+                <div className="ticket-card__body">
+                  <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
+                  <h3 className="ticket-card__title">{p.itemName}</h3>
+                  {p.type === 'RECURRING_DELIVERY' && p.deliveryRound !== null ? (
+                    <p className="ticket-card__deadline">
+                      다음 배송: <span className="mono">{p.deliveryRound}회차</span> ({formatShortDate(p.deadline)})
+                    </p>
+                  ) : (
+                    <p className="ticket-card__deadline">
+                      {DEADLINE_LABEL[p.type]} · <span className="mono">{p.deadline}</span>
+                    </p>
+                  )}
+                  <div className="ticket-card__actions">
+                    {p.type === 'RECURRING_DELIVERY' &&
+                      (isFullyConfirmed(p) ? (
+                        <span className="confirm-badge">✓ 확인완료</span>
+                      ) : (
+                        <button className="btn-text" onClick={() => handleMarkDelivered(p.id)}>
+                          이번 회차 수령 확인
+                        </button>
+                      ))}
+                    <button className="btn-text" onClick={() => handleEditClick(p)}>
+                      수정
+                    </button>
+                    {isPremium && (
+                      <button className="btn-text" onClick={() => handleArchive(p.id)}>
+                        보관
+                      </button>
+                    )}
+                    <button className="btn-text" onClick={() => handleDelete(p.id)}>
+                      삭제
+                    </button>
+                  </div>
+                </div>
+                <div className="ticket-card__perforation" aria-hidden="true" />
+                <div className="ticket-card__stub">
+                  <StampBadge dDay={p.dDay} seed={p.id} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {purchases.length === 0 && <p className="empty-state">등록된 항목이 없습니다.</p>}
+          {purchases.length > 0 && displayedPurchases.length === 0 && (
+            <p className="empty-state">해당 종류의 항목이 없습니다.</p>
+          )}
+        </>
+      )}
+
+      {view === 'ARCHIVED' && (
+        <>
+          <div className="ticket-list">
+            {archivedPurchases.map((p) => (
+              <div className="ticket-card ticket-card--archived" key={p.id}>
+                <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
+                <div className="ticket-card__body">
+                  <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
+                  <h3 className="ticket-card__title">{p.itemName}</h3>
+                  <p className="ticket-card__deadline">
+                    {DEADLINE_LABEL[p.type]} · <span className="mono">{p.deadline}</span>
+                  </p>
+                  <div className="ticket-card__actions">
+                    <button className="btn-text" onClick={() => handleUnarchive(p.id)}>
+                      복원
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {archivedPurchases.length === 0 && <p className="empty-state">보관된 항목이 없습니다.</p>}
+        </>
+      )}
+
+      {view === 'SHARED' && (
+        <>
+          {acceptedShares.length > 1 && (
+            <div className="type-filter" role="tablist" aria-label="공유한 사람 선택">
+              {acceptedShares.map((share) => (
+                <button
+                  type="button"
+                  key={share.id}
+                  className={`type-filter__btn${selectedShareId === share.id ? ' type-filter__btn--active' : ''}`}
+                  onClick={() => setSelectedShareId(share.id)}
+                >
+                  {share.counterpart}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="ticket-list">
+            {sharedPurchases.map((p) => (
+              <div className="ticket-card" key={p.id}>
+                <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
+                <div className="ticket-card__body">
+                  <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
+                  <h3 className="ticket-card__title">{p.itemName}</h3>
+                  {p.type === 'RECURRING_DELIVERY' && p.deliveryRound !== null ? (
+                    <p className="ticket-card__deadline">
+                      다음 배송: <span className="mono">{p.deliveryRound}회차</span> ({formatShortDate(p.deadline)})
+                    </p>
+                  ) : (
+                    <p className="ticket-card__deadline">
+                      {DEADLINE_LABEL[p.type]} · <span className="mono">{p.deadline}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="ticket-card__perforation" aria-hidden="true" />
+                <div className="ticket-card__stub">
+                  <StampBadge dDay={p.dDay} seed={p.id} />
+                </div>
+              </div>
+            ))}
+          </div>
+          {sharedPurchases.length === 0 && <p className="empty-state">공유받은 항목이 없습니다.</p>}
+        </>
       )}
     </div>
   );

@@ -52,16 +52,12 @@ export function computeDDay(deadline: string): number {
   return daysBetween(todayDateOnly(), deadline);
 }
 
-/**
- * "확인을 놓친 배송이 있을 수 있어요" 배지에 쓰는 값 — deliveryRound(다음 배송 회차 번호)는
- * 아직 도래하지 않은 회차도 미리 가리키므로(예: 등록 직후엔 dDay>0인데도 deliveryRound=1),
- * dDay > 0(그 회차가 아직 안 왔음)이면 그 회차는 확인 대상에서 빼고 이미 도래한 회차
- * (deliveryRound - 1)까지만 확인 여부를 센다. dDay <= 0(오늘이 바로 그 회차)이면 그 회차까지
- * 포함해서 센다.
- */
-export function computeMissedConfirmations(deliveryRound: number, dDay: number, confirmCount: number): number {
-  const roundsAlreadyDue = dDay > 0 ? deliveryRound - 1 : deliveryRound;
-  return Math.max(0, roundsAlreadyDue - confirmCount);
+/** frontend StampBadge.tsx의 getVariant와 동일한 구간 — CSV/PDF 내보내기의 "상태" 열에도 같은 어휘를 쓴다. */
+export function computeStatusLabel(dDay: number): string {
+  if (dDay < 0) return '지남';
+  if (dDay <= 3) return '긴급';
+  if (dDay <= 14) return '임박';
+  return '여유';
 }
 
 /**

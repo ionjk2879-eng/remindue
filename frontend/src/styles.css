@@ -125,6 +125,28 @@ select {
   letter-spacing: -0.01em;
 }
 
+.site-header__nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.site-header__link {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.site-header__link:hover {
+  color: var(--ink);
+}
+
+.site-header__link--premium {
+  color: var(--type-electronics);
+  font-weight: 700;
+}
+
 /* --------------------------------------------------------------------------
    Buttons
    -------------------------------------------------------------------------- */
@@ -478,6 +500,48 @@ a.plan-counter:hover {
   background: var(--type-recurring);
 }
 
+.view-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1.5px solid var(--hairline-strong);
+}
+
+.view-tabs__btn {
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 4px;
+  margin-bottom: -1.5px;
+  cursor: pointer;
+}
+
+.view-tabs__btn:hover {
+  color: var(--ink);
+}
+
+.view-tabs__btn--active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+.view-tabs__export {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  padding-bottom: 6px;
+}
+
+.ticket-card--archived {
+  opacity: 0.75;
+}
+
 .type-filter {
   display: flex;
   flex-wrap: wrap;
@@ -583,8 +647,8 @@ a.plan-counter:hover {
   gap: 4px;
 }
 
-/* 배너 안의 정기배송 항목이 전부 missedConfirmations=0(놓친 것 없음)이면
-   "경고" 색(빨강)이 아니라 "안심" 색(초록)으로 통째로 바뀐다. */
+/* 배너 안의 정기배송 항목을 전부 오늘 확인했으면(isFullyConfirmed) "경고" 색(빨강)이 아니라
+   "안심" 색(초록)으로 통째로 바뀐다. */
 .urgent-banner--ok {
   background: #e3f0ec;
   border-color: var(--safe-teal);
@@ -919,16 +983,6 @@ a.plan-counter:hover {
 
 .ticket-card__deadline .mono {
   color: var(--ink);
-}
-
-.ticket-card__hint {
-  font-size: 0.76rem;
-  color: var(--stamp-amber);
-  margin-top: 2px;
-}
-
-.ticket-card__hint .mono {
-  font-weight: 700;
 }
 
 .ticket-card__actions {
@@ -1282,6 +1336,135 @@ a.plan-counter:hover {
   font-size: 0.95rem;
   color: var(--ink);
   margin-bottom: 20px;
+}
+
+/* --------------------------------------------------------------------------
+   Settings page
+   -------------------------------------------------------------------------- */
+
+.settings-page {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+.settings-page h1 {
+  font-size: 1.3rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 24px;
+}
+
+.settings-section {
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-rest);
+  padding: 20px 22px;
+  margin-bottom: 20px;
+}
+
+.settings-section h2 {
+  font-size: 1rem;
+  margin-bottom: 10px;
+}
+
+.settings-section h3 {
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  margin: 16px 0 8px;
+}
+
+.settings-section__hint {
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.settings-section__hint a {
+  color: var(--safe-teal);
+  font-weight: 700;
+}
+
+.settings-section__message {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--safe-teal);
+}
+
+.notification-day-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+
+.notification-day-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.86rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.invite-form {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.invite-form input {
+  flex: 1;
+}
+
+.invite-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.invite-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.86rem;
+  padding: 8px 10px;
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+}
+
+.invite-list li > span:first-child {
+  flex: 1;
+  color: var(--ink);
+}
+
+.invite-status {
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.invite-status--pending {
+  color: var(--stamp-amber);
+  background: #fbf3e4;
+}
+
+.invite-status--accepted {
+  color: var(--safe-teal);
+  background: #e3f0ec;
+}
+
+.received-invites {
+  margin-top: 8px;
 }
 
 /* --------------------------------------------------------------------------

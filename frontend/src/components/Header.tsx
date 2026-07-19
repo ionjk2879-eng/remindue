@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import Logo from './Logo';
 
 export default function Header() {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, isPremium, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -18,9 +18,19 @@ export default function Header() {
         <span className="site-header__wordmark">Remindue</span>
       </Link>
       {isAuthenticated ? (
-        <button className="btn btn-outline btn-sm" onClick={handleLogout}>
-          로그아웃
-        </button>
+        <div className="site-header__nav">
+          <Link to="/settings" className="site-header__link">
+            설정
+          </Link>
+          {!isPremium && (
+            <Link to="/pricing" className="site-header__link site-header__link--premium">
+              ✨ 프리미엄
+            </Link>
+          )}
+          <button className="btn btn-outline btn-sm" onClick={handleLogout}>
+            로그아웃
+          </button>
+        </div>
       ) : (
         <Link to="/login" className="btn btn-outline btn-sm">
           로그인

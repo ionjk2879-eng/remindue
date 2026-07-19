@@ -3,7 +3,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 interface AuthContextValue {
   nickname: string | null;
   isAuthenticated: boolean;
-  /** 프리미엄 알림 기능(놓친 배송 감지 주간 리포트, 이번 주 배송 예정 요약) 접근 권한. */
+  /** 프리미엄 접근 권한 — 무제한 등록, 이번 주 배송 요약, 커스텀 알림 시점, CSV/PDF 내보내기, 가족 공유, 이력 보관. */
   isPremium: boolean;
   setAuth: (accessToken: string, nickname: string, isPremium: boolean) => void;
   /** 결제 성공 직후 토큰 재발급 없이 isPremium만 갱신한다 — 액세스 토큰은 그대로 둔다. */

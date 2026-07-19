@@ -117,16 +117,14 @@ export interface WeeklyItem {
   itemName: string;
   dDay: number;
   deadline: string;
-  /** 확인 누락 가능성 건수 — 놓친 배송 섹션에서만 의미 있는 값(0이면 그 섹션에 안 들어감). */
-  missedCount: number;
 }
 
 /**
  * 정기배송 전용 주간 리포트 이메일 — D-day 다이제스트(buildDigestEmailHtml)와 별개로,
- * (1) 이번 주 배송 예정, (2) 확인을 놓친 배송 가능성 두 섹션을 모아 보여준다.
- * 둘 중 비어 있는 섹션은 아예 렌더링하지 않는다(호출부가 최소 한쪽은 채워서 넘긴다고 가정).
+ * 이번 주(7일 이내) 배송 예정 항목만 모아 보여준다. upcoming이 비어 있으면 이 함수는
+ * 호출하지 않는다고 가정한다(weekly-digest.ts가 빈 버킷은 애초에 만들지 않음).
  */
-export function buildWeeklyDigestEmailHtml(nickname: string, upcoming: WeeklyItem[], missed: WeeklyItem[], dashboardUrl: string): string {
+export function buildWeeklyDigestEmailHtml(nickname: string, upcoming: WeeklyItem[], dashboardUrl: string): string {
   const upcomingRows = upcoming
     .map(
       (item) => `
@@ -139,20 +137,6 @@ export function buildWeeklyDigestEmailHtml(nickname: string, upcoming: WeeklyIte
           </td>
           <td style="padding:10px 8px;border-bottom:1px solid #E2E0D6;font-size:13px;color:#1F2937;font-family:'Courier New',Courier,monospace;white-space:nowrap;">
             ${escapeHtml(item.deadline)}
-          </td>
-        </tr>`
-    )
-    .join('');
-
-  const missedRows = missed
-    .map(
-      (item) => `
-        <tr>
-          <td style="padding:10px 8px;border-bottom:1px solid #E2E0D6;font-size:14px;color:#1F2937;font-weight:700;">
-            ${escapeHtml(item.itemName)}
-          </td>
-          <td style="padding:10px 8px;border-bottom:1px solid #E2E0D6;font-size:13px;font-weight:800;color:#C13B3B;white-space:nowrap;">
-            ${item.missedCount}건 누락 가능성
           </td>
         </tr>`
     )
@@ -174,26 +158,6 @@ export function buildWeeklyDigestEmailHtml(nickname: string, upcoming: WeeklyIte
                     <td style="padding:0 8px 8px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#6B7280;border-bottom:1.5px solid #1F2937;">배송일</td>
                   </tr>
                   ${upcomingRows}
-                </table>
-              </td>
-            </tr>`
-    : '';
-
-  const missedSection = missed.length
-    ? `
-            <tr>
-              <td style="padding:24px 28px 4px;">
-                <h2 style="margin:0;font-size:15px;color:#1F2937;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">⚠️ 확인을 놓친 배송이 있을 수 있어요 <span style="color:#C13B3B;">${missed.length}건</span></h2>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:8px 28px 0;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-                  <tr>
-                    <td style="padding:0 8px 8px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#6B7280;border-bottom:1.5px solid #1F2937;">항목명</td>
-                    <td style="padding:0 8px 8px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#6B7280;border-bottom:1.5px solid #1F2937;">누락 가능성</td>
-                  </tr>
-                  ${missedRows}
                 </table>
               </td>
             </tr>`
@@ -227,11 +191,66 @@ export function buildWeeklyDigestEmailHtml(nickname: string, upcoming: WeeklyIte
               </td>
             </tr>
             ${upcomingSection}
-            ${missedSection}
             <tr>
               <td align="center" style="padding:28px 28px 32px;">
                 <a href="${dashboardUrl}" style="display:inline-block;background-color:#1F2937;color:#F5F5F0;font-size:14px;font-weight:700;text-decoration:none;padding:12px 28px;border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
                   대시보드에서 확인하기
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+/**
+ * 제목 한 줄(강조색 span 포함) + 본문 한 단락 + CTA 버튼 하나짜리 단순 알림 메일의 공통 뼈대.
+ * buildDigestEmailHtml/buildWeeklyDigestEmailHtml처럼 표가 필요한 메일은 이 헬퍼를 안 쓰고
+ * 직접 조립하지만, 정기결제 실패/공유 초대처럼 "문장 하나 전달"이 전부인 메일은 이걸 재사용한다.
+ */
+function buildSimpleEmailHtml(params: {
+  nickname: string;
+  headingPlain: string;
+  headingHighlight: string;
+  message: string;
+  ctaLabel: string;
+  ctaUrl: string;
+}): string {
+  const { nickname, headingPlain, headingHighlight, message, ctaLabel, ctaUrl } = params;
+  return `
+<!doctype html>
+<html lang="ko">
+  <body style="margin:0;padding:0;background-color:#F5F5F0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F5F5F0;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#FFFFFF;border:1px solid #E2E0D6;border-radius:12px;overflow:hidden;">
+            <tr>
+              <td style="padding:24px 28px 0;">
+                <span style="font-family:'Courier New',Courier,monospace;font-size:16px;font-weight:700;color:#1F2937;">Remindue</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 28px 4px;">
+                <h1 style="margin:0;font-size:19px;line-height:1.4;color:#1F2937;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
+                  ${escapeHtml(nickname)}님, ${headingPlain}<span style="color:#C13B3B;">${headingHighlight}</span>
+                </h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:4px 28px 24px;">
+                <p style="margin:0;font-size:14px;line-height:1.6;color:#1F2937;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
+                  ${message}
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:0 28px 32px;">
+                <a href="${ctaUrl}" style="display:inline-block;background-color:#1F2937;color:#F5F5F0;font-size:14px;font-weight:700;text-decoration:none;padding:12px 28px;border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
+                  ${ctaLabel}
                 </a>
               </td>
             </tr>
@@ -253,46 +272,40 @@ export function buildRenewalFailedEmailHtml(nickname: string, planLabel: string,
     ? `등록하신 카드로 ${escapeHtml(planLabel)} 자동 결제를 시도했지만 실패했어요. 내일 다시 한 번 자동으로 시도할게요 — 카드 한도/잔액을 확인해주세요.`
     : `등록하신 카드로 ${escapeHtml(planLabel)} 자동 결제가 여러 번 실패해서 자동 갱신을 중단했어요. 프리미엄 혜택은 남은 기간이 끝나면 해지됩니다. 계속 이용하시려면 대시보드에서 다시 결제해주세요.`;
 
-  return `
-<!doctype html>
-<html lang="ko">
-  <body style="margin:0;padding:0;background-color:#F5F5F0;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F5F5F0;padding:32px 16px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#FFFFFF;border:1px solid #E2E0D6;border-radius:12px;overflow:hidden;">
-            <tr>
-              <td style="padding:24px 28px 0;">
-                <span style="font-family:'Courier New',Courier,monospace;font-size:16px;font-weight:700;color:#1F2937;">Remindue</span>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:16px 28px 4px;">
-                <h1 style="margin:0;font-size:19px;line-height:1.4;color:#1F2937;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
-                  ${escapeHtml(nickname)}님, <span style="color:#C13B3B;">정기결제 자동 갱신에 실패했어요</span>
-                </h1>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:4px 28px 24px;">
-                <p style="margin:0;font-size:14px;line-height:1.6;color:#1F2937;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
-                  ${message}
-                </p>
-              </td>
-            </tr>
-            <tr>
-              <td align="center" style="padding:0 28px 32px;">
-                <a href="${dashboardUrl}" style="display:inline-block;background-color:#1F2937;color:#F5F5F0;font-size:14px;font-weight:700;text-decoration:none;padding:12px 28px;border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
-                  대시보드에서 확인하기
-                </a>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+  return buildSimpleEmailHtml({
+    nickname,
+    headingPlain: '',
+    headingHighlight: '정기결제 자동 갱신에 실패했어요',
+    message,
+    ctaLabel: '대시보드에서 확인하기',
+    ctaUrl: dashboardUrl,
+  });
+}
+
+/** 가족/구성원 공유 초대 메일 — 받는 사람은 아직 계정이 없을 수도 있으니, "가입/로그인하면 보인다"는 걸 명시한다. */
+export function buildShareInviteEmailHtml(inviteeEmail: string, ownerNickname: string, dashboardUrl: string): string {
+  return buildSimpleEmailHtml({
+    nickname: inviteeEmail,
+    headingPlain: '',
+    headingHighlight: `${ownerNickname}님이 챙길 목록을 공유했어요`,
+    message: `${escapeHtml(
+      ownerNickname
+    )}님이 회원님을 구성원으로 초대했어요. Remindue에 이 이메일로 가입(또는 로그인)하면 대시보드의 "공유받은 목록"에서 초대를 확인하고 수락할 수 있어요.`,
+    ctaLabel: '초대 확인하기',
+    ctaUrl: dashboardUrl,
+  });
+}
+
+/** 초대 수락 안내 — 초대를 보낸 소유자에게 발송한다. */
+export function buildShareAcceptedEmailHtml(ownerNickname: string, accepterEmail: string, dashboardUrl: string): string {
+  return buildSimpleEmailHtml({
+    nickname: ownerNickname,
+    headingPlain: '',
+    headingHighlight: '구성원 초대를 수락했어요',
+    message: `${escapeHtml(accepterEmail)}님이 초대를 수락해서 이제 회원님의 챙길 목록을 함께 볼 수 있어요.`,
+    ctaLabel: '대시보드에서 확인하기',
+    ctaUrl: dashboardUrl,
+  });
 }
 
 /**

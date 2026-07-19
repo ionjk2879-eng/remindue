@@ -1,5 +1,6 @@
 // Cron Trigger(매일 1회)로 실행되는 D-day 다이제스트 발송 로직.
-// "매일 보내면 스팸"이라 D-day가 정확히 7/3/1/0인 항목이 있는 사용자에게만,
+// "매일 보내면 스팸"이라 D-day가 그 사용자의 알림 시점(기본 7/3/1/0, 프리미엄은 커스텀
+// 가능 — effectiveNotificationDays 참고)에 정확히 걸린 항목이 있는 사용자에게만,
 // 항목별로 따로가 아니라 사용자당 1통(이메일)/1묶음(푸시)으로 묶어서 보낸다.
 // 이메일은 email_notifications_enabled 플래그를 따르고, 푸시는 구독 자체가
 // 곧 "받겠다"는 의사표시라 그 플래그와 무관하게(구독이 있으면) 보낸다.
@@ -8,15 +9,17 @@ import { computeDDay, computeDeadline } from './purchase-logic';
 import { buildDigestEmailHtml, sendDigestEmail } from './email';
 import { buildDigestTitle, buildItemMessage, type DigestItem } from './messages';
 import { sendPush } from './push';
+import { effectiveNotificationDays } from './notification-prefs';
 import type { Env, PurchaseRow, PushSubscriptionRow } from '../types';
 
-const TARGET_DDAYS = new Set([7, 3, 1, 0]);
 const PUSH_BODY_MAX_LENGTH = 120;
 
 interface PurchaseWithUser extends PurchaseRow {
   user_email: string;
   user_nickname: string;
   user_email_notifications_enabled: number;
+  user_is_premium: number;
+  user_notification_days: string;
 }
 
 interface UserDigestBucket {
@@ -42,9 +45,11 @@ function buildPushBody(items: DigestItem[]): string {
 export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
   const { results } = await env.DB.prepare(
     `SELECT p.*, u.email AS user_email, u.nickname AS user_nickname,
-            u.email_notifications_enabled AS user_email_notifications_enabled
+            u.email_notifications_enabled AS user_email_notifications_enabled,
+            u.is_premium AS user_is_premium, u.notification_days AS user_notification_days
        FROM purchases p
-       JOIN users u ON u.id = p.user_id`
+       JOIN users u ON u.id = p.user_id
+      WHERE p.archived_at IS NULL`
   ).all<PurchaseWithUser>();
 
   const itemsByUserId = new Map<number, UserDigestBucket>();
@@ -52,7 +57,8 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
   for (const row of results) {
     const { deadline } = computeDeadline(row);
     const dDay = computeDDay(deadline);
-    if (!TARGET_DDAYS.has(dDay)) continue;
+    const targetDays = effectiveNotificationDays(row.user_is_premium === 1, row.user_notification_days);
+    if (!targetDays.includes(dDay)) continue;
 
     const bucket = itemsByUserId.get(row.user_id) ?? {
       email: row.user_email,

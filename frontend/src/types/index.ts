@@ -14,7 +14,7 @@ export interface Purchase {
   deadline: string;
   dDay: number;
   deliveryRound: number | null;
-  missedConfirmations: number | null;
+  archivedAt: string | null;
   createdAt: string;
 }
 
@@ -72,4 +72,13 @@ export interface CheckoutResponse {
   amount: number;
   orderName: string;
   customerKey: string;
+}
+
+export type SharedAccessStatus = 'pending' | 'accepted';
+
+export interface SharedAccess {
+  id: number;
+  counterpart: string;
+  status: SharedAccessStatus;
+  createdAt: string;
 }

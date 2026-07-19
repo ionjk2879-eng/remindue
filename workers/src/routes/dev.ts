@@ -1,5 +1,5 @@
-// 개발 전용 테스트 도구 — "놓친 배송 감지"/"이번 주 배송 예정" 같은 기능을 과거 날짜 데이터를
-// 수동으로 만들거나 월요일 크론을 기다리지 않고 바로 확인할 수 있게 해준다.
+// 개발 전용 테스트 도구 — "이번 주 배송 예정" 같은 기능을 과거 날짜 데이터를 수동으로
+// 만들거나 월요일 크론을 기다리지 않고 바로 확인할 수 있게 해준다.
 // ENVIRONMENT가 "development"(로컬 .dev.vars, dev 프리뷰 --var 오버라이드)가 아니면 항상
 // 404 — production 배포본(운영 remindue Worker)에서는 이 라우트 자체가 존재하지 않는 것처럼 동작한다.
 
@@ -31,10 +31,8 @@ interface SeedItem {
 }
 
 /**
- * 로그인한 계정에 정기배송 항목 2개를 심는다(delivery_confirm_count=0으로 둬서 두 항목 다
- * "놓친 배송 감지"에도 걸리고, dDay가 0~7 범위라 "이번 주 배송 예정" 배너에도 걸린다):
- * - baseDate 90일 전 + 30일 주기 → 계산상 4회차인데 확인은 0번 → 놓친 배송 4건
- * - baseDate 3일 전 + 7일 주기 → 계산상 2회차인데 확인은 0번 → 놓친 배송 2건, dDay=4(이번 주)
+ * 로그인한 계정에 정기배송 항목을 심는다 — dDay가 0~7 범위라 "이번 주 배송 예정" 배너에 걸린다:
+ * - baseDate 3일 전 + 7일 주기 → dDay=4(이번 주)
  */
 dev.post('/seed-test-data', async (c) => {
   if (c.env.ENVIRONMENT !== 'development') {
@@ -47,10 +45,7 @@ dev.post('/seed-test-data', async (c) => {
     throw new NotFoundError(`사용자를 찾을 수 없습니다: ${email}`);
   }
 
-  const items: SeedItem[] = [
-    { itemName: '[테스트] 놓친 배송 감지 데모', baseDate: daysAgo(90), intervalDays: 30 },
-    { itemName: '[테스트] 이번 주 배송 예정 데모', baseDate: daysAgo(3), intervalDays: 7 },
-  ];
+  const items: SeedItem[] = [{ itemName: '[테스트] 이번 주 배송 예정 데모', baseDate: daysAgo(3), intervalDays: 7 }];
 
   for (const item of items) {
     await c.env.DB.prepare(

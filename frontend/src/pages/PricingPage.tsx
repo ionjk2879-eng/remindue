@@ -132,17 +132,27 @@ export default function PricingPage() {
             <td>무제한</td>
           </tr>
           <tr>
-            <td>개별 D-day 알림</td>
-            <td>O</td>
-            <td>O</td>
-          </tr>
-          <tr>
             <td>이번 주 배송 요약</td>
             <td>X</td>
             <td>O</td>
           </tr>
           <tr>
-            <td>놓친 배송 감지</td>
+            <td>커스텀 알림 시점</td>
+            <td>7/3/1/당일 고정</td>
+            <td>직접 설정</td>
+          </tr>
+          <tr>
+            <td>CSV/PDF 내보내기</td>
+            <td>X</td>
+            <td>O</td>
+          </tr>
+          <tr>
+            <td>가족/구성원 공유</td>
+            <td>X</td>
+            <td>O</td>
+          </tr>
+          <tr>
+            <td>이력 보관(아카이브)</td>
             <td>X</td>
             <td>O</td>
           </tr>

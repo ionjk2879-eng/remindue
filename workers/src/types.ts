@@ -16,6 +16,8 @@ export interface PurchaseRow {
   interval_days: number | null;
   last_delivered_date: string | null;
   delivery_confirm_count: number;
+  /** 이력 보관(프리미엄). NULL이면 활성 항목, 값이 있으면 그 시각에 보관 처리됨 — dDay/알림 대상에서 제외. */
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -31,7 +33,7 @@ export interface UserRow {
   /** add-{forwarding_token}@{도메인}으로 온 메일을 이 사용자로 식별하는 고유 토큰. */
   forwarding_token: string;
   /**
-   * SQLite boolean(0/1) — 프리미엄 알림 기능(놓친 배송 감지/주간 요약) + 무제한 등록 접근 권한.
+   * SQLite boolean(0/1) — 프리미엄 접근 권한(무제한 등록, 주간 요약, 커스텀 알림 시점, 내보내기, 공유, 보관).
    * 빠른 체크용 캐시 값이고, premium_expires_at이 실제 만료 시각의 근거다(결제 크론이 매일
    * premium_expires_at을 기준으로 이 값을 갱신/만료 처리한다). premium_expires_at이 NULL인데
    * is_premium=1인 계정은 결제 연동 이전부터 열려있던 계정이라 결제 로직이 건드리지 않는다.
@@ -41,6 +43,13 @@ export interface UserRow {
   premium_expires_at: string | null;
   /** 토스 자동결제(빌링) API의 고객 식별자. 결제를 한 번도 시도하지 않았으면 NULL. */
   toss_customer_key: string | null;
+  /**
+   * 커스텀 알림 시점(프리미엄) — "며칠 전에 알릴지"를 콤마로 구분한 정수 목록(예: "7,3,1,0").
+   * 무료 플랜은 is_premium 여부와 무관하게 라우트에서 항상 기본값 "7,3,1,0"으로 강제하므로,
+   * 이 컬럼에 남아있는 값은 사실상 프리미엄이었을 때 저장해둔 값 — 다시 프리미엄이 되면 그대로
+   * 되살아난다(무료로 내려갔다고 값을 지우지 않는다).
+   */
+  notification_days: string;
 }
 
 export type PendingPurchaseSource = 'email' | 'image';
@@ -95,8 +104,8 @@ export interface PurchaseResponse {
   dDay: number;
   /** RECURRING_DELIVERY 전용 — 몇 회차 배송인지(1부터 시작). 그 외 타입은 null. */
   deliveryRound: number | null;
-  /** RECURRING_DELIVERY 전용 — 계산상 회차 대비 "이번 회차 수령 확인" 누른 횟수가 부족한 만큼. 그 외 타입은 null. */
-  missedConfirmations: number | null;
+  /** 이력 보관(프리미엄) 시각. null이면 활성 항목. */
+  archivedAt: string | null;
   createdAt: string;
 }
 
@@ -171,6 +180,26 @@ export interface BillingStatusResponse {
   plan: BillingPlan | null;
   premiumExpiresAt: string | null;
   autoRenew: boolean;
+}
+
+export type SharedAccessStatus = 'pending' | 'accepted';
+
+// D1 row shape (snake_case columns from migrations/0012_add_notification_prefs_archive_sharing.sql)
+export interface SharedAccessRow {
+  id: number;
+  owner_user_id: number;
+  shared_with_email: string;
+  status: SharedAccessStatus;
+  created_at: string;
+  accepted_at: string | null;
+}
+
+export interface SharedAccessResponse {
+  id: number;
+  /** 내가 초대한 목록에서는 상대 이메일, 내가 초대받은 목록에서는 초대한 사람의 닉네임. */
+  counterpart: string;
+  status: SharedAccessStatus;
+  createdAt: string;
 }
 
 export interface Env {

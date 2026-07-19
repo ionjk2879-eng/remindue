@@ -1,8 +1,10 @@
 import { apiClient } from './client';
 import type { Purchase, PurchaseInput } from '../types';
 
-export async function fetchPurchases() {
-  const { data } = await apiClient.get<Purchase[]>('/purchases');
+export async function fetchPurchases(options?: { archived?: boolean }) {
+  const { data } = await apiClient.get<Purchase[]>('/purchases', {
+    params: options?.archived ? { archived: 'true' } : undefined,
+  });
   return data;
 }
 
@@ -23,4 +25,30 @@ export async function deletePurchase(id: number) {
 export async function markDelivered(id: number) {
   const { data } = await apiClient.post<Purchase>(`/purchases/${id}/mark-delivered`);
   return data;
+}
+
+export async function archivePurchase(id: number) {
+  const { data } = await apiClient.post<Purchase>(`/purchases/${id}/archive`);
+  return data;
+}
+
+export async function unarchivePurchase(id: number) {
+  const { data } = await apiClient.post<Purchase>(`/purchases/${id}/unarchive`);
+  return data;
+}
+
+/** CSV/PDF는 인증 헤더가 필요해서 <a href>로 바로 열 수 없다 — blob으로 받아서 임시 링크를 만들어 다운로드를 트리거한다. */
+export async function downloadExport(format: 'csv' | 'pdf') {
+  const { data } = await apiClient.get<Blob>('/purchases/export', {
+    params: { format },
+    responseType: 'blob',
+  });
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `remindue_export.${format}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
 import { FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
+import { buildCsv, buildPdf } from '../lib/export';
 import { BadRequestError, ForbiddenError, PaymentRequiredError } from '../lib/errors';
 import { PURCHASE_TYPES } from '../types';
 import type { Env, PurchaseRequestBody, PurchaseRow, UserRow } from '../types';
@@ -52,15 +53,60 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
   };
 }
 
-/** 기한이 임박한 순서(D-day 오름차순)로 정렬해서 반환한다. */
+/**
+ * 기한이 임박한 순서(D-day 오름차순)로 정렬해서 반환한다. 기본은 활성 항목만(archived_at IS
+ * NULL) — 보관함(?archived=true)은 별도 조회다. 조회는 플랜과 무관하게 항상 가능하다(보관
+ * "행위"만 프리미엄 전용 — POST /:id/archive 참고).
+ */
 purchases.get('/', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
-  const { results } = await c.env.DB.prepare('SELECT * FROM purchases WHERE user_id = ?')
+  const archived = c.req.query('archived') === 'true';
+  const { results } = await c.env.DB.prepare(
+    `SELECT * FROM purchases WHERE user_id = ? AND archived_at IS ${archived ? 'NOT NULL' : 'NULL'}`
+  )
     .bind(user.id)
     .all<PurchaseRow>();
 
   const responses = results.map(toPurchaseResponse).sort((a, b) => a.dDay - b.dDay);
   return c.json(responses);
+});
+
+/** CSV/PDF 내보내기(프리미엄 전용) — 활성+보관 항목을 전부 포함한다(내보내기=이력 전체). */
+purchases.get('/export', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  if (user.is_premium !== 1) {
+    throw new PaymentRequiredError('CSV/PDF 내보내기는 프리미엄 전용 기능이에요.');
+  }
+
+  const format = c.req.query('format');
+  if (format !== 'csv' && format !== 'pdf') {
+    throw new BadRequestError('format은 csv 또는 pdf여야 합니다');
+  }
+
+  const { results } = await c.env.DB.prepare('SELECT * FROM purchases WHERE user_id = ? ORDER BY created_at')
+    .bind(user.id)
+    .all<PurchaseRow>();
+
+  if (format === 'csv') {
+    const csv = buildCsv(results);
+    return new Response(csv, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="remindue_export.csv"',
+      },
+    });
+  }
+
+  const generatedAtLabel = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short' }).format(
+    new Date()
+  );
+  const pdfBytes = await buildPdf(results, generatedAtLabel);
+  return new Response(pdfBytes, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'attachment; filename="remindue_export.pdf"',
+    },
+  });
 });
 
 purchases.post('/', async (c) => {
@@ -171,6 +217,41 @@ purchases.post('/:id/mark-delivered', async (c) => {
   )
     .bind(today, id)
     .run();
+
+  const updated = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<PurchaseRow>();
+  return c.json(toPurchaseResponse(updated!));
+});
+
+/**
+ * 이력 보관(프리미엄 전용) — 삭제 대신 archived_at을 채운다. 보관된 항목은 기본 목록
+ * 조회(GET /)와 D-day 알림 대상에서 빠지지만 ?archived=true로 계속 조회할 수 있다.
+ */
+purchases.post('/:id/archive', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  if (user.is_premium !== 1) {
+    throw new PaymentRequiredError('보관 기능은 프리미엄 전용이에요. 무료 플랜은 삭제만 가능해요.');
+  }
+  const id = Number(c.req.param('id'));
+  await getOwnedPurchase(c.env.DB, user.id, id);
+
+  await c.env.DB.prepare(`UPDATE purchases SET archived_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`)
+    .bind(id)
+    .run();
+
+  const updated = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<PurchaseRow>();
+  return c.json(toPurchaseResponse(updated!));
+});
+
+/**
+ * 보관 해제 — 다운그레이드 이후에도(더는 새로 보관은 못 해도) 예전에 보관해둔 항목을 다시
+ * 활성 목록으로 꺼내오는 건 항상 가능해야 하므로 프리미엄 게이트를 걸지 않는다.
+ */
+purchases.post('/:id/unarchive', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const id = Number(c.req.param('id'));
+  await getOwnedPurchase(c.env.DB, user.id, id);
+
+  await c.env.DB.prepare(`UPDATE purchases SET archived_at = NULL, updated_at = datetime('now') WHERE id = ?`).bind(id).run();
 
   const updated = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<PurchaseRow>();
   return c.json(toPurchaseResponse(updated!));
