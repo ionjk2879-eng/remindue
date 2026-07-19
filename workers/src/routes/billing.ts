@@ -15,7 +15,8 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { BadRequestError, NotFoundError, PaymentRequiredError } from '../lib/errors';
 import { chargeBillingKey, confirmPayment, issueBillingKey, TossApiError } from '../lib/toss';
-import { PLAN_CONFIG } from '../lib/billing-plans';
+import { PLAN_CONFIG, PLAN_LABEL } from '../lib/billing-plans';
+import { buildSubscriptionCanceledEmailHtml, sendDigestEmail } from '../lib/email';
 import type { BillingPlan, BillingStatusResponse, Env, PaymentRow, SubscriptionRow, UserRow } from '../types';
 
 const billing = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
@@ -70,9 +71,20 @@ async function extendPremium(db: D1Database, userId: number, periodModifier: str
   return updated!.premium_expires_at;
 }
 
+/**
+ * ACTIVE뿐 아니라 아직 기간이 안 끝난 CANCELED 구독도 집어온다 — 그래야 해지 직후에도
+ * "무슨 플랜이었는지"가 화면에서 사라지지 않고, autoRenew=false로 "해지됨" 상태를 보여줄 수
+ * 있다. plan이 MONTHLY/ANNUAL인데 autoRenew=false면 해지된 것이고(ONE_TIME은 애초에
+ * autoRenew가 항상 false라 별도 status 필드 없이도 이 조합으로 구분된다), plan이 null이면
+ * 유효한 구독이 아예 없는 것이다.
+ */
 async function getBillingStatus(db: D1Database, user: UserRow): Promise<BillingStatusResponse> {
   const sub = await db
-    .prepare(`SELECT * FROM subscriptions WHERE user_id = ? AND status = 'ACTIVE' ORDER BY current_period_end DESC LIMIT 1`)
+    .prepare(
+      `SELECT * FROM subscriptions
+        WHERE user_id = ? AND status IN ('ACTIVE', 'CANCELED') AND current_period_end >= datetime('now')
+        ORDER BY current_period_end DESC LIMIT 1`
+    )
     .bind(user.id)
     .first<SubscriptionRow>();
 
@@ -234,6 +246,40 @@ billing.post('/billing-key/issue', async (c) => {
   }
 
   await extendPremium(c.env.DB, user.id, config.periodModifier);
+
+  return c.json(await getBillingStatus(c.env.DB, user));
+});
+
+/**
+ * 정기결제 해지 — 다음 결제일부터 자동 결제를 멈춘다. 이미 결제된 기간(premium_expires_at)
+ * 까지는 프리미엄을 유지하므로 users 테이블은 건드리지 않는다. status='CANCELED' +
+ * auto_renew=0으로 바꾸면 billing-renewal.ts의 갱신 크론 쿼리(`status='ACTIVE' AND
+ * auto_renew=1`)에서 자연히 빠지고, premium_expires_at이 지나면 runPremiumExpirySweep이
+ * 알아서 프리미엄을 내린다 — 별도 만료 처리 로직이 필요 없다. 빌링키도 같이 지워서
+ * (재사용될 일이 없으니) 혹시 모를 재청구 버그에 대한 이중 방어로 삼는다.
+ */
+billing.post('/cancel', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+
+  const sub = await c.env.DB.prepare(
+    `SELECT * FROM subscriptions WHERE user_id = ? AND status = 'ACTIVE' AND auto_renew = 1 ORDER BY current_period_end DESC LIMIT 1`
+  )
+    .bind(user.id)
+    .first<SubscriptionRow>();
+
+  if (!sub) {
+    throw new NotFoundError('해지할 정기결제가 없습니다');
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE subscriptions SET status = 'CANCELED', auto_renew = 0, toss_billing_key = NULL, updated_at = datetime('now') WHERE id = ?`
+  )
+    .bind(sub.id)
+    .run();
+
+  const dashboardUrl = `${c.env.APP_URL}/dashboard`;
+  const html = buildSubscriptionCanceledEmailHtml(user.nickname, PLAN_LABEL[sub.plan], user.premium_expires_at, dashboardUrl);
+  await sendDigestEmail(c.env.RESEND_API_KEY, user.email, '정기결제를 해지했어요 — Remindue', html);
 
   return c.json(await getBillingStatus(c.env.DB, user));
 });

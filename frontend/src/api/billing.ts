@@ -20,3 +20,8 @@ export async function issueBillingKey(params: { authKey: string; customerKey: st
   const { data } = await apiClient.post<BillingStatus>('/billing/billing-key/issue', params);
   return data;
 }
+
+export async function cancelSubscription() {
+  const { data } = await apiClient.post<BillingStatus>('/billing/cancel');
+  return data;
+}

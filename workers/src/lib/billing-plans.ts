@@ -17,3 +17,10 @@ export const PLAN_CONFIG: Record<BillingPlan, PlanConfig> = {
   MONTHLY: { amount: 1900, orderName: 'Remindue 프리미엄 월 정기결제', periodModifier: '+1 month', autoRenew: true },
   ANNUAL: { amount: 19000, orderName: 'Remindue 프리미엄 연 정기결제', periodModifier: '+1 year', autoRenew: true },
 };
+
+/** 이메일/화면에 노출하는 한국어 플랜 이름 — billing.ts(해지 안내 메일), billing-renewal.ts(실패 안내 메일) 공용. */
+export const PLAN_LABEL: Record<BillingPlan, string> = {
+  ONE_TIME: '1회성 이용권',
+  MONTHLY: '월 정기결제',
+  ANNUAL: '연 정기결제',
+};

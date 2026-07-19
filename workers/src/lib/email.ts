@@ -282,6 +282,21 @@ export function buildRenewalFailedEmailHtml(nickname: string, planLabel: string,
   });
 }
 
+/** 정기결제 해지 확인 메일 — 자동 결제는 끊겼지만 premiumExpiresAt까지는 프리미엄이 남아있다는 걸 명확히 알린다. */
+export function buildSubscriptionCanceledEmailHtml(nickname: string, planLabel: string, premiumExpiresAt: string | null, dashboardUrl: string): string {
+  const expiresClause = premiumExpiresAt
+    ? `프리미엄 혜택은 결제하신 기간이 끝나는 ${escapeHtml(premiumExpiresAt.slice(0, 10))}까지는 그대로 유지돼요.`
+    : '프리미엄 혜택은 남은 기간까지는 그대로 유지돼요.';
+  return buildSimpleEmailHtml({
+    nickname,
+    headingPlain: '',
+    headingHighlight: `${escapeHtml(planLabel)} 정기결제를 해지했어요`,
+    message: `다음 결제일부터는 자동 결제가 되지 않아요. ${expiresClause}`,
+    ctaLabel: '대시보드에서 확인하기',
+    ctaUrl: dashboardUrl,
+  });
+}
+
 /** 가족/구성원 공유 초대 메일 — 받는 사람은 아직 계정이 없을 수도 있으니, "가입/로그인하면 보인다"는 걸 명시한다. */
 export function buildShareInviteEmailHtml(inviteeEmail: string, ownerNickname: string, dashboardUrl: string): string {
   return buildSimpleEmailHtml({

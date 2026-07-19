@@ -7,18 +7,12 @@
 // 지나면 runPremiumExpirySweep이 프리미엄을 내린다.
 
 import { chargeBillingKey, TossApiError } from './toss';
-import { PLAN_CONFIG } from './billing-plans';
+import { PLAN_CONFIG, PLAN_LABEL } from './billing-plans';
 import { buildRenewalFailedEmailHtml, sendDigestEmail } from './email';
 import type { Env, SubscriptionRow } from '../types';
 
 const RENEWAL_WINDOW = "+1 day"; // 만료 하루 전부터 갱신 대상으로 본다 — 만료 순간 공백 없이 이어지도록.
 const MAX_CONSECUTIVE_FAILURES = 3;
-
-const PLAN_LABEL: Record<SubscriptionRow['plan'], string> = {
-  ONE_TIME: '1회성 이용권',
-  MONTHLY: '월 정기결제',
-  ANNUAL: '연 정기결제',
-};
 
 interface DueSubscription extends SubscriptionRow {
   user_email: string;

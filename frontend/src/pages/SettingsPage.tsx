@@ -3,8 +3,19 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { fetchNotificationDays, updateNotificationDays } from '../api/settings';
 import { acceptInvite, fetchReceivedInvites, fetchSentInvites, inviteMember, revokeShare } from '../api/sharing';
+import { cancelSubscription, fetchBillingStatus } from '../api/billing';
 import { useAuth } from '../context/AuthContext';
-import type { SharedAccess } from '../types';
+import type { BillingStatus, SharedAccess } from '../types';
+
+const PLAN_LABEL: Record<'ONE_TIME' | 'MONTHLY' | 'ANNUAL', string> = {
+  ONE_TIME: '1회성 이용권',
+  MONTHLY: '월 정기결제',
+  ANNUAL: '연 정기결제',
+};
+
+function formatDateOnly(dateStr: string): string {
+  return dateStr.slice(0, 10);
+}
 
 /** 백엔드 lib/notification-prefs.ts의 NOTIFICATION_DAY_OPTIONS와 같은 목록 — 설정 화면 체크박스 후보. */
 const NOTIFICATION_DAY_OPTIONS = [10, 7, 5, 3, 2, 1, 0];
@@ -27,6 +38,15 @@ export default function SettingsPage() {
   const [sentInvites, setSentInvites] = useState<SharedAccess[]>([]);
   const [receivedInvites, setReceivedInvites] = useState<SharedAccess[]>([]);
 
+  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelMessage, setCancelMessage] = useState<string | null>(null);
+
+  const loadBillingStatus = async () => {
+    const data = await fetchBillingStatus();
+    setBillingStatus(data);
+  };
+
   const loadNotificationDays = async () => {
     const data = await fetchNotificationDays();
     setSelectedDays(data.notificationDays);
@@ -39,6 +59,7 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
+    loadBillingStatus();
     loadNotificationDays();
     loadSharing();
   }, []);
@@ -88,9 +109,47 @@ export default function SettingsPage() {
     await loadSharing();
   };
 
+  const handleCancelSubscription = async () => {
+    const confirmed = window.confirm(
+      '해지하면 다음 결제일부터 자동 결제가 중단되고, 이미 결제된 기간까지는 프리미엄이 유지됩니다. 해지할까요?'
+    );
+    if (!confirmed) return;
+
+    setCancelMessage(null);
+    setCancelling(true);
+    try {
+      const result = await cancelSubscription();
+      setBillingStatus(result);
+      setCancelMessage('정기결제를 해지했어요. 결제된 기간까지는 프리미엄이 유지됩니다.');
+    } catch (err) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setCancelMessage(message ?? '해지하지 못했어요.');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   return (
     <div className="settings-page">
       <h1>설정</h1>
+
+      {isPremium && billingStatus?.plan && (billingStatus.plan === 'MONTHLY' || billingStatus.plan === 'ANNUAL') && (
+        <section className="settings-section">
+          <h2>구독 관리</h2>
+          <p className="settings-section__hint">
+            {PLAN_LABEL[billingStatus.plan]} 이용 중
+            {billingStatus.premiumExpiresAt && ` · ${formatDateOnly(billingStatus.premiumExpiresAt)}까지`}
+          </p>
+          {billingStatus.autoRenew ? (
+            <button className="btn btn-sm btn-outline" onClick={handleCancelSubscription} disabled={cancelling}>
+              {cancelling ? '해지 중...' : '정기결제 해지'}
+            </button>
+          ) : (
+            <p className="settings-section__hint">자동 결제가 해지됐어요. 남은 기간까지는 프리미엄이 유지됩니다.</p>
+          )}
+          {cancelMessage && <p className="settings-section__message">{cancelMessage}</p>}
+        </section>
+      )}
 
       <section className="settings-section">
         <h2>알림 시점</h2>
