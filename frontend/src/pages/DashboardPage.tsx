@@ -27,6 +27,16 @@ const TYPE_SHORT_LABEL: Record<PurchaseType, string> = {
 
 const PURCHASE_TYPES: PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY'];
 
+type FilterType = 'ALL' | PurchaseType;
+
+/** 목록 위 필터 메뉴 — 종류별 배지/점 색과 동일한 팔레트를 쓰지만 라벨은 사용자가 목록을 훑을 때 더 와닿는 실용적인 표현으로 따로 둔다. */
+const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
+  { key: 'ALL', label: '전체' },
+  { key: 'ELECTRONICS', label: 'A/S보증' },
+  { key: 'ONLINE_ORDER', label: '환불' },
+  { key: 'RECURRING_DELIVERY', label: '정기배송' },
+];
+
 /** "7일 이내" 배너와 동일한 기준 — 이 안으로 들어오면 다시 챙길 때가 된 것으로 본다. */
 const URGENT_WINDOW_DAYS = 7;
 
@@ -63,6 +73,7 @@ export default function DashboardPage() {
   const [pendingItems, setPendingItems] = useState<PendingPurchase[]>([]);
   const [pendingConfirmId, setPendingConfirmId] = useState<number | null>(null);
   const [addressCopied, setAddressCopied] = useState(false);
+  const [filterType, setFilterType] = useState<FilterType>('ALL');
   const { nickname, isPremium } = useAuth();
 
   const load = async () => {
@@ -201,6 +212,8 @@ export default function DashboardPage() {
     .filter((p) => p.type === 'RECURRING_DELIVERY' && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
 
+  const displayedPurchases = filterType === 'ALL' ? purchases : purchases.filter((p) => p.type === filterType);
+
   return (
     <div className="dashboard">
       <div className="dashboard-header">
@@ -310,13 +323,26 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="type-legend">
-        {PURCHASE_TYPES.map((t) => (
-          <span className="type-legend__item" key={t}>
-            <span className={`type-dot type-dot--${t}`} aria-hidden="true" />
-            {TYPE_SHORT_LABEL[t]}
-          </span>
-        ))}
+      <div className="type-filter" role="tablist" aria-label="종류별 필터">
+        {FILTER_OPTIONS.map((opt) => {
+          const count = opt.key === 'ALL' ? purchases.length : purchases.filter((p) => p.type === opt.key).length;
+          return (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filterType === opt.key}
+              key={opt.key}
+              className={`type-filter__btn${opt.key !== 'ALL' ? ` type-filter__btn--${opt.key}` : ''}${
+                filterType === opt.key ? ' type-filter__btn--active' : ''
+              }`}
+              onClick={() => setFilterType(opt.key)}
+            >
+              {opt.key !== 'ALL' && <span className={`type-dot type-dot--${opt.key}`} aria-hidden="true" />}
+              {opt.label}
+              <span className="mono type-filter__count">{count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {urgent.length > 0 && (
@@ -424,7 +450,7 @@ export default function DashboardPage() {
       </form>
 
       <div className="ticket-list">
-        {purchases.map((p) => (
+        {displayedPurchases.map((p) => (
           <div className="ticket-card" key={p.id}>
             <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
             <div className="ticket-card__body">
@@ -470,6 +496,9 @@ export default function DashboardPage() {
       </div>
 
       {purchases.length === 0 && <p className="empty-state">등록된 항목이 없습니다.</p>}
+      {purchases.length > 0 && displayedPurchases.length === 0 && (
+        <p className="empty-state">해당 종류의 항목이 없습니다.</p>
+      )}
     </div>
   );
 }

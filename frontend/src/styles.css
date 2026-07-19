@@ -465,19 +465,61 @@ select {
   background: var(--type-recurring);
 }
 
-.type-legend {
+.type-filter {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 8px;
   margin-bottom: 18px;
-  font-size: 0.78rem;
-  color: var(--ink-soft);
 }
 
-.type-legend__item {
+.type-filter__btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--paper-card);
+  border: 1.5px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.type-filter__btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+
+.type-filter__count {
+  font-size: 0.74rem;
+  opacity: 0.7;
+}
+
+.type-filter__btn--active {
+  color: var(--ink);
+  border-color: var(--ink);
+  box-shadow: var(--shadow-rest);
+}
+
+.type-filter__btn--ELECTRONICS.type-filter__btn--active {
+  color: var(--type-electronics);
+  background: var(--type-electronics-bg);
+  border-color: var(--type-electronics);
+}
+
+.type-filter__btn--ONLINE_ORDER.type-filter__btn--active {
+  color: var(--type-online-order);
+  background: var(--type-online-order-bg);
+  border-color: var(--type-online-order);
+}
+
+.type-filter__btn--RECURRING_DELIVERY.type-filter__btn--active {
+  color: var(--type-recurring);
+  background: var(--type-recurring-bg);
+  border-color: var(--type-recurring);
 }
 
 .type-select-row {
