@@ -30,8 +30,17 @@ export interface UserRow {
   email_notifications_enabled: number;
   /** add-{forwarding_token}@{도메인}으로 온 메일을 이 사용자로 식별하는 고유 토큰. */
   forwarding_token: string;
-  /** SQLite boolean(0/1) — 프리미엄 알림 기능(놓친 배송 감지/주간 요약) 접근 권한. 결제 연동 전까지는 기본값 1(전부 무료로 열어둠). */
+  /**
+   * SQLite boolean(0/1) — 프리미엄 알림 기능(놓친 배송 감지/주간 요약) + 무제한 등록 접근 권한.
+   * 빠른 체크용 캐시 값이고, premium_expires_at이 실제 만료 시각의 근거다(결제 크론이 매일
+   * premium_expires_at을 기준으로 이 값을 갱신/만료 처리한다). premium_expires_at이 NULL인데
+   * is_premium=1인 계정은 결제 연동 이전부터 열려있던 계정이라 결제 로직이 건드리지 않는다.
+   */
   is_premium: number;
+  /** 결제로 관리되는 프리미엄 만료 시각(datetime 문자열). NULL이면 결제 미관리 계정. */
+  premium_expires_at: string | null;
+  /** 토스 자동결제(빌링) API의 고객 식별자. 결제를 한 번도 시도하지 않았으면 NULL. */
+  toss_customer_key: string | null;
 }
 
 export type PendingPurchaseSource = 'email' | 'image';
@@ -125,6 +134,45 @@ export interface PurchaseRequestBody {
   intervalDays?: number | null;
 }
 
+export type BillingPlan = 'ONE_TIME' | 'MONTHLY' | 'ANNUAL';
+export type SubscriptionStatus = 'ACTIVE' | 'CANCELED' | 'PAST_DUE' | 'EXPIRED';
+export type PaymentStatus = 'PENDING' | 'CONFIRMED' | 'FAILED';
+
+// D1 row shape (snake_case columns from migrations/0011_add_billing_tables.sql)
+export interface SubscriptionRow {
+  id: number;
+  user_id: number;
+  plan: BillingPlan;
+  status: SubscriptionStatus;
+  auto_renew: number;
+  toss_billing_key: string | null;
+  current_period_end: string;
+  failed_charge_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentRow {
+  id: number;
+  user_id: number;
+  subscription_id: number | null;
+  order_id: string;
+  payment_key: string | null;
+  plan: BillingPlan;
+  amount: number;
+  status: PaymentStatus;
+  failure_reason: string | null;
+  created_at: string;
+  confirmed_at: string | null;
+}
+
+export interface BillingStatusResponse {
+  isPremium: boolean;
+  plan: BillingPlan | null;
+  premiumExpiresAt: string | null;
+  autoRenew: boolean;
+}
+
 export interface Env {
   DB: D1Database;
   JWT_SECRET: string;
@@ -141,6 +189,12 @@ export interface Env {
   VAPID_SUBJECT: string;
   /** Claude API 키. 이메일 포워딩으로 들어온 주문확인 메일 파싱에 사용(claude-haiku-4-5). */
   ANTHROPIC_API_KEY: string;
+  /**
+   * 토스페이먼츠 시크릿 키(Basic Auth 아이디로 사용, 서버 전용) — 결제 승인/빌링키 발급/자동결제
+   * 청구 API 호출에 쓴다. 프론트엔드용 client key(VITE_TOSS_CLIENT_KEY)는 비밀이 아니라 여기
+   * Env에 넣지 않고 frontend/.env.dev · .env.production에 별도로 둔다.
+   */
+  TOSS_SECRET_KEY: string;
   /** 이메일 포워딩 수신 주소에 쓰는 도메인(add-{token}@{도메인}). Cloudflare Email Routing이 붙어있는 도메인. */
   FORWARDING_EMAIL_DOMAIN: string;
   /**

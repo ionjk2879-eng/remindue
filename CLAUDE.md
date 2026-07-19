@@ -86,19 +86,84 @@ backend/     Spring Boot — logic reference only, not deployed (Phase 0 origin)
 
 Signup creates new users with `is_premium = 0` (free plan) — see `routes/auth.ts`.
 Free-plan users are capped at `FREE_PLAN_MAX_PURCHASES` (5, in
-`lib/purchase-logic.ts`) registered items; premium users are unlimited.
-There's no billing/upgrade flow yet, so the only way to flip a specific
-account to premium is directly in D1:
+`lib/purchase-logic.ts`) registered items; premium users are unlimited and also
+get the weekly recurring-delivery digest/summary and the in-app "놓친 배송
+감지" (missed-delivery) hint (both gated on `isPremium` at the call sites, not
+inside `purchase-logic.ts` itself).
+
+Premium is now billing-managed (see `## Billing` below) via `users.premium_expires_at`.
+`is_premium` is still the fast read-path every route checks, but the source of
+truth is `premium_expires_at` — a daily cron keeps `is_premium` in sync with it.
+Accounts with `premium_expires_at IS NULL` (pre-billing accounts, or anyone
+flipped on manually) are never touched by billing logic — that's still a valid
+manual-override escape hatch for support/testing:
 
 ```bash
 cd workers
 npx wrangler d1 execute remindue-db --remote --command "UPDATE users SET is_premium = 1 WHERE email = 'someone@example.com';"
 ```
 
-Drop `--remote` to do the same against the local dev database instead.
-Existing accounts created before this flag existed already have
-`is_premium = 1` (the column's original default) and were left alone —
-only new signups get the free default.
+Drop `--remote` to do the same against the local dev database instead. Leaving
+`premium_expires_at` NULL when doing this keeps the account outside billing's
+reach permanently (the expiry sweep only demotes rows where it's set and past).
+
+## Billing (Toss Payments)
+
+Three plans, all defined in one place — `workers/src/lib/billing-plans.ts`
+(`PLAN_CONFIG`) — so the checkout route and the renewal cron can't drift apart
+on price: **1회성**(2,200원/30일, no auto-renew), **월 정기결제**(1,900원/월),
+**연 정기결제**(19,000원/년). Amounts are always server-decided; the client
+never gets to say what it's paying — `routes/billing.ts`'s `/confirm` only
+uses the client-echoed `amount` to *check against* what was stored server-side
+at checkout time.
+
+- **One-time flow**: `POST /billing/checkout` stores an order (server-picked
+  amount + a fresh `orderId`) → frontend opens Toss's payment widget → Toss
+  redirects to `/billing/success?paymentKey&orderId&amount` → frontend calls
+  `POST /billing/confirm`, which verifies the amount against the stored order,
+  calls Toss's confirm API, and extends `premium_expires_at`.
+- **Recurring flow** (월/연): frontend opens Toss's billing-auth widget (card
+  registration) → Toss redirects to `/billing/auth-success?authKey&customerKey`
+  → frontend calls `POST /billing/billing-key/issue`, which exchanges
+  `authKey` for a `billingKey`, charges the first cycle immediately, and
+  stores the `billingKey` on a `subscriptions` row with `auto_renew=1`.
+- **Auto-renewal**: Toss does **not** auto-charge billing keys on its own —
+  `lib/billing-renewal.ts`'s `runBillingRenewals()` runs inside the existing
+  daily cron (`scheduled()` in `index.ts`, same trigger as the digest jobs)
+  and charges any `ACTIVE`/`auto_renew=1` subscription whose
+  `current_period_end` is within a day of now. 3 consecutive failures
+  auto-downgrades (`auto_renew=0`, status `PAST_DUE`) and emails the user;
+  fewer than 3 just retries the next day (same cron tick). Right after,
+  `runPremiumExpirySweep()` demotes `is_premium` for anyone whose
+  `premium_expires_at` has passed and who isn't mid-retry.
+- **Idempotency**: `payments.order_id` is unique and generated server-side
+  before ever talking to Toss; `/confirm` and `/billing-key/issue` both check
+  for an already-`CONFIRMED` row before re-calling Toss, so a duplicate
+  redirect/click can't double-charge or double-extend premium.
+- **No webhook yet** (scoped out of MVP) — the redirect-confirm round trip
+  closes the loop for the normal case; the only gap is a user closing the tab
+  between paying and the redirect landing, which would leave Toss showing a
+  successful charge with nothing recorded on our side. Reconciling via Toss's
+  webhook is a known fast-follow, not yet built.
+- **Dev testing**: `POST /api/dev/run-billing-renewal` (dev-only route, same
+  `ENVIRONMENT === 'development'` gate as the other `routes/dev.ts` tools)
+  runs `runBillingRenewals` + `runPremiumExpirySweep` immediately instead of
+  waiting for the daily cron — useful after manually backdating a test
+  subscription's `current_period_end` in D1.
+- **Secrets**: `TOSS_SECRET_KEY` (backend, Basic-auth secret — `.dev.vars`
+  locally, `wrangler secret put TOSS_SECRET_KEY` in prod; test keys look like
+  `test_sk_...`, live keys `live_sk_...`). `VITE_TOSS_CLIENT_KEY` is **not**
+  secret (it's meant to ship in frontend JS) — it lives in
+  `frontend/.env.dev` / `.env.production`, not in the Workers `Env` at all.
+  Both key types come from developers.tosspayments.com (free signup, no
+  business registration needed for test keys — a trial store is auto-created).
+- **Migration**: `migrations/0011_add_billing_tables.sql` added `subscriptions`
+  and `payments` tables plus `users.premium_expires_at` /
+  `users.toss_customer_key`. Like every migration, `db:migrate:local` doesn't
+  touch prod — run `db:migrate:remote` (or `wrangler d1 migrations apply
+  remindue-db --remote`) before/at the same time this ships to production, or
+  billing routes will 500 in prod with no obvious cause (see the migration
+  warning under `## Backend` above — this bit the project once already).
 
 ### Dev-only testing tools (`routes/dev.ts`)
 

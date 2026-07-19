@@ -57,3 +57,19 @@ export interface PendingPurchasesResponse {
   forwardingEmail: string;
   items: PendingPurchase[];
 }
+
+export type BillingPlan = 'ONE_TIME' | 'MONTHLY' | 'ANNUAL';
+
+export interface BillingStatus {
+  isPremium: boolean;
+  plan: BillingPlan | null;
+  premiumExpiresAt: string | null;
+  autoRenew: boolean;
+}
+
+export interface CheckoutResponse {
+  orderId: string;
+  amount: number;
+  orderName: string;
+  customerKey: string;
+}

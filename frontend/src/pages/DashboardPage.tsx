@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { fetchPurchases, createPurchase, updatePurchase, deletePurchase, markDelivered } from '../api/purchases';
 import { fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
@@ -221,9 +222,9 @@ export default function DashboardPage() {
           {nickname}님의 <span className="accent">챙길 목록</span>
         </h1>
         {!isPremium && (
-          <span className="plan-counter mono">
+          <Link to="/pricing" className="plan-counter mono">
             {purchases.length}/{FREE_PLAN_MAX_PURCHASES}개 등록됨
-          </span>
+          </Link>
         )}
       </div>
 
@@ -422,7 +423,8 @@ export default function DashboardPage() {
         {errorMessage && <p className="form-error" style={{ marginTop: 12 }}>{errorMessage}</p>}
         {showPremiumUpsell && (
           <p className="premium-upsell" style={{ marginTop: 6 }}>
-            ✨ 프리미엄으로 업그레이드하면 등록 개수 제한 없이 이용할 수 있어요. (결제 기능은 준비 중이에요)
+            ✨ 프리미엄으로 업그레이드하면 등록 개수 제한 없이 이용할 수 있어요.{' '}
+            <Link to="/pricing">업그레이드하기 →</Link>
           </p>
         )}
       </form>
@@ -465,7 +467,7 @@ export default function DashboardPage() {
                   {DEADLINE_LABEL[p.type]} · <span className="mono">{p.deadline}</span>
                 </p>
               )}
-              {p.type === 'RECURRING_DELIVERY' && !!p.missedConfirmations && p.missedConfirmations > 0 && (
+              {isPremium && p.type === 'RECURRING_DELIVERY' && !!p.missedConfirmations && p.missedConfirmations > 0 && (
                 <p className="ticket-card__hint">
                   ⚠ 확인을 놓친 배송이 있을 수 있어요 — <span className="mono">{p.missedConfirmations}</span>건 확인 누락 가능성
                 </p>

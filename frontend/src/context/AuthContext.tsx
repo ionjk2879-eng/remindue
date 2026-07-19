@@ -6,6 +6,8 @@ interface AuthContextValue {
   /** 프리미엄 알림 기능(놓친 배송 감지 주간 리포트, 이번 주 배송 예정 요약) 접근 권한. */
   isPremium: boolean;
   setAuth: (accessToken: string, nickname: string, isPremium: boolean) => void;
+  /** 결제 성공 직후 토큰 재발급 없이 isPremium만 갱신한다 — 액세스 토큰은 그대로 둔다. */
+  refreshPremium: (isPremium: boolean) => void;
   logout: () => void;
 }
 
@@ -23,6 +25,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsPremium(isPremium);
   };
 
+  const refreshPremium = (isPremium: boolean) => {
+    localStorage.setItem('isPremium', String(isPremium));
+    setIsPremium(isPremium);
+  };
+
   const logout = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('nickname');
@@ -32,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ nickname, isAuthenticated: !!nickname, isPremium, setAuth, logout }}>
+    <AuthContext.Provider value={{ nickname, isAuthenticated: !!nickname, isPremium, setAuth, refreshPremium, logout }}>
       {children}
     </AuthContext.Provider>
   );

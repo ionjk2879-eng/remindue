@@ -5,6 +5,10 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import DashboardPage from './pages/DashboardPage';
+import PricingPage from './pages/PricingPage';
+import BillingSuccessPage from './pages/BillingSuccessPage';
+import BillingAuthSuccessPage from './pages/BillingAuthSuccessPage';
+import BillingFailPage from './pages/BillingFailPage';
 import type { ReactNode } from 'react';
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -35,6 +39,38 @@ export default function App() {
               element={
                 <RequireAuth>
                   <DashboardPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/pricing"
+              element={
+                <RequireAuth>
+                  <PricingPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/billing/success"
+              element={
+                <RequireAuth>
+                  <BillingSuccessPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/billing/auth-success"
+              element={
+                <RequireAuth>
+                  <BillingAuthSuccessPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/billing/fail"
+              element={
+                <RequireAuth>
+                  <BillingFailPage />
                 </RequireAuth>
               }
             />

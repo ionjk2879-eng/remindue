@@ -244,6 +244,58 @@ export function buildWeeklyDigestEmailHtml(nickname: string, upcoming: WeeklyIte
 }
 
 /**
+ * 정기결제 자동 갱신 청구 실패 안내 메일. willRetryTomorrow가 true면 "내일 자동으로 한 번 더
+ * 시도합니다"(연속 실패 횟수가 다운그레이드 임계치 미만), false면 "프리미엄이 해지됐습니다"
+ * (임계치를 넘겨 자동 갱신을 껐을 때)로 문구가 갈린다.
+ */
+export function buildRenewalFailedEmailHtml(nickname: string, planLabel: string, willRetryTomorrow: boolean, dashboardUrl: string): string {
+  const message = willRetryTomorrow
+    ? `등록하신 카드로 ${escapeHtml(planLabel)} 자동 결제를 시도했지만 실패했어요. 내일 다시 한 번 자동으로 시도할게요 — 카드 한도/잔액을 확인해주세요.`
+    : `등록하신 카드로 ${escapeHtml(planLabel)} 자동 결제가 여러 번 실패해서 자동 갱신을 중단했어요. 프리미엄 혜택은 남은 기간이 끝나면 해지됩니다. 계속 이용하시려면 대시보드에서 다시 결제해주세요.`;
+
+  return `
+<!doctype html>
+<html lang="ko">
+  <body style="margin:0;padding:0;background-color:#F5F5F0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F5F5F0;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#FFFFFF;border:1px solid #E2E0D6;border-radius:12px;overflow:hidden;">
+            <tr>
+              <td style="padding:24px 28px 0;">
+                <span style="font-family:'Courier New',Courier,monospace;font-size:16px;font-weight:700;color:#1F2937;">Remindue</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 28px 4px;">
+                <h1 style="margin:0;font-size:19px;line-height:1.4;color:#1F2937;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
+                  ${escapeHtml(nickname)}님, <span style="color:#C13B3B;">정기결제 자동 갱신에 실패했어요</span>
+                </h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:4px 28px 24px;">
+                <p style="margin:0;font-size:14px;line-height:1.6;color:#1F2937;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
+                  ${message}
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding:0 28px 32px;">
+                <a href="${dashboardUrl}" style="display:inline-block;background-color:#1F2937;color:#F5F5F0;font-size:14px;font-weight:700;text-decoration:none;padding:12px 28px;border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
+                  대시보드에서 확인하기
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+/**
  * Resend REST API로 다이제스트 메일 1통을 보낸다.
  * API 키가 비어 있으면(로컬 개발 등) 실제 전송은 건너뛰고 콘솔에만 남긴다 —
  * 키를 넣는 순간 코드 변경 없이 바로 발송이 시작된다.

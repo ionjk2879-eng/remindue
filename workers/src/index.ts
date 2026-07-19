@@ -4,10 +4,12 @@ import authRoutes from './routes/auth';
 import purchaseRoutes from './routes/purchases';
 import pushRoutes from './routes/push';
 import pendingPurchaseRoutes from './routes/pending-purchases';
+import billingRoutes from './routes/billing';
 import devRoutes from './routes/dev';
 import { HttpError } from './lib/errors';
 import { runDailyDigest } from './lib/digest';
 import { runWeeklyDigest } from './lib/weekly-digest';
+import { runBillingRenewals, runPremiumExpirySweep } from './lib/billing-renewal';
 import { handleIncomingEmail } from './lib/email-intake';
 import type { Env } from './types';
 
@@ -35,6 +37,7 @@ app.route('/api/auth', authRoutes);
 app.route('/api/purchases', purchaseRoutes);
 app.route('/api/push', pushRoutes);
 app.route('/api/pending-purchases', pendingPurchaseRoutes);
+app.route('/api/billing', billingRoutes);
 app.route('/api/dev', devRoutes);
 
 // GlobalExceptionHandler.java와 동일한 매핑: {message}, 상태코드는 에러 종류에 따라 결정
@@ -85,6 +88,21 @@ export default {
         })
       );
     }
+
+    // 정기결제 자동 갱신은 매일 확인한다(요일 무관 — 만료가 임박한 구독마다 날짜가 다르므로).
+    // 갱신을 먼저 끝낸 뒤에 만료 스윕을 돌려야, 방금 갱신된 사용자가 스윕에 잘못 걸리지 않는다.
+    ctx.waitUntil(
+      runBillingRenewals(env)
+        .then((result) => {
+          console.log(
+            `[billing-renewal] 완료 — 시도 ${result.attempted}건, 갱신 ${result.renewed}건, 실패 ${result.failed}건, 다운그레이드 ${result.downgraded}건`
+          );
+          return runPremiumExpirySweep(env);
+        })
+        .then((result) => {
+          console.log(`[premium-expiry-sweep] 완료 — 만료 처리 ${result.demoted}명`);
+        })
+    );
   },
   // Cloudflare Email Routing 라우팅 규칙(액션: "Send to a Worker")이 이 Worker로 넘겨주는 메일.
   // add-{forwarding_token}@{도메인}으로 온 메일만 처리하고, 그 외 형식/미확인 토큰/주문확인이
