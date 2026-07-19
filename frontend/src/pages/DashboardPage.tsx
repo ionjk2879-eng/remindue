@@ -294,9 +294,8 @@ export default function DashboardPage() {
     <div className="dashboard">
       <div className="dashboard-header">
         <h1>
-          {nickname}
-          {isPremium && <PremiumBadge premiumSince={premiumSince} paymentCount={paymentCount} />}님의{' '}
-          <span className="accent">챙길 목록</span>
+          {isPremium && <PremiumBadge premiumSince={premiumSince} paymentCount={paymentCount} />}
+          {nickname}님의 <span className="accent">챙길 목록</span>
         </h1>
         {!isPremium && (
           <Link to="/pricing" className="plan-counter mono">
