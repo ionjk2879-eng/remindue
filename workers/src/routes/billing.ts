@@ -88,11 +88,21 @@ async function getBillingStatus(db: D1Database, user: UserRow): Promise<BillingS
     .bind(user.id)
     .first<SubscriptionRow>();
 
+  // 프리미엄 뱃지의 "N일째 · M회차 결제" 표시용 — 결제 이전부터 is_premium=1로 열려있던
+  // 계정(premium_expires_at NULL, 결제 기록 없음)은 자연히 premiumSince=null/paymentCount=0으로
+  // 나오고, 프론트는 그 경우 뱃지만 보여주고 기간/회차 텍스트는 생략한다.
+  const paymentStats = await db
+    .prepare(`SELECT COUNT(*) AS count, MIN(confirmed_at) AS since FROM payments WHERE user_id = ? AND status = 'CONFIRMED'`)
+    .bind(user.id)
+    .first<{ count: number; since: string | null }>();
+
   return {
     isPremium: user.is_premium === 1,
     plan: sub?.plan ?? null,
     premiumExpiresAt: user.premium_expires_at,
     autoRenew: sub?.auto_renew === 1,
+    premiumSince: paymentStats?.since ?? null,
+    paymentCount: paymentStats?.count ?? 0,
   };
 }
 

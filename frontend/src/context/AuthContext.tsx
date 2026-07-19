@@ -1,14 +1,19 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { fetchBillingStatus } from '../api/billing';
+import type { BillingStatus } from '../types';
 
 interface AuthContextValue {
   nickname: string | null;
   isAuthenticated: boolean;
   /** 프리미엄 접근 권한 — 무제한 등록, 이번 주 배송 요약, 커스텀 알림 시점, CSV/PDF 내보내기, 가족 공유, 이력 보관. */
   isPremium: boolean;
+  /** 최초 결제 승인 시각. 결제 이력이 없는 계정(결제 연동 이전부터 프리미엄이었던 계정)은 null. */
+  premiumSince: string | null;
+  /** 성공한 결제 총 횟수 — 프리미엄 뱃지의 "N회차"에 쓴다. */
+  paymentCount: number;
   setAuth: (accessToken: string, nickname: string, isPremium: boolean) => void;
-  /** 결제 성공 직후 토큰 재발급 없이 isPremium만 갱신한다 — 액세스 토큰은 그대로 둔다. */
-  refreshPremium: (isPremium: boolean) => void;
+  /** 결제/해지 직후 토큰 재발급 없이 프리미엄 상태만 갱신한다 — 액세스 토큰은 그대로 둔다. */
+  refreshPremium: (status: Pick<BillingStatus, 'isPremium' | 'premiumSince' | 'paymentCount'>) => void;
   logout: () => void;
 }
 
@@ -17,6 +22,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [nickname, setNickname] = useState<string | null>(localStorage.getItem('nickname'));
   const [isPremium, setIsPremium] = useState<boolean>(localStorage.getItem('isPremium') === 'true');
+  const [premiumSince, setPremiumSince] = useState<string | null>(null);
+  const [paymentCount, setPaymentCount] = useState(0);
 
   const setAuth = (accessToken: string, nickname: string, isPremium: boolean) => {
     localStorage.setItem('accessToken', accessToken);
@@ -26,9 +33,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsPremium(isPremium);
   };
 
-  const refreshPremium = (isPremium: boolean) => {
-    localStorage.setItem('isPremium', String(isPremium));
-    setIsPremium(isPremium);
+  const refreshPremium = (status: Pick<BillingStatus, 'isPremium' | 'premiumSince' | 'paymentCount'>) => {
+    localStorage.setItem('isPremium', String(status.isPremium));
+    setIsPremium(status.isPremium);
+    setPremiumSince(status.premiumSince);
+    setPaymentCount(status.paymentCount);
   };
 
   const logout = () => {
@@ -37,22 +46,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('isPremium');
     setNickname(null);
     setIsPremium(false);
+    setPremiumSince(null);
+    setPaymentCount(0);
   };
 
-  // isPremium은 로그인 시점/결제 성공 리다이렉트에서만 갱신되므로, 그 사이(다른 기기에서
-  // 결제했거나 리다이렉트 페이지를 완전히 못 거쳤을 때) 값이 낡을 수 있다 — 앱을 열 때마다
-  // 서버 기준 최신 상태로 한 번 더 맞춰둔다. 로그인 안 된 상태/일시적 오류는 조용히 무시하고
-  // 기존 값을 유지한다(로그아웃 처리는 apiClient의 401 인터셉터가 이미 담당).
+  // isPremium/premiumSince/paymentCount는 로그인 시점/결제 성공 리다이렉트에서만 갱신되므로,
+  // 그 사이(다른 기기에서 결제했거나 리다이렉트 페이지를 완전히 못 거쳤을 때) 값이 낡을 수 있다 —
+  // 앱을 열 때마다, 그리고 로그인해서 nickname이 채워질 때마다(같은 SPA 세션 안에서 로그인한
+  // 경우도 포함) 서버 기준 최신 상태로 한 번 더 맞춰둔다. deps를 []로 두면 로그인 전에 마운트된
+  // 첫 실행에서 nickname이 아직 없어 조용히 스킵된 뒤 로그인해도 다시 안 돌아 낡은 값(특히
+  // premiumSince/paymentCount)이 남는 버그가 있었다. 로그인 안 된 상태/일시적 오류는 조용히
+  // 무시하고 기존 값을 유지한다(로그아웃 처리는 apiClient의 401 인터셉터가 이미 담당).
   useEffect(() => {
     if (!nickname) return;
     fetchBillingStatus()
-      .then((status) => refreshPremium(status.isPremium))
+      .then(refreshPremium)
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [nickname]);
 
   return (
-    <AuthContext.Provider value={{ nickname, isAuthenticated: !!nickname, isPremium, setAuth, refreshPremium, logout }}>
+    <AuthContext.Provider
+      value={{ nickname, isAuthenticated: !!nickname, isPremium, premiumSince, paymentCount, setAuth, refreshPremium, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

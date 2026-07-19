@@ -27,7 +27,7 @@ export default function BillingAuthSuccessPage() {
 
     issueBillingKey({ authKey, customerKey, plan })
       .then((result) => {
-        refreshPremium(result.isPremium);
+        refreshPremium(result);
         setStatus('done');
       })
       .catch((err) => {

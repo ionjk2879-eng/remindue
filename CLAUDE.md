@@ -277,6 +277,42 @@ Archived items are excluded from both digest crons (`lib/digest.ts`,
 `lib/weekly-digest.ts` both filter `archived_at IS NULL`) — archiving means
 "stop bothering me about this," not just "hide it from the main list."
 
+## Account deletion (`DELETE /api/auth/account`)
+
+Password-reconfirmed. Deletes everything that's purely personal data
+(`purchases`, `push_subscriptions`, `pending_purchases`, `shared_access` where
+the deleted user was the owner) — but **the `users` row itself is anonymized,
+not deleted**: `email` → a random `deleted-{id}-{uuid}@remindue.invalid`,
+`password_hash` → an unusable random hash (login becomes impossible),
+`nickname` → `"탈퇴한 회원"`, `forwarding_token` → regenerated (so the old
+`add-{token}@...` address stops accepting mail immediately), `is_premium` → 0,
+`premium_expires_at`/`toss_customer_key` → NULL. Any `ACTIVE` subscription is
+flipped to `CANCELED`/`auto_renew=0`/`toss_billing_key=NULL`, identical to
+what `/api/billing/cancel` does.
+
+**Why anonymize instead of delete:** 전자상거래법 시행령 제6조 requires
+"계약 또는 청약철회 등에 관한 기록" (`subscriptions`) and "대금결제 및 재화
+등의 공급에 관한 기록" (`payments`) to be retained for 5 years — a legal
+minimum, not optional, and it overrides a deletion request for those two
+tables specifically (개인정보보호법 recognizes this exact exception).
+Anonymization is itself a legally valid form of "파기" (destruction) under
+개인정보보호법 — a person is no longer identifiable, without needing to
+actually drop the row. This was **not the first approach tried**: an earlier
+version literally `DELETE FROM users` and left `subscriptions`/`payments` rows
+untouched, relying on their `user_id` FK having no cascade — except D1 runs
+with `PRAGMA foreign_keys=1`, so `ON DELETE CASCADE` on those FKs silently
+wiped the "retained" records anyway (reproduced locally). A follow-up
+migration to strip that `CASCADE` via table-recreation succeeded on local D1
+but **failed remotely** with a live `FOREIGN KEY constraint failed` error
+against the real `subscriptions`/`payments` data (`payments.subscription_id`
+still referencing the table mid-recreation, and remote D1 did not honor
+`PRAGMA foreign_keys=OFF` the way local miniflare-SQLite did) — caught before
+it did any damage (`wrangler d1 execute` rolled back cleanly), but not a risk
+worth re-attempting on tables holding real money records. Anonymizing `users`
+sidesteps the cascade question entirely: the row (and thus the FK target)
+never goes away, so nothing ever cascades. If you're tempted to "clean this up"
+into a real `DELETE FROM users` again, re-read this paragraph first.
+
 ## Frontend (frontend/)
 
 - `npx tsc -b` before considering frontend work done.

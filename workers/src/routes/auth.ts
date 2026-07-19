@@ -106,11 +106,20 @@ auth.post('/login', async (c) => {
 });
 
 /**
- * 회원탈퇴 — 비밀번호 재확인 후 계정과 관련 데이터를 전부 지운다. D1은 요청마다 다른 커넥션을
- * 쓸 수 있어 PRAGMA foreign_keys(및 그에 따른 ON DELETE CASCADE)를 안정적으로 믿을 수 없으므로,
- * users 테이블을 참조하는 모든 테이블을 명시적으로 먼저 지우고 마지막에 users 행을 지운다.
- * shared_access는 owner_user_id(내가 초대한 것)만 지운다 — 남이 나를 초대한 행은 shared_with_email이
- * 이메일 문자열 매칭일 뿐 FK가 아니라서, 계정이 없어져도 그냥 상대방 쪽에 매칭 안 되는 초대로 남는다.
+ * 회원탈퇴 — 비밀번호 재확인 후 순수 개인 데이터(등록 항목, 알림 구독, 공유 정보)는 지우고,
+ * users 행 자체는 삭제 대신 "익명화"한다(이메일/닉네임/비밀번호를 복구 불가능한 값으로
+ * 덮어써서 더 이상 특정 개인을 식별할 수 없게 만든다 — 개인정보보호법상 "파기"는 삭제뿐 아니라
+ * 익명화도 인정되는 방법이다). subscriptions/payments는 그대로 두고 status만 정기결제 해지와
+ * 동일하게 처리한다.
+ *
+ * 이렇게 하는 이유: 전자상거래법 시행령 제6조가 "계약 또는 청약철회 등에 관한 기록"과 "대금결제
+ * 및 재화 등의 공급에 관한 기록"을 최소 5년간 보관하도록 의무화한다. users 행을 실제로 DELETE하면
+ * subscriptions/payments의 user_id가 ON DELETE CASCADE로 걸려있어(로컬 D1에서 실제로 재현
+ * 확인함 — D1은 foreign_keys pragma가 켜져 있다) 이 법정 보관 기록까지 통째로 같이 사라져버린다.
+ * 스키마에서 그 CASCADE만 떼어내려는 시도(테이블 재생성 마이그레이션)는 원격 D1에서 FK 제약
+ * 오류로 실패했고(로컬 SQLite와 원격 D1의 PRAGMA/ALTER TABLE 처리 차이로 추정), 실거래 데이터가
+ * 걸린 테이블에 그런 위험한 스키마 수술을 강행하기보다 애초에 users 행을 지우지 않는 이 방식이
+ * 더 안전하다.
  */
 auth.delete('/account', authMiddleware, async (c) => {
   const email = c.get('userEmail');
@@ -124,14 +133,26 @@ auth.delete('/account', authMiddleware, async (c) => {
     throw new BadRequestError('비밀번호가 올바르지 않습니다');
   }
 
+  // 이메일/포워딩 토큰은 UNIQUE라 탈퇴한 계정마다 겹치지 않는 값이어야 한다.
+  const anonymizedEmail = `deleted-${user.id}-${crypto.randomUUID()}@remindue.invalid`;
+  const anonymizedPasswordHash = await hashPassword(crypto.randomUUID() + crypto.randomUUID());
+
   await c.env.DB.batch([
     c.env.DB.prepare('DELETE FROM purchases WHERE user_id = ?').bind(user.id),
     c.env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(user.id),
     c.env.DB.prepare('DELETE FROM pending_purchases WHERE user_id = ?').bind(user.id),
-    c.env.DB.prepare('DELETE FROM subscriptions WHERE user_id = ?').bind(user.id),
-    c.env.DB.prepare('DELETE FROM payments WHERE user_id = ?').bind(user.id),
     c.env.DB.prepare('DELETE FROM shared_access WHERE owner_user_id = ?').bind(user.id),
-    c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(user.id),
+    // 진행 중이던 정기결제가 있었다면 해지와 동일하게 처리 — 더 이상 청구 대상이 아니게.
+    c.env.DB.prepare(
+      `UPDATE subscriptions SET status = 'CANCELED', auto_renew = 0, toss_billing_key = NULL, updated_at = datetime('now')
+        WHERE user_id = ? AND status = 'ACTIVE'`
+    ).bind(user.id),
+    c.env.DB.prepare(
+      `UPDATE users
+          SET email = ?, password_hash = ?, nickname = '탈퇴한 회원', forwarding_token = ?,
+              is_premium = 0, premium_expires_at = NULL, toss_customer_key = NULL
+        WHERE id = ?`
+    ).bind(anonymizedEmail, anonymizedPasswordHash, generateForwardingToken(), user.id),
   ]);
 
   return c.body(null, 204);

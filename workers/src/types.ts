@@ -180,6 +180,10 @@ export interface BillingStatusResponse {
   plan: BillingPlan | null;
   premiumExpiresAt: string | null;
   autoRenew: boolean;
+  /** 최초 결제 승인 시각(datetime). 결제 이력이 없는 계정(결제 연동 이전부터 프리미엄이었던 계정 등)은 null. */
+  premiumSince: string | null;
+  /** 성공한 결제(CONFIRMED) 총 횟수 — "몇 회차"에 쓴다. */
+  paymentCount: number;
 }
 
 export type SharedAccessStatus = 'pending' | 'accepted';

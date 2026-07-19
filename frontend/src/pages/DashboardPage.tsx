@@ -16,6 +16,7 @@ import { fetchReceivedInvites, fetchSharedPurchases } from '../api/sharing';
 import type { PendingPurchase, Purchase, PurchaseType, SharedAccess } from '../types';
 import { useAuth } from '../context/AuthContext';
 import StampBadge from '../components/StampBadge';
+import PremiumBadge from '../components/PremiumBadge';
 import PushPermissionBanner from '../components/PushPermissionBanner';
 
 const TYPE_LABEL: Record<PurchaseType, string> = {
@@ -96,7 +97,7 @@ export default function DashboardPage() {
   const [selectedShareId, setSelectedShareId] = useState<number | null>(null);
   const [sharedPurchases, setSharedPurchases] = useState<Purchase[]>([]);
   const [exporting, setExporting] = useState(false);
-  const { nickname, isPremium } = useAuth();
+  const { nickname, isPremium, premiumSince, paymentCount } = useAuth();
 
   const load = async () => {
     const data = await fetchPurchases();
@@ -293,7 +294,9 @@ export default function DashboardPage() {
     <div className="dashboard">
       <div className="dashboard-header">
         <h1>
-          {nickname}님의 <span className="accent">챙길 목록</span>
+          {nickname}
+          {isPremium && <PremiumBadge premiumSince={premiumSince} paymentCount={paymentCount} />}님의{' '}
+          <span className="accent">챙길 목록</span>
         </h1>
         {!isPremium && (
           <Link to="/pricing" className="plan-counter mono">

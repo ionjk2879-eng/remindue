@@ -26,7 +26,7 @@ export default function BillingSuccessPage() {
 
     confirmPayment({ paymentKey, orderId, amount: Number(amount) })
       .then((result) => {
-        refreshPremium(result.isPremium);
+        refreshPremium(result);
         setStatus('done');
       })
       .catch((err) => {

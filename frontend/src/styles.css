@@ -373,6 +373,23 @@ select {
   letter-spacing: -0.01em;
 }
 
+.premium-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--type-electronics);
+  color: #fdfcf7;
+  font-size: 0.66rem;
+  font-weight: 800;
+  vertical-align: middle;
+  cursor: default;
+  box-shadow: 0 1px 3px rgba(31, 41, 55, 0.25);
+}
+
 .plan-counter {
   flex: 0 0 auto;
   font-size: 0.78rem;

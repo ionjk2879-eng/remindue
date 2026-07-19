@@ -27,7 +27,7 @@ function formatDayLabel(day: number): string {
 }
 
 export default function SettingsPage() {
-  const { isPremium, logout } = useAuth();
+  const { isPremium, logout, refreshPremium } = useAuth();
   const navigate = useNavigate();
 
   const [selectedDays, setSelectedDays] = useState<number[]>(FREE_PLAN_FIXED_DAYS);
@@ -126,6 +126,7 @@ export default function SettingsPage() {
     try {
       const result = await cancelSubscription();
       setBillingStatus(result);
+      refreshPremium(result);
       setCancelMessage('정기결제를 해지했어요. 결제된 기간까지는 프리미엄이 유지됩니다.');
     } catch (err) {
       const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
@@ -140,7 +141,7 @@ export default function SettingsPage() {
     setWithdrawError(null);
 
     const confirmed = window.confirm(
-      '정말 탈퇴하시겠어요? 등록된 항목, 결제 내역, 공유 정보가 모두 삭제되며 되돌릴 수 없습니다.'
+      '정말 탈퇴하시겠어요? 등록된 항목, 알림 구독, 공유 정보가 모두 삭제되며 되돌릴 수 없습니다. (결제·구독 기록은 법령에 따라 5년간 별도 보관됩니다)'
     );
     if (!confirmed) return;
 
@@ -274,7 +275,8 @@ export default function SettingsPage() {
       <section className="settings-section settings-section--danger">
         <h2>회원탈퇴</h2>
         <p className="settings-section__hint">
-          탈퇴하면 등록된 항목, 결제 내역, 공유 정보가 모두 삭제되고 되돌릴 수 없어요.
+          탈퇴하면 등록된 항목, 알림 구독, 공유 정보가 모두 삭제되고 되돌릴 수 없어요. 단, 결제·구독 기록은
+          전자상거래법에 따라 계정과 분리되어 5년간 보관됩니다.
           {isPremium && ' 진행 중인 정기결제가 있다면 먼저 위에서 해지해주세요.'}
         </p>
         <form className="withdraw-form" onSubmit={handleWithdraw}>

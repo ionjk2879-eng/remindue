@@ -65,6 +65,8 @@ export interface BillingStatus {
   plan: BillingPlan | null;
   premiumExpiresAt: string | null;
   autoRenew: boolean;
+  premiumSince: string | null;
+  paymentCount: number;
 }
 
 export interface CheckoutResponse {
