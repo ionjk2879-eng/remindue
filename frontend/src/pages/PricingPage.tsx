@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { loadTossPayments } from '@tosspayments/tosspayments-sdk';
 import { createCheckout } from '../api/billing';
 import { fetchPurchases } from '../api/purchases';
@@ -116,6 +117,11 @@ export default function PricingPage() {
           </div>
         ))}
       </div>
+
+      <p className="pricing-page__payment-notice">
+        결제는 토스페이먼츠를 통해 안전하게 처리되며, 카드 정보는 Remindue 서버에 저장되지 않습니다. 결제를 진행하면{' '}
+        <Link to="/privacy">개인정보처리방침</Link>에 동의하는 것으로 간주됩니다.
+      </p>
 
       <table className="pricing-table">
         <thead>

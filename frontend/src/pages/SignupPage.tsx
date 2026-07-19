@@ -7,6 +7,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { setAuth } = useAuth();
   const navigate = useNavigate();
@@ -14,6 +15,10 @@ export default function SignupPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!agreed) {
+      setError('개인정보 수집·이용에 동의해주세요.');
+      return;
+    }
     try {
       const res = await signup(email, password, nickname);
       setAuth(res.accessToken, res.nickname, res.isPremium);
@@ -59,6 +64,12 @@ export default function SignupPage() {
               required
             />
           </div>
+          <label className="auth-consent">
+            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+            <span>
+              (필수) <Link to="/privacy">개인정보처리방침</Link>에 따른 개인정보 수집·이용에 동의합니다.
+            </span>
+          </label>
           {error && <p className="form-error">{error}</p>}
           <button type="submit" className="btn">
             가입하기

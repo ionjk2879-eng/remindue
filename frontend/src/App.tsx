@@ -10,6 +10,8 @@ import PricingPage from './pages/PricingPage';
 import BillingSuccessPage from './pages/BillingSuccessPage';
 import BillingAuthSuccessPage from './pages/BillingAuthSuccessPage';
 import BillingFailPage from './pages/BillingFailPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import Footer from './components/Footer';
 import type { ReactNode } from 'react';
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -22,6 +24,7 @@ function Layout() {
     <>
       <Header />
       <Outlet />
+      <Footer />
     </>
   );
 }
@@ -83,6 +86,7 @@ export default function App() {
                 </RequireAuth>
               }
             />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

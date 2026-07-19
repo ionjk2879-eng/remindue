@@ -1498,6 +1498,150 @@ a.plan-counter:hover {
 }
 
 /* --------------------------------------------------------------------------
+   Auth pages — consent checkbox
+   -------------------------------------------------------------------------- */
+
+.auth-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.auth-consent input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.auth-consent a {
+  color: var(--safe-teal);
+  font-weight: 700;
+}
+
+/* --------------------------------------------------------------------------
+   Pricing page — payment notice
+   -------------------------------------------------------------------------- */
+
+.pricing-page__payment-notice {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin-bottom: 24px;
+}
+
+.pricing-page__payment-notice a {
+  color: var(--safe-teal);
+  font-weight: 700;
+}
+
+/* --------------------------------------------------------------------------
+   Site footer
+   -------------------------------------------------------------------------- */
+
+.site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  margin-top: 40px;
+  border-top: 1.5px dashed var(--hairline-strong);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.site-footer a {
+  color: var(--ink-soft);
+  text-decoration: underline;
+}
+
+.site-footer a:hover {
+  color: var(--ink);
+}
+
+/* --------------------------------------------------------------------------
+   Legal pages (개인정보처리방침 등)
+   -------------------------------------------------------------------------- */
+
+.legal-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+.legal-page h1 {
+  font-size: 1.4rem;
+  letter-spacing: -0.01em;
+}
+
+.legal-page__updated {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  margin-top: 6px;
+}
+
+.legal-page__intro {
+  margin-top: 20px;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--ink);
+}
+
+.legal-section {
+  margin-top: 32px;
+}
+
+.legal-section h2 {
+  font-size: 1.02rem;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1.5px solid var(--hairline-strong);
+}
+
+.legal-section p {
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+
+.legal-section ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.legal-section li {
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: var(--ink);
+}
+
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0 16px;
+  font-size: 0.84rem;
+}
+
+.legal-table th,
+.legal-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--hairline);
+  vertical-align: top;
+}
+
+.legal-table th {
+  background: var(--paper);
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
    Responsive
    -------------------------------------------------------------------------- */
 
@@ -1564,5 +1708,11 @@ a.plan-counter:hover {
 
   .pricing-cards {
     grid-template-columns: 1fr;
+  }
+
+  .legal-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
   }
 }
