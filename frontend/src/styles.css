@@ -19,10 +19,19 @@
   --overdue-grey: #8b8b85;
   --overdue-grey-light: #a7a79f;
 
-  /* 종류(type) 색상 — D-day 긴급도 색과는 완전히 분리된 팔레트 */
-  --type-electronics: #3b5ba9;
-  --type-online-order: #7d5a79;
-  --type-recurring: #6b7a3a;
+  /* 종류(type) 색상 — D-day 긴급도 색과는 완전히 분리된 팔레트.
+     각 색상은 배지 배경으로도 쓰이므로 -bg(연한 배경)/-border(배지 테두리) 짝을 둔다. */
+  --type-electronics: #2a5cc4;
+  --type-electronics-bg: #e6edfb;
+  --type-electronics-border: #b6cbf3;
+
+  --type-online-order: #a03e8f;
+  --type-online-order-bg: #f7e8f4;
+  --type-online-order-border: #edc2e4;
+
+  --type-recurring: #3f8f3f;
+  --type-recurring-bg: #e5f4e3;
+  --type-recurring-border: #bfe4bb;
 
   --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
@@ -436,10 +445,12 @@ select {
 
 .type-dot {
   display: inline-block;
-  width: 9px;
-  height: 9px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
+  border: 1.5px solid rgba(31, 41, 55, 0.15);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.4);
 }
 
 .type-dot--ELECTRONICS {
@@ -656,10 +667,33 @@ select {
 }
 
 .pending-card__type {
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline-strong);
   color: var(--ink-soft);
+  background: var(--paper);
+}
+
+.pending-card__type--ELECTRONICS {
+  color: var(--type-electronics);
+  background: var(--type-electronics-bg);
+  border-color: var(--type-electronics-border);
+}
+
+.pending-card__type--ONLINE_ORDER {
+  color: var(--type-online-order);
+  background: var(--type-online-order-bg);
+  border-color: var(--type-online-order-border);
+}
+
+.pending-card__type--RECURRING_DELIVERY {
+  color: var(--type-recurring);
+  background: var(--type-recurring-bg);
+  border-color: var(--type-recurring-border);
 }
 
 .pending-card__meta {
@@ -760,7 +794,7 @@ select {
 /* 종류(type) 책갈피 탭 — flex의 첫 아이템이라 데스크톱에선 왼쪽 세로 바,
    모바일 stacking(column)에선 자동으로 위쪽 가로 바가 된다. */
 .ticket-card__type-tab {
-  flex: 0 0 5px;
+  flex: 0 0 10px;
   align-self: stretch;
 }
 
@@ -786,11 +820,34 @@ select {
 }
 
 .ticket-card__type {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  display: inline-flex;
+  align-self: flex-start;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline-strong);
   color: var(--ink-soft);
+  background: var(--paper);
+}
+
+.ticket-card__type--ELECTRONICS {
+  color: var(--type-electronics);
+  background: var(--type-electronics-bg);
+  border-color: var(--type-electronics-border);
+}
+
+.ticket-card__type--ONLINE_ORDER {
+  color: var(--type-online-order);
+  background: var(--type-online-order-bg);
+  border-color: var(--type-online-order-border);
+}
+
+.ticket-card__type--RECURRING_DELIVERY {
+  color: var(--type-recurring);
+  background: var(--type-recurring-bg);
+  border-color: var(--type-recurring-border);
 }
 
 .ticket-card__title {

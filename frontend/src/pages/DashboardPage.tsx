@@ -262,7 +262,9 @@ export default function DashboardPage() {
                   <p className="pending-card__name">
                     <span className={`type-dot type-dot--${item.type}`} aria-hidden="true" />
                     {item.itemName ?? '(상품명 미확인)'}
-                    <span className="pending-card__type">{TYPE_SHORT_LABEL[item.type]}</span>
+                    <span className={`pending-card__type pending-card__type--${item.type}`}>
+                      {TYPE_SHORT_LABEL[item.type]}
+                    </span>
                   </p>
                   <p className="pending-card__meta">
                     {item.orderDate && (
@@ -426,7 +428,7 @@ export default function DashboardPage() {
           <div className="ticket-card" key={p.id}>
             <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
             <div className="ticket-card__body">
-              <span className="ticket-card__type">{TYPE_LABEL[p.type]}</span>
+              <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
               <h3 className="ticket-card__title">{p.itemName}</h3>
               {p.type === 'RECURRING_DELIVERY' && p.deliveryRound !== null ? (
                 <p className="ticket-card__deadline">
