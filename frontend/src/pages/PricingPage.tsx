@@ -27,10 +27,10 @@ const PLAN_CARDS: PlanCard[] = [
     title: '월 정기결제',
     price: '1,900원',
     note: '매달 자동 결제',
-    badge: '2개월 무료 효과',
     recommended: true,
   },
-  { key: 'ANNUAL', title: '연 정기결제', price: '19,000원', note: '매년 자동 결제', badge: '가장 저렴' },
+  // 19,000원/년은 1,900원×12개월(22,800원)보다 3,800원 싸다 — 딱 2개월치 요금이라 "2개월 무료 효과".
+  { key: 'ANNUAL', title: '연 정기결제', price: '19,000원', note: '매년 자동 결제', badge: '2개월 무료 효과' },
 ];
 
 export default function PricingPage() {
