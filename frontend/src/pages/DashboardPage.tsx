@@ -574,7 +574,7 @@ export default function DashboardPage() {
                     </p>
                   )}
                   <div className="ticket-card__actions">
-                    {p.type === 'RECURRING_DELIVERY' &&
+                    {p.type === 'RECURRING_DELIVERY' && p.dDay <= 0 &&
                       (isFullyConfirmed(p) ? (
                         <span className="confirm-badge">✓ 확인완료</span>
                       ) : (

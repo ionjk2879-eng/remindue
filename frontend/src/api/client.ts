@@ -23,6 +23,8 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('accessToken');
+      localStorage.removeItem('nickname');
+      localStorage.removeItem('isPremium');
       window.location.href = '/login';
     }
     return Promise.reject(error);
