@@ -699,7 +699,7 @@ a.plan-counter:hover {
 
 .weekly-summary-banner__tag {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
   font-weight: 800;
   font-size: 0.82rem;

@@ -279,7 +279,7 @@ export default function DashboardPage() {
   };
 
   const urgent = purchases
-    .filter((p) => p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
+    .filter((p) => p.type === 'RECURRING_DELIVERY' ? p.dDay === 0 : p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
   const urgentAllHandled = urgent.length > 0 && urgent.every(isFullyConfirmed);
 
@@ -307,7 +307,7 @@ export default function DashboardPage() {
       {isPremium && weeklyRecurring.length > 0 && (
         <div className="weekly-summary-banner">
           <span className="weekly-summary-banner__tag">
-            📦 이번 주 배송 예정 <span className="mono">{weeklyRecurring.length}</span>건
+            📦 이번 주 배송 예정 <span><span className="mono">{weeklyRecurring.length}</span>건</span>
           </span>
           <ul>
             {weeklyRecurring.map((p) => (
