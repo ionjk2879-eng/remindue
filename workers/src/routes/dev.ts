@@ -8,8 +8,10 @@ import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { NotFoundError } from '../lib/errors';
 import { addDays, todayDateOnly } from '../lib/date';
 import { runWeeklyDigest } from '../lib/weekly-digest';
+import { runDailyDigest } from '../lib/digest';
 import { runBillingRenewals, runPremiumExpirySweep } from '../lib/billing-renewal';
-import type { Env, UserRow } from '../types';
+import { sendPush } from '../lib/push';
+import type { Env, PushSubscriptionRow, UserRow } from '../types';
 
 const dev = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 dev.use('*', authMiddleware);
@@ -57,6 +59,51 @@ dev.post('/seed-test-data', async (c) => {
   }
 
   return c.json({ seeded: items.map((item) => item.itemName) });
+});
+
+/**
+ * 로그인한 계정의 push 구독에 테스트 알림을 즉시 발송한다 — dDay 계산 없이 고정 문구.
+ * "알림 허용"을 눌렀을 때 실제로 알림이 오는지 바로 확인할 때 쓴다.
+ */
+dev.post('/send-test-push', async (c) => {
+  if (c.env.ENVIRONMENT !== 'development') {
+    throw new NotFoundError('Not Found');
+  }
+
+  const email = c.get('userEmail');
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>();
+  if (!user) throw new NotFoundError(`사용자를 찾을 수 없습니다: ${email}`);
+
+  const { results: subs } = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?')
+    .bind(user.id)
+    .all<PushSubscriptionRow>();
+
+  if (subs.length === 0) return c.json({ sent: 0, message: 'push 구독 없음 — 알림 허용을 먼저 눌러주세요' });
+
+  let sent = 0;
+  for (const sub of subs) {
+    const { sent: ok } = await sendPush(c.env, sub, {
+      title: 'Remindue 테스트 알림',
+      body: '푸시 알림이 정상적으로 동작하고 있어요 ✓',
+      url: `${c.env.APP_URL}/dashboard`,
+    });
+    if (ok) sent += 1;
+  }
+
+  return c.json({ sent, subscriptions: subs.length });
+});
+
+/**
+ * runDailyDigest를 크론을 기다리지 않고 즉시 실행한다 — 오늘 날짜 기준 dDay가
+ * 알림 시점에 걸린 항목이 있는 모든 사용자에게 실제 이메일·푸시를 발송한다.
+ */
+dev.post('/run-daily-digest', async (c) => {
+  if (c.env.ENVIRONMENT !== 'development') {
+    throw new NotFoundError('Not Found');
+  }
+
+  const result = await runDailyDigest(c.env);
+  return c.json(result);
 });
 
 /**
