@@ -1560,14 +1560,24 @@ a.plan-counter:hover {
 
 .site-footer {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 6px;
   padding: 24px;
   margin-top: 40px;
   border-top: 1.5px dashed var(--hairline-strong);
   font-size: 0.78rem;
   color: var(--ink-soft);
+}
+
+.site-footer__links {
+  display: flex;
+  gap: 16px;
+}
+
+.site-footer__biz {
+  margin: 0;
 }
 
 .site-footer a {
