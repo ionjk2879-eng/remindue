@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Logo from './Logo';
+import ThemeToggle from './ThemeToggle';
 
 export default function Header() {
   const { isAuthenticated, isPremium, logout } = useAuth();
@@ -17,28 +18,31 @@ export default function Header() {
         <Logo size={26} />
         <span className="site-header__wordmark">Remindue</span>
       </Link>
-      {isAuthenticated ? (
-        <div className="site-header__nav">
-          <Link to="/feedback" className="site-header__link">
-            문의/제안
-          </Link>
-          <Link to="/settings" className="site-header__link">
-            설정
-          </Link>
-          {!isPremium && (
-            <Link to="/pricing" className="site-header__link site-header__link--premium">
-              ✨ 프리미엄
+      <div className="site-header__right">
+        {isAuthenticated ? (
+          <div className="site-header__nav">
+            <Link to="/feedback" className="site-header__link">
+              문의/제안
             </Link>
-          )}
-          <button className="btn btn-outline btn-sm" onClick={handleLogout}>
-            로그아웃
-          </button>
-        </div>
-      ) : (
-        <Link to="/login" className="btn btn-outline btn-sm">
-          로그인
-        </Link>
-      )}
+            <Link to="/settings" className="site-header__link">
+              설정
+            </Link>
+            {!isPremium && (
+              <Link to="/pricing" className="site-header__link site-header__link--premium">
+                ✨ 프리미엄
+              </Link>
+            )}
+            <button className="btn btn-outline btn-sm" onClick={handleLogout}>
+              로그아웃
+            </button>
+          </div>
+        ) : (
+          <Link to="/login" className="btn btn-outline btn-sm">
+            로그인
+          </Link>
+        )}
+        <ThemeToggle />
+      </div>
     </header>
   );
 }

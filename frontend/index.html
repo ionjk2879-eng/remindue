@@ -2,6 +2,20 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // 사용자가 명시적으로 고른 테마를 첫 페인트 전에 적용한다 — React가 마운트된 뒤에야
+      // ThemeToggle이 이 속성을 설정하면, 시스템은 라이트인데 사용자가 다크를 골라둔 경우
+      // 라이트로 한 번 그려졌다가 다크로 바뀌는 깜빡임(FOUC)이 생긴다. 저장된 값이 없으면
+      // (한 번도 토글 안 함) 그냥 CSS의 prefers-color-scheme 미디어쿼리에 맡긴다.
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          if (stored === 'light' || stored === 'dark') {
+            document.documentElement.setAttribute('data-theme', stored);
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Remindue — 흩어진 정기배송, 보증기간, 반품기한을 한곳에서</title>
     <meta

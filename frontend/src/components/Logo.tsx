@@ -19,11 +19,11 @@ export default function Logo({ size = 28, className }: LogoProps) {
       style={{ transform: 'rotate(-8deg)', flexShrink: 0 }}
       aria-hidden="true"
     >
-      <circle cx="24" cy="24" r="20" stroke="#C13B3B" strokeWidth="2.5" />
-      <circle cx="24" cy="24" r="15" stroke="#C13B3B" strokeWidth="1.5" strokeDasharray="3 3.4" />
+      <circle cx="24" cy="24" r="20" style={{ stroke: 'var(--stamp-red)' }} strokeWidth="2.5" />
+      <circle cx="24" cy="24" r="15" style={{ stroke: 'var(--stamp-red)' }} strokeWidth="1.5" strokeDasharray="3 3.4" />
       <path
         d="M15.5 24.5L20.5 29.5L32.5 16.5"
-        stroke="#C13B3B"
+        style={{ stroke: 'var(--stamp-red)' }}
         strokeWidth="3.2"
         strokeLinecap="round"
         strokeLinejoin="round"

@@ -33,13 +33,137 @@
   --type-recurring-bg: #e5f4e3;
   --type-recurring-border: #bfe4bb;
 
+  /* 상태 배경 3종(위험/안전/주의) — 배너/배지 여러 곳에서 재사용하는 옅은 틴트 배경 + 테두리.
+     밝기만 바뀌는 게 아니라 다크모드에서는 채도 낮춘 어두운 틴트로 따로 정의한다(아래 dark 블록). */
+  --danger-bg: #fbeaea;
+  --danger-border: #f1c5c5;
+  --safe-bg: #e3f0ec;
+  --safe-border: #bfe4d8;
+  --amber-bg: #fbf3e4;
+  --amber-border: #efd9ae;
+  --neutral-bg: #efefea;
+  --footer-bg: #eeeee8;
+  --placeholder: #b3b0a4;
+
+  /* 채도 있는 배지/스탬프 위에 얹는 텍스트·테두리 — 배지 자체가 이미 대비를 위해 밝은/어두운
+     색을 뒤집어 쓰므로(예: auth-card__badge는 ink 배경+paper 텍스트) 이 셋만 테마별로 조정한다. */
+  --badge-text: #fdfcf7;
+  --badge-highlight: rgba(255, 255, 255, 0.4);
+  --badge-ring: rgba(245, 245, 240, 0.55);
+  --stamp-ring: rgba(253, 252, 247, 0.7);
+
+  /* 그림자/비네트에 쓰는 베이스 RGB — 다크모드에서는 잉크색이 밝아지므로 그림자는 대신
+     순검정 계열로 바꿔야 "그림자"로 보인다. rgba(var(--shadow-rgb), 알파) 형태로 전부 참조한다. */
+  --shadow-rgb: 31, 41, 55;
+
   --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
   --radius-card: 12px;
   --radius-sm: 8px;
-  --shadow-rest: 0 1px 2px rgba(31, 41, 55, 0.06);
-  --shadow-lift: 0 10px 24px rgba(31, 41, 55, 0.14);
+  --shadow-rest: 0 1px 2px rgba(var(--shadow-rgb), 0.06);
+  --shadow-lift: 0 10px 24px rgba(var(--shadow-rgb), 0.14);
+}
+
+/* --------------------------------------------------------------------------
+   다크모드 — 시스템 설정(prefers-color-scheme)을 기본값으로 따르되, 사용자가 헤더의
+   토글로 명시적으로 고르면 :root[data-theme="dark|light"]가 그 위에서 우선한다.
+   ThemeToggle.tsx가 localStorage("theme")에 저장하고, index.html의 인라인 스크립트가
+   첫 페인트 전에 이 속성을 미리 심어서 깜빡임(FOUC)을 막는다.
+   -------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #17181c;
+    --paper-card: #202127;
+    --ink: #e8e6e0;
+    --ink-soft: #9b9a92;
+    --hairline: #33343a;
+    --hairline-strong: #46474e;
+
+    --stamp-red: #e85d5d;
+    --stamp-red-light: #e8837c;
+    --stamp-amber: #d9a648;
+    --stamp-amber-light: #e0bb70;
+    --safe-teal: #4a9483;
+    --safe-teal-light: #6bab98;
+    --overdue-grey: #a3a39c;
+    --overdue-grey-light: #bdbdb5;
+
+    --type-electronics: #6f95e8;
+    --type-electronics-bg: #1f2a42;
+    --type-electronics-border: #3d5580;
+
+    --type-online-order: #cd6fbb;
+    --type-online-order-bg: #34222f;
+    --type-online-order-border: #55374c;
+
+    --type-recurring: #6bbf6b;
+    --type-recurring-bg: #1f2f1f;
+    --type-recurring-border: #3a553a;
+
+    --danger-bg: #3a2020;
+    --danger-border: #5c2f2f;
+    --safe-bg: #16302a;
+    --safe-border: #2a5245;
+    --amber-bg: #3a2f1a;
+    --amber-border: #5c4a2a;
+    --neutral-bg: #2a2b30;
+    --footer-bg: #121316;
+    --placeholder: #6b6b64;
+
+    --badge-highlight: rgba(255, 255, 255, 0.25);
+    --badge-ring: rgba(23, 24, 28, 0.55);
+    --stamp-ring: rgba(23, 24, 28, 0.6);
+
+    --shadow-rgb: 0, 0, 0;
+  }
+}
+
+:root[data-theme='dark'] {
+  --paper: #17181c;
+  --paper-card: #202127;
+  --ink: #e8e6e0;
+  --ink-soft: #9b9a92;
+  --hairline: #33343a;
+  --hairline-strong: #46474e;
+
+  --stamp-red: #e85d5d;
+  --stamp-red-light: #e8837c;
+  --stamp-amber: #d9a648;
+  --stamp-amber-light: #e0bb70;
+  --safe-teal: #4a9483;
+  --safe-teal-light: #6bab98;
+  --overdue-grey: #a3a39c;
+  --overdue-grey-light: #bdbdb5;
+
+  --type-electronics: #6f95e8;
+  --type-electronics-bg: #1f2a42;
+  --type-electronics-border: #3d5580;
+
+  --type-online-order: #cd6fbb;
+  --type-online-order-bg: #34222f;
+  --type-online-order-border: #55374c;
+
+  --type-recurring: #6bbf6b;
+  --type-recurring-bg: #1f2f1f;
+  --type-recurring-border: #3a553a;
+
+  --danger-bg: #3a2020;
+  --danger-border: #5c2f2f;
+  --safe-bg: #16302a;
+  --safe-border: #2a5245;
+  --amber-bg: #3a2f1a;
+  --amber-border: #5c4a2a;
+  --neutral-bg: #2a2b30;
+  --footer-bg: #121316;
+  --placeholder: #6b6b64;
+
+  --badge-highlight: rgba(255, 255, 255, 0.25);
+  --badge-ring: rgba(23, 24, 28, 0.55);
+  --stamp-ring: rgba(23, 24, 28, 0.6);
+
+  --shadow-rgb: 0, 0, 0;
 }
 
 * {
@@ -55,11 +179,20 @@ body,
 body {
   margin: 0;
   background: var(--paper);
-  background-image: radial-gradient(circle at 50% 0%, rgba(31, 41, 55, 0.035), transparent 60%);
+  background-image: radial-gradient(circle at 50% 0%, rgba(var(--shadow-rgb), 0.035), transparent 60%);
   background-repeat: no-repeat;
   color: var(--ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* 라이트/다크 전환을 부드럽게 — 개별 컴포넌트가 이미 더 구체적인 transition을 선언해뒀다면
+   그쪽이 우선하므로(예: .btn, .ticket-card) 여기서는 그 외 요소의 색 전환만 보강한다. */
+*,
+*::before,
+*::after {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
 h1,
@@ -126,10 +259,36 @@ select {
   letter-spacing: -0.01em;
 }
 
+.site-header__right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .site-header__nav {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--hairline-strong);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 0;
+}
+
+.theme-toggle:hover {
+  color: var(--ink);
+  border-color: var(--ink);
 }
 
 .site-header__link {
@@ -190,7 +349,7 @@ select {
 }
 
 .btn-danger:hover {
-  background: #fbeaea;
+  background: var(--danger-bg);
 }
 
 .btn-sm {
@@ -253,7 +412,7 @@ select {
   font-weight: 800;
   font-size: 1.1rem;
   transform: rotate(-8deg);
-  border: 3px double rgba(245, 245, 240, 0.55);
+  border: 3px double var(--badge-ring);
   box-shadow: var(--shadow-rest);
 }
 
@@ -301,7 +460,7 @@ select {
 }
 
 .field input::placeholder {
-  color: #b3b0a4;
+  color: var(--placeholder);
 }
 
 .field input[type='date'] {
@@ -323,7 +482,7 @@ select {
   margin: 0;
   font-size: 0.84rem;
   color: var(--stamp-red);
-  background: #fbeaea;
+  background: var(--danger-bg);
   border: 1px dashed var(--stamp-red);
   border-radius: 6px;
   padding: 8px 10px;
@@ -333,7 +492,7 @@ select {
   margin: 0;
   font-size: 0.82rem;
   color: var(--safe-teal);
-  background: #e3f0ec;
+  background: var(--safe-bg);
   border: 1px dashed var(--safe-teal);
   border-radius: 6px;
   padding: 8px 10px;
@@ -391,12 +550,12 @@ select {
   margin-right: 6px;
   border-radius: 50%;
   background: var(--type-electronics);
-  color: #fdfcf7;
+  color: var(--badge-text);
   font-size: 0.66rem;
   font-weight: 800;
   vertical-align: middle;
   cursor: default;
-  box-shadow: 0 1px 3px rgba(31, 41, 55, 0.25);
+  box-shadow: 0 1px 3px rgba(var(--shadow-rgb), 0.25);
 }
 
 .plan-counter {
@@ -532,8 +691,8 @@ a.plan-counter:hover {
   height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
-  border: 1.5px solid rgba(31, 41, 55, 0.15);
-  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.4);
+  border: 1.5px solid rgba(var(--shadow-rgb), 0.15);
+  box-shadow: inset 0 0 0 1.5px var(--badge-highlight);
 }
 
 .type-dot--ELECTRONICS {
@@ -663,7 +822,7 @@ a.plan-counter:hover {
    -------------------------------------------------------------------------- */
 
 .urgent-banner {
-  background: #fbeaea;
+  background: var(--danger-bg);
   border: 1.5px dashed var(--stamp-red);
   border-radius: var(--radius-sm);
   padding: 14px 18px;
@@ -698,7 +857,7 @@ a.plan-counter:hover {
 /* 배너 안의 정기배송 항목을 전부 오늘 확인했으면(isFullyConfirmed) "경고" 색(빨강)이 아니라
    "안심" 색(초록)으로 통째로 바뀐다. */
 .urgent-banner--ok {
-  background: #e3f0ec;
+  background: var(--safe-bg);
   border-color: var(--safe-teal);
 }
 
@@ -711,7 +870,7 @@ a.plan-counter:hover {
    -------------------------------------------------------------------------- */
 
 .weekly-summary-banner {
-  background: #e3f0ec;
+  background: var(--safe-bg);
   border: 1.5px dashed var(--safe-teal);
   border-radius: var(--radius-sm);
   padding: 14px 18px;
@@ -791,7 +950,7 @@ a.plan-counter:hover {
    -------------------------------------------------------------------------- */
 
 .pending-section {
-  background: #fbf3e4;
+  background: var(--amber-bg);
   border: 1.5px dashed var(--stamp-amber);
   border-radius: var(--radius-sm);
   padding: 14px 18px;
@@ -1049,7 +1208,7 @@ a.plan-counter:hover {
   font-size: 0.78rem;
   font-weight: 700;
   color: var(--safe-teal);
-  background: #e3f0ec;
+  background: var(--safe-bg);
   border: 1px solid var(--safe-teal);
   border-radius: 999px;
   padding: 3px 10px;
@@ -1125,10 +1284,10 @@ a.plan-counter:hover {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #fdfcf7;
-  border: 3px double rgba(253, 252, 247, 0.7);
+  color: var(--badge-text);
+  border: 3px double var(--stamp-ring);
   transform: rotate(var(--rot));
-  box-shadow: 0 4px 10px rgba(31, 41, 55, 0.18);
+  box-shadow: 0 4px 10px rgba(var(--shadow-rgb), 0.18);
   animation: stampPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   user-select: none;
 }
@@ -1190,6 +1349,11 @@ a.plan-counter:hover {
   .btn {
     transition: none;
   }
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
 }
 
 .empty-state {
@@ -1231,7 +1395,7 @@ a.plan-counter:hover {
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--stamp-amber);
-  background: #fbf3e4;
+  background: var(--amber-bg);
   border: 1.5px dashed var(--stamp-amber);
   border-radius: 999px;
   padding: 6px 16px;
@@ -1302,7 +1466,7 @@ a.plan-counter:hover {
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--safe-teal);
-  background: #e3f0ec;
+  background: var(--safe-bg);
   border: 1px solid var(--safe-teal);
   border-radius: 999px;
   padding: 2px 10px;
@@ -1515,12 +1679,12 @@ a.plan-counter:hover {
 
 .invite-status--pending {
   color: var(--stamp-amber);
-  background: #fbf3e4;
+  background: var(--amber-bg);
 }
 
 .invite-status--accepted {
   color: var(--safe-teal);
-  background: #e3f0ec;
+  background: var(--safe-bg);
 }
 
 .received-invites {
@@ -1627,7 +1791,7 @@ a.plan-counter:hover {
   gap: 6px;
   padding: 24px;
   margin-top: 40px;
-  background: #eeeee8;
+  background: var(--footer-bg);
   border-top: 1.5px dashed var(--hairline-strong);
   font-size: 0.78rem;
   color: var(--ink-soft);
@@ -1824,7 +1988,7 @@ a.plan-counter:hover {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(31, 41, 55, 0.45);
+  background: rgba(var(--shadow-rgb), 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1985,15 +2149,15 @@ a.plan-counter:hover {
 }
 
 .feedback-category-badge--BUG {
-  background: #fbe8e8;
+  background: var(--danger-bg);
   color: var(--stamp-red);
-  border-color: #f1c5c5;
+  border-color: var(--danger-border);
 }
 
 .feedback-category-badge--FEATURE_REQUEST {
-  background: #e5f4f0;
+  background: var(--safe-bg);
   color: var(--safe-teal);
-  border-color: #bfe4d8;
+  border-color: var(--safe-border);
 }
 
 .feedback-category-badge--QUESTION {
@@ -2003,27 +2167,27 @@ a.plan-counter:hover {
 }
 
 .feedback-category-badge--OTHER {
-  background: #efefea;
+  background: var(--neutral-bg);
   color: var(--ink-soft);
   border-color: var(--hairline-strong);
 }
 
 .feedback-status-badge--OPEN {
-  background: #efefea;
+  background: var(--neutral-bg);
   color: var(--ink-soft);
   border-color: var(--hairline-strong);
 }
 
 .feedback-status-badge--IN_PROGRESS {
-  background: #fbf1e1;
+  background: var(--amber-bg);
   color: var(--stamp-amber);
-  border-color: #efd9ae;
+  border-color: var(--amber-border);
 }
 
 .feedback-status-badge--RESOLVED {
-  background: #e5f4f0;
+  background: var(--safe-bg);
   color: var(--safe-teal);
-  border-color: #bfe4d8;
+  border-color: var(--safe-border);
 }
 
 .feedback-detail__post {
@@ -2065,8 +2229,8 @@ a.plan-counter:hover {
 }
 
 .feedback-reply--admin {
-  background: #fbf1e1;
-  border-color: #efd9ae;
+  background: var(--amber-bg);
+  border-color: var(--amber-border);
 }
 
 .feedback-reply__meta {
