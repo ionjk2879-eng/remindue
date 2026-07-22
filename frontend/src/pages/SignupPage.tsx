@@ -21,7 +21,7 @@ export default function SignupPage() {
     }
     try {
       const res = await signup(email, password, nickname);
-      setAuth(res.accessToken, res.nickname, res.isPremium);
+      setAuth(res.accessToken, res.nickname, res.isPremium, res.hasSeenOnboarding);
       navigate('/dashboard');
     } catch {
       setError('회원가입에 실패했습니다. 이미 가입된 이메일일 수 있습니다.');

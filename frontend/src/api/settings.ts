@@ -27,3 +27,9 @@ export async function regenerateForwardingAddress() {
   const { data } = await apiClient.post<{ forwardingEmail: string }>('/settings/forwarding-address/regenerate');
   return data;
 }
+
+/** 온보딩 완료 또는 건너뛰기 — 둘 다 이걸 호출해서 다시 안 뜨게 표시한다. */
+export async function completeOnboarding() {
+  const { data } = await apiClient.post<{ hasSeenOnboarding: boolean }>('/settings/onboarding-complete');
+  return data;
+}

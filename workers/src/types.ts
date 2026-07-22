@@ -50,6 +50,8 @@ export interface UserRow {
    * 되살아난다(무료로 내려갔다고 값을 지우지 않는다).
    */
   notification_days: string;
+  /** SQLite boolean(0/1) — 3단계 온보딩 안내를 완료했거나 건너뛰었는지. 둘 다 이 값을 1로 저장한다(routes/settings.ts). */
+  has_seen_onboarding: number;
 }
 
 export type PendingPurchaseSource = 'email' | 'image';
@@ -133,6 +135,7 @@ export interface AuthResponse {
   accessToken: string;
   nickname: string;
   isPremium: boolean;
+  hasSeenOnboarding: boolean;
 }
 
 export interface PurchaseRequestBody {

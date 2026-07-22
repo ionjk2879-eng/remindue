@@ -33,6 +33,7 @@ export interface AuthResponse {
   accessToken: string;
   nickname: string;
   isPremium: boolean;
+  hasSeenOnboarding: boolean;
 }
 
 export type PendingPurchaseSource = 'email' | 'image';

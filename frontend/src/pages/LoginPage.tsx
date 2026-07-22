@@ -15,7 +15,7 @@ export default function LoginPage() {
     setError(null);
     try {
       const res = await login(email, password);
-      setAuth(res.accessToken, res.nickname, res.isPremium);
+      setAuth(res.accessToken, res.nickname, res.isPremium, res.hasSeenOnboarding);
       navigate('/dashboard');
     } catch {
       setError('이메일 또는 비밀번호가 올바르지 않습니다.');

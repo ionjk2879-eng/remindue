@@ -83,7 +83,7 @@ auth.post('/signup', async (c) => {
   }
 
   const accessToken = await signJwt(email, c.env.JWT_SECRET, ACCESS_TOKEN_EXPIRATION_SECONDS);
-  const response: AuthResponse = { accessToken, nickname, isPremium: false };
+  const response: AuthResponse = { accessToken, nickname, isPremium: false, hasSeenOnboarding: false };
   return c.json(response);
 });
 
@@ -101,7 +101,12 @@ auth.post('/login', async (c) => {
   }
 
   const accessToken = await signJwt(email, c.env.JWT_SECRET, ACCESS_TOKEN_EXPIRATION_SECONDS);
-  const response: AuthResponse = { accessToken, nickname: user.nickname, isPremium: user.is_premium === 1 };
+  const response: AuthResponse = {
+    accessToken,
+    nickname: user.nickname,
+    isPremium: user.is_premium === 1,
+    hasSeenOnboarding: user.has_seen_onboarding === 1,
+  };
   return c.json(response);
 });
 

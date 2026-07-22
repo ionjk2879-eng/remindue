@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -12,13 +12,14 @@ import {
   downloadExport,
 } from '../api/purchases';
 import { fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
-import { regenerateForwardingAddress } from '../api/settings';
+import { completeOnboarding as apiCompleteOnboarding, regenerateForwardingAddress } from '../api/settings';
 import { fetchReceivedInvites, fetchSharedPurchases } from '../api/sharing';
 import type { PendingPurchase, Purchase, PurchaseType, SharedAccess } from '../types';
 import { useAuth } from '../context/AuthContext';
 import StampBadge from '../components/StampBadge';
 import PremiumBadge from '../components/PremiumBadge';
 import PushPermissionBanner from '../components/PushPermissionBanner';
+import OnboardingOverlay from '../components/OnboardingOverlay';
 
 const TYPE_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '전자제품 (보증기간)',
@@ -99,11 +100,14 @@ export default function DashboardPage() {
   const [selectedShareId, setSelectedShareId] = useState<number | null>(null);
   const [sharedPurchases, setSharedPurchases] = useState<Purchase[]>([]);
   const [exporting, setExporting] = useState(false);
-  const { nickname, isPremium, premiumSince, paymentCount } = useAuth();
+  const [purchasesLoaded, setPurchasesLoaded] = useState(false);
+  const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
+  const itemNameInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     const data = await fetchPurchases();
     setPurchases(data);
+    setPurchasesLoaded(true);
   };
 
   const loadPending = async () => {
@@ -285,6 +289,20 @@ export default function DashboardPage() {
     await load();
   };
 
+  /** 완료든 건너뛰기든 동일하게 처리한다 — focusForm만 마지막 단계 CTA(등록하러 가기)에서 true. */
+  const handleOnboardingDone = async (focusForm: boolean) => {
+    completeOnboarding();
+    try {
+      await apiCompleteOnboarding();
+    } catch (err) {
+      console.error(err);
+    }
+    if (focusForm) {
+      itemNameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      itemNameInputRef.current?.focus();
+    }
+  };
+
   const handleExport = async (format: 'csv' | 'pdf') => {
     setExporting(true);
     try {
@@ -308,8 +326,14 @@ export default function DashboardPage() {
 
   const displayedPurchases = filterType === 'ALL' ? purchases : purchases.filter((p) => p.type === filterType);
 
+  // 신규 가입자 온보딩 — 아직 안 봤고(hasSeenOnboarding=false), 목록 조회가 끝난 뒤에도 등록된
+  // 항목이 하나도 없을 때만 띄운다. purchasesLoaded 가드가 없으면 데이터 도착 전 순간적으로
+  // purchases.length===0이라 깜빡 떴다 사라지는 게 보일 수 있다.
+  const showOnboarding = purchasesLoaded && !hasSeenOnboarding && purchases.length === 0;
+
   return (
     <div className="dashboard">
+      {showOnboarding && <OnboardingOverlay onDone={handleOnboardingDone} />}
       <div className="dashboard-header">
         <h1>
           {isPremium && <PremiumBadge premiumSince={premiumSince} paymentCount={paymentCount} />}
@@ -480,6 +504,7 @@ export default function DashboardPage() {
             <label htmlFor="itemName">항목명</label>
             <input
               id="itemName"
+              ref={itemNameInputRef}
               placeholder="예: 삼성 냉장고"
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}

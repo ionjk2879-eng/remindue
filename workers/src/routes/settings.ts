@@ -75,6 +75,13 @@ settings.post('/forwarding-address/regenerate', async (c) => {
   return c.json({ forwardingEmail: `${token}@${c.env.FORWARDING_EMAIL_DOMAIN}` });
 });
 
+/** 온보딩 완료 또는 건너뛰기 — 둘 다 동일하게 다시 안 뜨도록 표시만 한다(단계 구분 없음). */
+settings.post('/onboarding-complete', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  await c.env.DB.prepare('UPDATE users SET has_seen_onboarding = 1 WHERE id = ?').bind(user.id).run();
+  return c.json({ hasSeenOnboarding: true });
+});
+
 settings.put('/nickname', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   const body = await c.req.json<{ nickname?: unknown }>().catch(() => ({}) as { nickname?: unknown });

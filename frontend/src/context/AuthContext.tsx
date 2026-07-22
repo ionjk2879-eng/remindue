@@ -20,6 +20,7 @@ function clearAuthStorage() {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('nickname');
   localStorage.removeItem('isPremium');
+  localStorage.removeItem('hasSeenOnboarding');
 }
 
 interface AuthContextValue {
@@ -31,9 +32,13 @@ interface AuthContextValue {
   premiumSince: string | null;
   /** 성공한 결제 총 횟수 — 프리미엄 뱃지의 "N회차"에 쓴다. */
   paymentCount: number;
-  setAuth: (accessToken: string, nickname: string, isPremium: boolean) => void;
+  /** 3단계 온보딩 안내를 완료했거나 건너뛰었는지 — false면 대시보드가 빈 목록일 때 온보딩을 띄운다. */
+  hasSeenOnboarding: boolean;
+  setAuth: (accessToken: string, nickname: string, isPremium: boolean, hasSeenOnboarding: boolean) => void;
   /** 닉네임 변경 직후 토큰 재발급 없이 닉네임만 갱신한다. */
   updateNickname: (newNickname: string) => void;
+  /** 온보딩 완료/건너뛰기 직후 서버 응답을 기다리지 않고 즉시 모달을 숨기기 위한 낙관적 갱신. */
+  completeOnboarding: () => void;
   /** 결제/해지 직후 토큰 재발급 없이 프리미엄 상태만 갱신한다 — 액세스 토큰은 그대로 둔다. */
   refreshPremium: (status: Pick<BillingStatus, 'isPremium' | 'premiumSince' | 'paymentCount'>) => void;
   logout: () => void;
@@ -50,13 +55,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isPremium, setIsPremium] = useState<boolean>(localStorage.getItem('isPremium') === 'true');
   const [premiumSince, setPremiumSince] = useState<string | null>(null);
   const [paymentCount, setPaymentCount] = useState(0);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean>(localStorage.getItem('hasSeenOnboarding') === 'true');
 
-  const setAuth = (accessToken: string, nickname: string, isPremium: boolean) => {
+  const setAuth = (accessToken: string, nickname: string, isPremium: boolean, hasSeenOnboarding: boolean) => {
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('nickname', nickname);
     localStorage.setItem('isPremium', String(isPremium));
+    localStorage.setItem('hasSeenOnboarding', String(hasSeenOnboarding));
     setNickname(nickname);
     setIsPremium(isPremium);
+    setHasSeenOnboarding(hasSeenOnboarding);
+  };
+
+  const completeOnboarding = () => {
+    localStorage.setItem('hasSeenOnboarding', 'true');
+    setHasSeenOnboarding(true);
   };
 
   const updateNickname = (newNickname: string) => {
@@ -73,13 +86,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('nickname');
-    localStorage.removeItem('isPremium');
+    clearAuthStorage();
     setNickname(null);
     setIsPremium(false);
     setPremiumSince(null);
     setPaymentCount(0);
+    setHasSeenOnboarding(false);
   };
 
   // isPremium/premiumSince/paymentCount는 로그인 시점/결제 성공 리다이렉트에서만 갱신되므로,
@@ -102,7 +114,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ nickname, isAuthenticated: !!nickname, isPremium, premiumSince, paymentCount, setAuth, updateNickname, refreshPremium, logout }}
+      value={{
+        nickname,
+        isAuthenticated: !!nickname,
+        isPremium,
+        premiumSince,
+        paymentCount,
+        hasSeenOnboarding,
+        setAuth,
+        updateNickname,
+        completeOnboarding,
+        refreshPremium,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>
