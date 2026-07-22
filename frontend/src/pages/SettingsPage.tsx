@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { fetchNotificationDays, updateNotificationDays } from '../api/settings';
+import { fetchNotificationDays, updateNotificationDays, updateNickname as apiUpdateNickname } from '../api/settings';
 import { acceptInvite, fetchReceivedInvites, fetchSentInvites, inviteMember, revokeShare } from '../api/sharing';
 import { cancelSubscription, fetchBillingStatus } from '../api/billing';
 import { deleteAccount } from '../api/auth';
@@ -27,10 +27,15 @@ function formatDayLabel(day: number): string {
 }
 
 export default function SettingsPage() {
-  const { isPremium, logout, refreshPremium } = useAuth();
+  const { nickname, isPremium, logout, updateNickname, refreshPremium } = useAuth();
   const navigate = useNavigate();
 
-  const [selectedDays, setSelectedDays] = useState<number[]>(FREE_PLAN_FIXED_DAYS);
+  const [nicknameInput, setNicknameInput] = useState('');
+  const [nicknameEditing, setNicknameEditing] = useState(false);
+  const [savingNickname, setSavingNickname] = useState(false);
+  const [nicknameMessage, setNicknameMessage] = useState<string | null>(null);
+
+  const [selectedDays, setSelectedDays] = useState<number[] | null>(null);
   const [savingDays, setSavingDays] = useState(false);
   const [daysMessage, setDaysMessage] = useState<string | null>(null);
 
@@ -70,11 +75,35 @@ export default function SettingsPage() {
     loadSharing();
   }, []);
 
+  const handleNicknameEdit = () => {
+    setNicknameInput(nickname ?? '');
+    setNicknameMessage(null);
+    setNicknameEditing(true);
+  };
+
+  const handleNicknameSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNicknameMessage(null);
+    setSavingNickname(true);
+    try {
+      const result = await apiUpdateNickname(nicknameInput);
+      updateNickname(result.nickname);
+      setNicknameEditing(false);
+      setNicknameMessage('닉네임을 변경했어요.');
+    } catch (err) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setNicknameMessage(message ?? '변경하지 못했어요.');
+    } finally {
+      setSavingNickname(false);
+    }
+  };
+
   const toggleDay = (day: number) => {
-    setSelectedDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
+    setSelectedDays((prev) => (prev === null ? prev : prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
   };
 
   const handleSaveDays = async () => {
+    if (selectedDays === null) return;
     setDaysMessage(null);
     setSavingDays(true);
     try {
@@ -161,42 +190,92 @@ export default function SettingsPage() {
     <div className="settings-page">
       <h1>설정</h1>
 
-      {isPremium && billingStatus?.plan && (billingStatus.plan === 'MONTHLY' || billingStatus.plan === 'ANNUAL') && (
-        <section className="settings-section">
-          <h2>구독 관리</h2>
-          <p className="settings-section__hint">
-            {PLAN_LABEL[billingStatus.plan]} 이용 중
-            {billingStatus.premiumExpiresAt && ` · ${formatDateOnly(billingStatus.premiumExpiresAt)}까지`}
-          </p>
-          {billingStatus.autoRenew ? (
-            <button className="btn btn-sm btn-outline" onClick={handleCancelSubscription} disabled={cancelling}>
-              {cancelling ? '해지 중...' : '정기결제 해지'}
+      <section className="settings-section">
+        <div className="settings-section__header">
+          <h2>닉네임</h2>
+          {!nicknameEditing && (
+            <button type="button" className="btn btn-sm btn-outline" onClick={handleNicknameEdit}>
+              변경
             </button>
-          ) : (
-            <p className="settings-section__hint">자동 결제가 해지됐어요. 남은 기간까지는 프리미엄이 유지됩니다.</p>
           )}
-          {cancelMessage && <p className="settings-section__message">{cancelMessage}</p>}
-        </section>
-      )}
+        </div>
+        {nicknameEditing ? (
+          <form className="nickname-form" onSubmit={handleNicknameSave}>
+            <input
+              type="text"
+              value={nicknameInput}
+              onChange={(e) => setNicknameInput(e.target.value)}
+              maxLength={20}
+              required
+              autoFocus
+              style={{ outline: 'none', boxShadow: 'none' }}
+            />
+            <div className="nickname-form__actions">
+              <button type="submit" className="btn btn-sm" disabled={savingNickname}>
+                {savingNickname ? '저장 중...' : '저장'}
+              </button>
+              <button type="button" className="btn btn-sm btn-outline" onClick={() => setNicknameEditing(false)} disabled={savingNickname}>
+                취소
+              </button>
+            </div>
+          </form>
+        ) : (
+          <p className="settings-section__hint">{nickname}</p>
+        )}
+        {nicknameMessage && <p className="settings-section__message">{nicknameMessage}</p>}
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section__header">
+          <h2>구독 관리</h2>
+          {billingStatus !== null && (
+            isPremium && billingStatus.plan && (billingStatus.plan === 'MONTHLY' || billingStatus.plan === 'ANNUAL') ? (
+              !billingStatus.autoRenew && <Link to="/pricing" className="btn btn-sm">다시 구독하기</Link>
+            ) : (
+              <Link to="/pricing" className="btn btn-sm">프리미엄 구독하기</Link>
+            )
+          )}
+        </div>
+        {isPremium && billingStatus?.plan && (billingStatus.plan === 'MONTHLY' || billingStatus.plan === 'ANNUAL') ? (
+          <>
+            <p className="settings-section__hint">
+              {PLAN_LABEL[billingStatus.plan]} 이용 중
+              {billingStatus.premiumExpiresAt && ` · ${formatDateOnly(billingStatus.premiumExpiresAt)}까지`}
+            </p>
+            {billingStatus.autoRenew ? (
+              <button className="btn btn-sm btn-outline" onClick={handleCancelSubscription} disabled={cancelling}>
+                {cancelling ? '해지 중...' : '정기결제 해지'}
+              </button>
+            ) : (
+              <p className="settings-section__hint">자동 결제가 해지됐어요. 남은 기간까지는 프리미엄이 유지됩니다.</p>
+            )}
+            {cancelMessage && <p className="settings-section__message">{cancelMessage}</p>}
+          </>
+        ) : (
+          !isPremium && <p className="settings-section__hint">현재 무료 플랜이에요.</p>
+        )}
+      </section>
 
       <section className="settings-section">
         <h2>알림 시점</h2>
         {isPremium ? (
-          <>
-            <p className="settings-section__hint">D-day가 며칠 남았을 때 알림을 받을지 골라주세요.</p>
-            <div className="notification-day-options">
-              {NOTIFICATION_DAY_OPTIONS.map((day) => (
-                <label key={day} className="notification-day-option">
-                  <input type="checkbox" checked={selectedDays.includes(day)} onChange={() => toggleDay(day)} />
-                  {formatDayLabel(day)}
-                </label>
-              ))}
-            </div>
-            <button className="btn btn-sm" onClick={handleSaveDays} disabled={savingDays || selectedDays.length === 0}>
-              {savingDays ? '저장 중...' : '저장'}
-            </button>
-            {daysMessage && <p className="settings-section__message">{daysMessage}</p>}
-          </>
+          selectedDays === null ? null : (
+            <>
+              <p className="settings-section__hint">D-day가 며칠 남았을 때 알림을 받을지 골라주세요.</p>
+              <div className="notification-day-options">
+                {NOTIFICATION_DAY_OPTIONS.map((day) => (
+                  <label key={day} className="notification-day-option">
+                    <input type="checkbox" checked={selectedDays.includes(day)} onChange={() => toggleDay(day)} />
+                    {formatDayLabel(day)}
+                  </label>
+                ))}
+              </div>
+              <button className="btn btn-sm" onClick={handleSaveDays} disabled={savingDays || selectedDays.length === 0}>
+                {savingDays ? '저장 중...' : '저장'}
+              </button>
+              {daysMessage && <p className="settings-section__message">{daysMessage}</p>}
+            </>
+          )
         ) : (
           <p className="settings-section__hint">
             무료 플랜은 7일/3일/1일/당일 전 알림으로 고정돼요.{' '}

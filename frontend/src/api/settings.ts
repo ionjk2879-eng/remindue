@@ -17,3 +17,8 @@ export async function updateNotificationDays(days: number[]) {
   });
   return data;
 }
+
+export async function updateNickname(nickname: string) {
+  const { data } = await apiClient.put<{ nickname: string }>('/settings/nickname', { nickname });
+  return data;
+}

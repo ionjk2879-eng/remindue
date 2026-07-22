@@ -2,6 +2,9 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { fetchBillingStatus } from '../api/billing';
 import type { BillingStatus } from '../types';
 
+let billingFetchedAt = 0;
+const BILLING_CACHE_MS = 5 * 60 * 1000;
+
 function isStoredTokenExpired(): boolean {
   const token = localStorage.getItem('accessToken');
   if (!token) return true;
@@ -29,6 +32,8 @@ interface AuthContextValue {
   /** 성공한 결제 총 횟수 — 프리미엄 뱃지의 "N회차"에 쓴다. */
   paymentCount: number;
   setAuth: (accessToken: string, nickname: string, isPremium: boolean) => void;
+  /** 닉네임 변경 직후 토큰 재발급 없이 닉네임만 갱신한다. */
+  updateNickname: (newNickname: string) => void;
   /** 결제/해지 직후 토큰 재발급 없이 프리미엄 상태만 갱신한다 — 액세스 토큰은 그대로 둔다. */
   refreshPremium: (status: Pick<BillingStatus, 'isPremium' | 'premiumSince' | 'paymentCount'>) => void;
   logout: () => void;
@@ -54,11 +59,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsPremium(isPremium);
   };
 
+  const updateNickname = (newNickname: string) => {
+    localStorage.setItem('nickname', newNickname);
+    setNickname(newNickname);
+  };
+
   const refreshPremium = (status: Pick<BillingStatus, 'isPremium' | 'premiumSince' | 'paymentCount'>) => {
     localStorage.setItem('isPremium', String(status.isPremium));
     setIsPremium(status.isPremium);
     setPremiumSince(status.premiumSince);
     setPaymentCount(status.paymentCount);
+    billingFetchedAt = Date.now();
   };
 
   const logout = () => {
@@ -80,6 +91,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 무시하고 기존 값을 유지한다(로그아웃 처리는 apiClient의 401 인터셉터가 이미 담당).
   useEffect(() => {
     if (!nickname) return;
+    const now = Date.now();
+    if (now - billingFetchedAt < BILLING_CACHE_MS) return;
+    billingFetchedAt = now;
     fetchBillingStatus()
       .then(refreshPremium)
       .catch(() => {});
@@ -88,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ nickname, isAuthenticated: !!nickname, isPremium, premiumSince, paymentCount, setAuth, refreshPremium, logout }}
+      value={{ nickname, isAuthenticated: !!nickname, isPremium, premiumSince, paymentCount, setAuth, updateNickname, refreshPremium, logout }}
     >
       {children}
     </AuthContext.Provider>

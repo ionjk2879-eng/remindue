@@ -1396,6 +1396,17 @@ a.plan-counter:hover {
   margin-bottom: 10px;
 }
 
+.settings-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.settings-section__header h2 {
+  margin-bottom: 0;
+}
+
 .settings-section h3 {
   font-size: 0.86rem;
   color: var(--ink-soft);
@@ -1493,6 +1504,35 @@ a.plan-counter:hover {
 
 .received-invites {
   margin-top: 8px;
+}
+
+.nickname-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.nickname-form input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 6px 0;
+  font-size: 0.95rem;
+  color: var(--ink);
+  outline: none;
+}
+
+.nickname-form input:focus,
+.nickname-form input:focus-visible {
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+.nickname-form__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .settings-section--danger {

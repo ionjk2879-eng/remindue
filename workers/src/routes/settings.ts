@@ -1,5 +1,5 @@
-// 사용자 설정 — 지금은 커스텀 알림 시점(프리미엄) 하나뿐이지만, 계정 단위 설정이 늘어나면
-// 여기 추가한다. purchases.ts/billing.ts와 같은 패턴: 이 라우터 전체가 인증 필요.
+// 사용자 설정 — 닉네임 변경, 커스텀 알림 시점(프리미엄) 등 계정 단위 설정.
+// purchases.ts/billing.ts와 같은 패턴: 이 라우터 전체가 인증 필요.
 
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
@@ -56,6 +56,19 @@ settings.put('/notification-days', async (c) => {
     .run();
 
   return c.json({ notificationDays: days.sort((a, b) => b - a), isPremium: true });
+});
+
+settings.put('/nickname', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const body = await c.req.json<{ nickname?: unknown }>().catch(() => ({}) as { nickname?: unknown });
+
+  const raw = body.nickname;
+  if (typeof raw !== 'string') throw new BadRequestError('닉네임을 입력해주세요.');
+  const nickname = raw.trim();
+  if (nickname.length === 0 || nickname.length > 20) throw new BadRequestError('닉네임은 1~20자여야 해요.');
+
+  await c.env.DB.prepare('UPDATE users SET nickname = ? WHERE id = ?').bind(nickname, user.id).run();
+  return c.json({ nickname });
 });
 
 export default settings;
