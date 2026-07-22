@@ -44,7 +44,7 @@ pendingPurchases.get('/', async (c) => {
     .all<PendingPurchaseRow>();
 
   return c.json({
-    forwardingEmail: `add-${user.forwarding_token}@${c.env.FORWARDING_EMAIL_DOMAIN}`,
+    forwardingEmail: `${user.forwarding_token}@${c.env.FORWARDING_EMAIL_DOMAIN}`,
     items: results.map(toPendingPurchaseResponse),
   });
 });

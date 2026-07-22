@@ -12,7 +12,7 @@ import { extractOrderConfirmation } from './email-extract';
 import { DEFAULT_RETURN_DEADLINE_DAYS } from './purchase-logic';
 import { PURCHASE_TYPES, type Env, type PurchaseType, type UserRow } from '../types';
 
-const TO_LOCAL_PART_PATTERN = /^add-([a-z0-9]+)$/i;
+const TO_LOCAL_PART_PATTERN = /^([a-z]+)$/i;
 
 /** AI가 준 종류 추정값이 유효한 3종 중 하나가 아니면(모델 오류 등) 안전하게 기본값으로 되돌린다. */
 function sanitizeEstimatedType(value: string | null): PurchaseType {
@@ -29,6 +29,8 @@ function extractForwardingToken(toAddress: string): string | null {
   const match = TO_LOCAL_PART_PATTERN.exec(localPart);
   return match ? match[1].toLowerCase() : null;
 }
+
+
 
 /** postal-mime이 text 파트를 못 찾았을 때(html-only 메일) 최소한의 텍스트만 뽑아내는 폴백. */
 function stripHtml(html: string): string {

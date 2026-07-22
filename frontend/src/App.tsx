@@ -15,6 +15,7 @@ const BillingSuccessPage = lazy(() => import('./pages/BillingSuccessPage'));
 const BillingAuthSuccessPage = lazy(() => import('./pages/BillingAuthSuccessPage'));
 const BillingFailPage = lazy(() => import('./pages/BillingFailPage'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
+const TermsPage = lazy(() => import('./pages/TermsPage'));
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -58,14 +59,7 @@ export default function App() {
                 </RequireAuth>
               }
             />
-            <Route
-              path="/pricing"
-              element={
-                <RequireAuth>
-                  <PricingPage />
-                </RequireAuth>
-              }
-            />
+            <Route path="/pricing" element={<PricingPage />} />
             <Route
               path="/billing/success"
               element={
@@ -91,6 +85,7 @@ export default function App() {
               }
             />
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

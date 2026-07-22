@@ -11,6 +11,7 @@ import {
   validateNotificationDaysInput,
   InvalidNotificationDaysError,
 } from '../lib/notification-prefs';
+import { generateForwardingToken } from './auth';
 import type { Env, UserRow } from '../types';
 
 const settings = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
@@ -56,6 +57,22 @@ settings.put('/notification-days', async (c) => {
     .run();
 
   return c.json({ notificationDays: days.sort((a, b) => b - a), isPremium: true });
+});
+
+settings.post('/forwarding-address/regenerate', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  let token = generateForwardingToken();
+  let attempts = 0;
+  while (attempts < 5) {
+    try {
+      await c.env.DB.prepare('UPDATE users SET forwarding_token = ? WHERE id = ?').bind(token, user.id).run();
+      break;
+    } catch {
+      token = generateForwardingToken();
+      attempts++;
+    }
+  }
+  return c.json({ forwardingEmail: `${token}@${c.env.FORWARDING_EMAIL_DOMAIN}` });
 });
 
 settings.put('/nickname', async (c) => {

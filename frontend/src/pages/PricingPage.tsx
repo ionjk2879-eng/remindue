@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { loadTossPayments } from '@tosspayments/tosspayments-sdk';
 import { createCheckout } from '../api/billing';
 import { fetchPurchases } from '../api/purchases';
@@ -35,18 +35,24 @@ const PLAN_CARDS: PlanCard[] = [
 ];
 
 export default function PricingPage() {
-  const { isPremium } = useAuth();
+  const { isPremium, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [purchaseCount, setPurchaseCount] = useState<number | null>(null);
   const [loadingPlan, setLoadingPlan] = useState<BillingPlan | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     fetchPurchases()
       .then((items) => setPurchaseCount(items.length))
       .catch(() => setPurchaseCount(null));
-  }, []);
+  }, [isAuthenticated]);
 
   const handlePay = async (plan: BillingPlan) => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
     setErrorMessage(null);
     setLoadingPlan(plan);
     try {
@@ -120,7 +126,7 @@ export default function PricingPage() {
 
       <p className="pricing-page__payment-notice">
         결제는 토스페이먼츠를 통해 안전하게 처리되며, 카드 정보는 Remindue 서버에 저장되지 않습니다. 결제를 진행하면{' '}
-        <Link to="/privacy">개인정보처리방침</Link>에 동의하는 것으로 간주됩니다.
+        <Link to="/terms">이용약관</Link> 및 <Link to="/privacy">개인정보처리방침</Link>에 동의하는 것으로 간주됩니다.
       </p>
 
       <table className="pricing-table">

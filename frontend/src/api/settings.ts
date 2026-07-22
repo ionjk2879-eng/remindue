@@ -22,3 +22,8 @@ export async function updateNickname(nickname: string) {
   const { data } = await apiClient.put<{ nickname: string }>('/settings/nickname', { nickname });
   return data;
 }
+
+export async function regenerateForwardingAddress() {
+  const { data } = await apiClient.post<{ forwardingEmail: string }>('/settings/forwarding-address/regenerate');
+  return data;
+}

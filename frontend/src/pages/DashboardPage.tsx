@@ -12,6 +12,7 @@ import {
   downloadExport,
 } from '../api/purchases';
 import { fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
+import { regenerateForwardingAddress } from '../api/settings';
 import { fetchReceivedInvites, fetchSharedPurchases } from '../api/sharing';
 import type { PendingPurchase, Purchase, PurchaseType, SharedAccess } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -90,6 +91,7 @@ export default function DashboardPage() {
   const [pendingItems, setPendingItems] = useState<PendingPurchase[]>([]);
   const [pendingConfirmId, setPendingConfirmId] = useState<number | null>(null);
   const [addressCopied, setAddressCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [filterType, setFilterType] = useState<FilterType>('ALL');
   const [view, setView] = useState<'ACTIVE' | 'ARCHIVED' | 'SHARED'>('ACTIVE');
   const [archivedPurchases, setArchivedPurchases] = useState<Purchase[]>([]);
@@ -193,6 +195,19 @@ export default function DashboardPage() {
   const handleIgnorePending = async (id: number) => {
     await ignorePendingPurchase(id);
     await loadPending();
+  };
+
+  const handleRegenerateForwardingAddress = async () => {
+    if (!window.confirm('주소를 재생성하면 기존 주소로는 더 이상 메일을 받을 수 없어요. 계속할까요?')) return;
+    setRegenerating(true);
+    try {
+      const result = await regenerateForwardingAddress();
+      setForwardingEmail(result.forwardingEmail);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   const handleCopyForwardingEmail = async () => {
@@ -328,6 +343,9 @@ export default function DashboardPage() {
             <span className="mono forwarding-banner__address">{forwardingEmail}</span>
             <button type="button" className="btn-text" onClick={handleCopyForwardingEmail}>
               {addressCopied ? '복사됨' : '복사'}
+            </button>
+            <button type="button" className="btn-text" onClick={handleRegenerateForwardingAddress} disabled={regenerating}>
+              {regenerating ? '재생성 중...' : '재생성'}
             </button>
           </div>
           <p className="forwarding-banner__hint">
