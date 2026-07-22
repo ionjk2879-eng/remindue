@@ -125,7 +125,10 @@ export default function TermsPage() {
         <table className="legal-table">
           <tbody>
             <tr><td>상호명</td><td>{COMPANY_NAME}</td></tr>
+            <tr><td>대표자</td><td>심주현</td></tr>
             <tr><td>사업자등록번호</td><td>{BIZ_NUMBER}</td></tr>
+            <tr><td>주소</td><td>대전광역시 서구 도안북로136</td></tr>
+            <tr><td>전화</td><td>010-7682-2879</td></tr>
             <tr><td>고객센터</td><td>{CONTACT_EMAIL}</td></tr>
           </tbody>
         </table>
