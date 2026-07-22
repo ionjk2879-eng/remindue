@@ -26,6 +26,9 @@ export default function LandingPage() {
         <Link to="/signup" className="btn landing__cta">
           무료로 시작하기
         </Link>
+        <Link to="/pricing" className="landing__pricing-link">
+          요금제 보기
+        </Link>
       </div>
     </div>
   );

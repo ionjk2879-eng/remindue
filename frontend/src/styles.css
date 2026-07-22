@@ -465,6 +465,18 @@ a.plan-counter:hover {
   text-decoration: none;
 }
 
+.landing__pricing-link {
+  display: block;
+  margin-top: 14px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.landing__pricing-link:hover {
+  color: var(--text);
+}
+
 @media (max-width: 640px) {
   .landing__headline {
     font-size: 1.6rem;
