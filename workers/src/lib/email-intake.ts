@@ -55,6 +55,11 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
     return;
   }
 
+  if (user.is_premium !== 1) {
+    console.log(`[email-intake] 무료 플랜이라 처리하지 않습니다 (수신자: ${user.email})`);
+    return;
+  }
+
   const parsed = await PostalMime.parse(message.raw);
   const subject = parsed.subject ?? '(제목 없음)';
   const bodyText = parsed.text?.trim() || (parsed.html ? stripHtml(parsed.html) : '');
