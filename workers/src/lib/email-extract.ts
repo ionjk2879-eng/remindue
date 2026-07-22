@@ -14,14 +14,16 @@ export interface ExtractedOrder {
   itemName: string | null;
   /** yyyy-MM-dd */
   orderDate: string | null;
-  /** yyyy-MM-dd — 예상 배송(도착) 일자 */
+  /** yyyy-MM-dd — 정기배송이면 다음 배송일, 일반주문이면 예상 도착일 */
   expectedDeliveryDate: string | null;
-  /** 상품 성격상 가장 알맞아 보이는 종류 추정(정기배송/전자제품 표현이 없으면 대부분 ONLINE_ORDER). */
+  /** 상품 종류 추정 */
   estimatedType: 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY' | null;
-  /** 반품/교환 기한이 메일 본문에 구체적으로(일수 또는 날짜로) 명시되어 있었는지. */
+  /** 반품/교환 기한이 메일 본문에 구체적으로 명시되어 있었는지. */
   foundExplicitDeadline: boolean;
-  /** 주문일 기준 반품/교환 가능 일수. foundExplicitDeadline=false면 null(서버에서 기본값으로 채운다). */
+  /** 주문일 기준 반품/교환 가능 일수. foundExplicitDeadline=false면 null. */
   returnDeadlineDays: number | null;
+  /** RECURRING_DELIVERY일 때만 채운다: 배송 주기(일수). null이면 메일에 명시 안 됨. */
+  intervalDays: number | null;
 }
 
 const EXTRACTION_SCHEMA = {
@@ -29,55 +31,106 @@ const EXTRACTION_SCHEMA = {
   properties: {
     isOrderConfirmation: {
       type: 'boolean',
-      description: '이 메일이 실제 온라인 쇼핑몰의 "주문/결제 완료" 확인 메일이면 true. 광고, 뉴스레터, 배송 외 안내, 다른 서비스 메일이면 false.',
+      description:
+        '이 메일이 온라인 쇼핑몰/구독 서비스의 "주문 완료", "결제 완료", "정기배송 신청/변경 완료", "구독 시작" 확인 메일이면 true. 광고, 뉴스레터, 배송 상태 업데이트(이미 지난 주문의 배송 출발·도착 알림), 설문·리뷰 요청, 다른 서비스(택배, OTP, 뉴스 등) 메일은 false.',
     },
-    itemName: { anyOf: [{ type: 'string' }, { type: 'null' }], description: '주문한 상품명(대표 상품 1개, 여러 개면 첫 번째 + 외 n건)' },
-    orderDate: { anyOf: [{ type: 'string' }, { type: 'null' }], description: 'yyyy-MM-dd 형식의 주문일. 메일에 없으면 null.' },
+    itemName: {
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+      description: '주문한 상품명 또는 구독 서비스명(대표 1개, 여러 개면 첫 번째 + 외 n건)',
+    },
+    orderDate: {
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+      description: 'yyyy-MM-dd 형식의 주문일/구독 신청일. 메일에 없으면 null.',
+    },
     expectedDeliveryDate: {
       anyOf: [{ type: 'string' }, { type: 'null' }],
-      description: 'yyyy-MM-dd 형식의 예상 배송일/도착일. 명시되어 있지 않으면 null.',
+      description:
+        'yyyy-MM-dd 형식. 정기배송이면 "다음 배송일"을 최우선으로 추출(예: "다음 배송일: 2026-08-15"). 일반 주문이면 예상 도착일. 명시되지 않으면 null.',
     },
     estimatedType: {
       anyOf: [{ type: 'string', enum: ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY'] }, { type: 'null' }],
       description:
-        '상품 종류 추정. "정기배송", "구독", "N일마다 배송" 같은 표현이 있으면 RECURRING_DELIVERY. 냉장고/TV/노트북/청소기 등 보증기간이 중요한 가전·전자제품이면 ELECTRONICS. 그 외 일반 주문(반품기한이 중요)은 ONLINE_ORDER(기본값). isOrderConfirmation=false면 null.',
+        '종류 추정. 아래 우선순위대로 판단해라.\n' +
+        '1순위 RECURRING_DELIVERY: 메일에 "정기배송", "구독", "정기결제", "배송주기", "매월", "매주", "격주", "4주마다", "N일마다", "다음 배송일" 같은 반복 배송 키워드가 있으면 반드시 RECURRING_DELIVERY.\n' +
+        '2순위 ELECTRONICS: 냉장고/TV/노트북/청소기 등 보증기간이 중요한 가전·전자제품.\n' +
+        '3순위 ONLINE_ORDER: 위 두 조건에 해당하지 않는 일반 쇼핑몰 주문.\n' +
+        'isOrderConfirmation=false면 null.',
     },
     foundExplicitDeadline: {
       type: 'boolean',
       description:
-        '반품/교환 가능 기한이 메일 본문에 구체적인 숫자(예: "7일 이내", "10일 이내") 또는 날짜(예: "2026-07-25까지")로 명시되어 있으면 true. 본문 어디에도 그런 구체적인 기한 정보가 없으면 false.',
+        '반품/교환 가능 기한이 구체적인 숫자(예: "7일 이내") 또는 날짜(예: "2026-07-25까지")로 명시되어 있으면 true. 없으면 false.',
     },
     returnDeadlineDays: {
       anyOf: [{ type: 'integer' }, { type: 'null' }],
       description:
-        'foundExplicitDeadline=true일 때만 채운다: 주문일 기준 반품/교환 가능 일수. 메일에 "7일 이내"처럼 일수로 적혀 있으면 그 숫자 그대로, "2026-07-25까지"처럼 절대 날짜로 적혀 있으면 주문일과의 날짜 차이(일수)로 환산해서 넣는다. foundExplicitDeadline=false면 반드시 null.',
+        'foundExplicitDeadline=true일 때만 채운다: 주문일 기준 반품/교환 가능 일수. "7일 이내"→7, "2026-07-25까지"→주문일과의 차이(일수). foundExplicitDeadline=false면 반드시 null.',
+    },
+    intervalDays: {
+      anyOf: [{ type: 'integer' }, { type: 'null' }],
+      description:
+        'estimatedType=RECURRING_DELIVERY일 때만 채운다: 배송 주기를 일수(정수)로 변환.\n' +
+        '변환 기준: "매주"=7, "격주"=14, "3주마다"=21, "4주마다"/"28일마다"=28, ' +
+        '"매월"/"한달마다"/"30일마다"=30, "6주마다"=42, "2달마다"/"격월"=60, ' +
+        '"분기마다"/"3달마다"=90. 주기가 명시되지 않았거나 RECURRING_DELIVERY가 아니면 null.',
     },
   },
-  required: ['isOrderConfirmation', 'itemName', 'orderDate', 'expectedDeliveryDate', 'estimatedType', 'foundExplicitDeadline', 'returnDeadlineDays'],
+  required: ['isOrderConfirmation', 'itemName', 'orderDate', 'expectedDeliveryDate', 'estimatedType', 'foundExplicitDeadline', 'returnDeadlineDays', 'intervalDays'],
   additionalProperties: false,
 } as const;
 
-const SYSTEM_PROMPT = `너는 이메일 포워딩으로 전달된 메일 하나를 검토하는 필터/추출기다.
-이 메일이 온라인 쇼핑몰(쿠팡, 네이버쇼핑, 무신사, 올리브영, 아마존 등)의 "주문 완료" 또는
-"결제 완료" 확인 메일인지 먼저 판단해라. 광고/프로모션/뉴스레터/배송 상태 업데이트(이미 지난
-주문의 배송 시작·도착 알림)/설문·리뷰 요청/다른 서비스(택배, OTP, 뉴스 등) 메일은 전부
-isOrderConfirmation=false로 판단하고 나머지 필드는 모두 null 또는 false로 채워라. 확신이 서지
-않으면 false를 선택해라 — 애매하면 등록 대기 목록에 올리지 않는 쪽이 안전하다.
-주문확인 메일이 맞을 때만 상품명/주문일/예상배송일/종류/반품기한을 메일 본문에서 찾아 채우고,
-메일에 명시되지 않은 값은 추측하지 말고 null로 남겨라. 날짜는 반드시 yyyy-MM-dd로 변환해라.
+const SYSTEM_PROMPT = `너는 이메일 포워딩으로 전달된 메일을 분류하고 핵심 정보를 추출하는 전문 파서다.
 
-반품기한(foundExplicitDeadline/returnDeadlineDays): 특정 문구를 찾는 방식이 아니라, 메일
-본문 전체를 읽고 반품/교환 가능 기한이 구체적인 숫자(예: "7일 이내", "10일 이내") 또는
-구체적인 날짜(예: "2026-07-25까지")로 명시되어 있는지 직접 판단해라. 그런 정보가 있으면
-foundExplicitDeadline=true로 하고 returnDeadlineDays에 그 값(날짜라면 주문일과의 차이를
-일수로 환산)을 채워라. 본문 어디에도 그런 구체적인 기한 정보가 없으면 foundExplicitDeadline=
-false, returnDeadlineDays=null로 남겨라 — 이 경우 서버가 법정 최소 기준으로 대체하고
-사용자에게 추정값이라고 안내하므로, 여기서 임의로 값을 추측해서 채우면 안 된다.
+## 1단계: 메일 종류 판단 (isOrderConfirmation)
+아래 중 하나면 true:
+- 온라인 쇼핑몰 주문/결제 완료 확인 메일 (쿠팡, 네이버쇼핑, 무신사, 올리브영, 아마존 등)
+- 정기배송 신청/구독 시작/구독 변경/구독 갱신 확인 메일
 
-개인정보 보호: 상품명, 주문일자, 예상배송일, 종류 추정, 반품기한 관련 필드만 추출해라.
-수령인 이름, 전화번호, 배송지 주소, 카드번호·결제수단 등 결제정보는 절대로 어떤 필드에도
-포함하지 마라 — 특히 상품명(itemName) 필드에 수령인 이름이나 주소가 섞여 들어가지 않도록
-주의해라.`;
+아래는 전부 false:
+- 광고, 프로모션, 뉴스레터
+- 배송 상태 업데이트 (이미 지난 주문의 배송 출발·도착 알림)
+- 설문·리뷰 요청
+- OTP, 비밀번호 재설정, 기타 인증 메일
+
+확신이 서지 않으면 false를 선택해라 — 애매하면 등록 대기 목록에 올리지 않는 쪽이 안전하다.
+
+## 2단계: 종류 추정 (estimatedType) — 정기배송을 최우선으로 인식
+isOrderConfirmation=true일 때:
+
+**RECURRING_DELIVERY (최우선)**: 다음 키워드/패턴 중 하나라도 있으면 반드시 이 값:
+- "정기배송", "정기결제", "정기구독", "구독", "구독 시작", "구독 변경"
+- "배송 주기", "다음 배송일", "N일마다", "매월", "매주", "격주", "4주마다", "2달마다"
+- "자동결제", "자동배송", "정기 할인"
+
+**ELECTRONICS**: 냉장고, TV, 세탁기, 노트북, 청소기 등 보증기간이 중요한 가전·전자제품
+
+**ONLINE_ORDER**: 위 두 가지에 해당하지 않는 일반 주문 (의류, 식품, 도서, 화장품 등)
+
+## 3단계: 정기배송 주기 추출 (intervalDays)
+RECURRING_DELIVERY로 판단했을 때, 배송 주기를 찾아 일수로 변환:
+- "매주" → 7
+- "격주" → 14
+- "3주마다" → 21
+- "4주마다" / "28일마다" → 28
+- "매월" / "한달마다" / "30일마다" → 30
+- "6주마다" → 42
+- "2달마다" / "격월" → 60
+- "분기마다" / "3달마다" → 90
+주기가 메일에 명시되지 않았으면 null.
+
+## 4단계: 날짜 추출
+- orderDate: 주문일/구독 신청일 (yyyy-MM-dd)
+- expectedDeliveryDate: 정기배송이면 **다음 배송일**을 최우선으로 추출. 일반 주문이면 예상 도착일.
+  "다음 배송일", "첫 배송일", "배송 예정일" 같은 명확한 표현이 있으면 그 날짜를 사용.
+- 명시되지 않은 날짜는 추측하지 말고 null로 남겨라. 날짜는 반드시 yyyy-MM-dd로 변환.
+
+## 5단계: 반품기한 추출 (ONLINE_ORDER/ELECTRONICS만 실질적으로 의미 있음)
+반품/교환 가능 기한이 구체적인 숫자 또는 날짜로 명시된 경우에만 foundExplicitDeadline=true.
+없으면 false, returnDeadlineDays=null (서버가 법정 최소 기준으로 대체).
+
+## 개인정보 보호
+상품명, 날짜, 주기, 종류만 추출. 수령인 이름, 전화번호, 배송지 주소, 카드번호·결제수단은
+절대 어떤 필드에도 포함하지 마라.`;
 
 export async function extractOrderConfirmation(
   apiKey: string,

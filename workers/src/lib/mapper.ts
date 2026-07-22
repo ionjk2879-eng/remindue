@@ -34,6 +34,7 @@ export function toPendingPurchaseResponse(row: PendingPurchaseRow): PendingPurch
     expectedDeliveryDate: row.expected_delivery_date,
     returnDeadlineDays: row.return_deadline_days,
     returnDeadlineEstimated: row.return_deadline_estimated === 1,
+    intervalDays: row.interval_days,
     status: row.status,
     createdAt: row.created_at,
   };

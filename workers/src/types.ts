@@ -70,6 +70,8 @@ export interface PendingPurchaseRow {
   return_deadline_days: number | null;
   /** SQLite boolean(0/1) — true면 return_deadline_days가 메일에 명시된 값이 아니라 추정값. */
   return_deadline_estimated: number;
+  /** RECURRING_DELIVERY 전용: 배송 주기(일수). 메일에 명시되지 않았으면 NULL. */
+  interval_days: number | null;
   status: PendingPurchaseStatus;
   created_at: string;
 }
@@ -84,6 +86,7 @@ export interface PendingPurchaseResponse {
   expectedDeliveryDate: string | null;
   returnDeadlineDays: number | null;
   returnDeadlineEstimated: boolean;
+  intervalDays: number | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

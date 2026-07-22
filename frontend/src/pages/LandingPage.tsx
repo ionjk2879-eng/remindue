@@ -20,8 +20,9 @@ export default function LandingPage() {
           흩어진 기한을 <span className="accent">한 장의 티켓</span>으로
         </h1>
         <p className="landing__subcopy">
-          특히 반복되는 정기배송은 회차마다 따로 챙기지 않아도 되도록,
-          다음 회차와 확인 여부를 한 곳에서 모아 보여드려요.
+          정기배송 구독 확인 메일을 전달하면 자동으로 등록돼요.
+          <br />
+          보증기간·반품기한도 부가적으로 인식할 수 있어요.
         </p>
         <Link to="/signup" className="btn landing__cta">
           무료로 시작하기

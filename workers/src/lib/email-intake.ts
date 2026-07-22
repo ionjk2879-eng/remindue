@@ -84,12 +84,14 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
     : DEFAULT_RETURN_DEADLINE_DAYS;
   const returnDeadlineEstimated = extracted.foundExplicitDeadline ? 0 : 1;
 
+  const intervalDays = type === 'RECURRING_DELIVERY' ? (extracted.intervalDays ?? null) : null;
+
   await env.DB.prepare(
     `INSERT INTO pending_purchases
-       (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated)
-     VALUES (?, 'email', ?, ?, ?, ?, ?, ?)`
+       (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days)
+     VALUES (?, 'email', ?, ?, ?, ?, ?, ?, ?)`
   )
-    .bind(user.id, type, extracted.itemName, extracted.orderDate, extracted.expectedDeliveryDate, returnDeadlineDays, returnDeadlineEstimated)
+    .bind(user.id, type, extracted.itemName, extracted.orderDate, extracted.expectedDeliveryDate, returnDeadlineDays, returnDeadlineEstimated, intervalDays)
     .run();
 
   console.log(`[email-intake] 확인 대기 항목 추가 (수신자: ${user.email}, 상품명: ${extracted.itemName ?? '(없음)'})`);

@@ -44,11 +44,13 @@ export interface PendingPurchase {
   type: PurchaseType;
   itemName: string | null;
   orderDate: string | null; // yyyy-MM-dd
-  expectedDeliveryDate: string | null; // yyyy-MM-dd
+  expectedDeliveryDate: string | null; // yyyy-MM-dd — 정기배송이면 다음 배송일
   /** AI가 추정한 반품/교환 가능 일수. */
   returnDeadlineDays: number | null;
   /** true면 메일에 명시된 값이 아니라 법정 최소 기준(7일)으로 추정한 값. */
   returnDeadlineEstimated: boolean;
+  /** RECURRING_DELIVERY 전용: 배송 주기(일수). null이면 메일에 명시 안 됨. */
+  intervalDays: number | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

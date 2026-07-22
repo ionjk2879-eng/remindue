@@ -185,9 +185,12 @@ export default function DashboardPage() {
     resetForm();
     setType(item.type);
     setItemName(item.itemName ?? '');
-    setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
-    if (item.returnDeadlineDays !== null) {
-      setReturnDeadlineDays(String(item.returnDeadlineDays));
+    if (item.type === 'RECURRING_DELIVERY') {
+      setBaseDate(item.expectedDeliveryDate ?? item.orderDate ?? '');
+      if (item.intervalDays !== null) setIntervalDays(String(item.intervalDays));
+    } else {
+      setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
+      if (item.returnDeadlineDays !== null) setReturnDeadlineDays(String(item.returnDeadlineDays));
     }
     setPendingConfirmId(item.id);
   };
@@ -375,38 +378,58 @@ export default function DashboardPage() {
                     </span>
                   </p>
                   <p className="pending-card__meta">
-                    {item.orderDate && (
+                    {item.type === 'RECURRING_DELIVERY' ? (
                       <>
-                        주문일 <span className="mono">{item.orderDate}</span>
+                        {item.intervalDays !== null && (
+                          <>배송주기 <span className="mono">{item.intervalDays}일마다</span></>
+                        )}
+                        {item.expectedDeliveryDate && (
+                          <>
+                            {item.intervalDays !== null && ' · '}
+                            다음배송 <span className="mono">{item.expectedDeliveryDate}</span>
+                          </>
+                        )}
+                        {item.orderDate && (
+                          <>
+                            {(item.intervalDays !== null || item.expectedDeliveryDate) && ' · '}
+                            신청일 <span className="mono">{item.orderDate}</span>
+                          </>
+                        )}
                       </>
-                    )}
-                    {item.type === 'ONLINE_ORDER' && item.returnDeadlineDays !== null && (
+                    ) : (
                       <>
-                        {item.orderDate && ' · '}
-                        반품기한 <span className="mono">{item.returnDeadlineDays}일</span>
-                      </>
-                    )}
-                    {item.expectedDeliveryDate && (
-                      <>
-                        {(item.orderDate || (item.type === 'ONLINE_ORDER' && item.returnDeadlineDays !== null)) && ' · '}
-                        예상배송일 <span className="mono">{item.expectedDeliveryDate}</span>
+                        {item.orderDate && (
+                          <>주문일 <span className="mono">{item.orderDate}</span></>
+                        )}
+                        {item.type === 'ONLINE_ORDER' && item.returnDeadlineDays !== null && (
+                          <>
+                            {item.orderDate && ' · '}
+                            반품기한 <span className="mono">{item.returnDeadlineDays}일</span>
+                          </>
+                        )}
+                        {item.expectedDeliveryDate && (
+                          <>
+                            {(item.orderDate || (item.type === 'ONLINE_ORDER' && item.returnDeadlineDays !== null)) && ' · '}
+                            예상배송일 <span className="mono">{item.expectedDeliveryDate}</span>
+                          </>
+                        )}
                       </>
                     )}
                   </p>
-                  {item.type === 'ONLINE_ORDER' && item.returnDeadlineEstimated && (
+                  {(item.type === 'ONLINE_ORDER' || item.type === 'ELECTRONICS') && (
                     <p className="pending-card__hint">
-                      ⚠️ 반품기한이 명시되어 있지 않아 법정 최소 기간(7일)으로 추정했어요. 실제 구매처 주문내역에서 확인해주세요.
+                      이 정보는 AI가 완벽히 인식하지 못할 수 있어요. 직접 입력을 더 추천해요.
                     </p>
                   )}
-                  {item.type === 'RECURRING_DELIVERY' && (
+                  {item.type === 'RECURRING_DELIVERY' && item.intervalDays === null && (
                     <p className="pending-card__hint">
-                      ⚠️ 배송 주기는 원본에 명시되지 않으면 정확하지 않을 수 있어요. 확인 후 등록해주세요.
+                      배송 주기가 명시되지 않아 직접 입력이 필요해요.
                     </p>
                   )}
                 </div>
                 <div className="pending-card__actions">
                   <button type="button" className="btn btn-sm" onClick={() => handlePendingRegisterClick(item)}>
-                    확인 후 등록
+                    {item.type === 'RECURRING_DELIVERY' && item.intervalDays !== null ? '바로 등록' : '확인 후 등록'}
                   </button>
                   <button type="button" className="btn-text" onClick={() => handleIgnorePending(item.id)}>
                     무시
