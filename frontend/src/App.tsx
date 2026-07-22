@@ -3,9 +3,13 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import LandingPage from './pages/LandingPage';
 import type { ReactNode } from 'react';
 
-const LandingPage = lazy(() => import('./pages/LandingPage'));
+// LandingPage는 코드분할하지 않는다 — scripts/prerender.mjs가 dist/index.html에 이 페이지를
+// 미리 렌더링해두는데, lazy()로 분리하면 클라이언트가 그 청크를 다시 비동기로 불러오는 찰나에
+// Suspense가 fallback을 커밋하면서 프리렌더링된 헤드라인이 잠깐 사라졌다 재등장하는 깜빡임이
+// 생긴다. 즉시 로드해서 첫 렌더가 프리렌더링 결과와 한 번에 일치하게 만든다.
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -24,11 +28,15 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
+function RouteLoading() {
+  return <div className="route-loading">불러오는 중...</div>;
+}
+
 function Layout() {
   return (
     <>
       <Header />
-      <Suspense fallback={null}>
+      <Suspense fallback={<RouteLoading />}>
         <Outlet />
       </Suspense>
       <Footer />

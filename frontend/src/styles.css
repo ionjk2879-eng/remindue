@@ -1806,6 +1806,16 @@ a.plan-counter:hover {
   }
 }
 
+.route-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+}
+
 /* --------------------------------------------------------------------------
    Feedback board (문의/제안)
    -------------------------------------------------------------------------- */
