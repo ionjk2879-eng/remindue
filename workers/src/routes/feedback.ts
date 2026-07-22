@@ -144,6 +144,68 @@ feedback.get('/:id', async (c) => {
   return c.json(response);
 });
 
+/** 수정 — 글쓴이 본인만. status는 건드리지 않는다(내용 수정일 뿐 처리 상태 재개가 아니다). */
+feedback.put('/:id', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const id = Number(c.req.param('id'));
+  const row = await getFeedbackWithAuthor(c.env.DB, id);
+
+  if (user.id !== row.user_id) {
+    throw new ForbiddenError('작성자 본인만 수정할 수 있습니다');
+  }
+
+  const body = await c.req.json<{ category?: unknown; title?: string; content?: string }>().catch(() => ({}) as never);
+  const category = validateCategory(body.category);
+  const title = body.title?.trim();
+  const content = body.content?.trim();
+  if (!title) throw new BadRequestError('title은 필수입니다');
+  if (!content) throw new BadRequestError('content는 필수입니다');
+
+  await c.env.DB.prepare('UPDATE feedback SET category = ?, title = ?, content = ? WHERE id = ?')
+    .bind(category, title, content, id)
+    .run();
+
+  const { results } = await c.env.DB.prepare(`SELECT * FROM feedback_replies WHERE feedback_id = ? ORDER BY created_at ASC`)
+    .bind(id)
+    .all<FeedbackReplyRow>();
+  const replies: FeedbackReplyResponse[] = results.map((r) => ({
+    id: r.id,
+    content: r.content,
+    isAdmin: r.is_admin === 1,
+    createdAt: r.created_at,
+  }));
+
+  const response: FeedbackDetailResponse = {
+    id,
+    category,
+    title,
+    content,
+    status: row.status,
+    authorNickname: row.author_nickname,
+    isMine: true,
+    viewerIsAdmin: user.email === c.env.ADMIN_EMAIL,
+    createdAt: row.created_at,
+    replies,
+  };
+  return c.json(response);
+});
+
+/** 삭제 — 글쓴이 본인 또는 운영자(모더레이션). 답글은 FK ON DELETE CASCADE로 함께 지워진다. */
+feedback.delete('/:id', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const id = Number(c.req.param('id'));
+  const row = await getFeedbackWithAuthor(c.env.DB, id);
+
+  const isAdmin = user.email === c.env.ADMIN_EMAIL;
+  const isAuthor = user.id === row.user_id;
+  if (!isAdmin && !isAuthor) {
+    throw new ForbiddenError('작성자 본인 또는 운영자만 삭제할 수 있습니다');
+  }
+
+  await c.env.DB.prepare('DELETE FROM feedback WHERE id = ?').bind(id).run();
+  return c.body(null, 204);
+});
+
 /**
  * 답글 작성 — 글쓴이 본인 또는 운영자만. 운영자는 status를 함께 실어 보내 상태를 바꿀 수 있고
  * (별도의 상태 변경 API는 없다), 아무 status도 안 실었는데 아직 OPEN이면 "답변이 시작됐다"는
