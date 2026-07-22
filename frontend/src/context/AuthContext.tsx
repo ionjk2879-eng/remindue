@@ -2,6 +2,23 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { fetchBillingStatus } from '../api/billing';
 import type { BillingStatus } from '../types';
 
+function isStoredTokenExpired(): boolean {
+  const token = localStorage.getItem('accessToken');
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp !== 'number' || payload.exp < Date.now() / 1000;
+  } catch {
+    return true;
+  }
+}
+
+function clearAuthStorage() {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('nickname');
+  localStorage.removeItem('isPremium');
+}
+
 interface AuthContextValue {
   nickname: string | null;
   isAuthenticated: boolean;
@@ -20,6 +37,10 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // 토큰이 만료된 채로 앱을 열면 대시보드가 잠깐 보였다가 로그인 화면으로 튀는 문제 방지 —
+  // 초기화 시점에 exp 클레임을 확인해 이미 만료됐으면 localStorage를 즉시 비운다.
+  if (isStoredTokenExpired()) clearAuthStorage();
+
   const [nickname, setNickname] = useState<string | null>(localStorage.getItem('nickname'));
   const [isPremium, setIsPremium] = useState<boolean>(localStorage.getItem('isPremium') === 'true');
   const [premiumSince, setPremiumSince] = useState<string | null>(null);
