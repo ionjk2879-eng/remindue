@@ -1618,6 +1618,7 @@ a.plan-counter:hover {
   gap: 6px;
   padding: 24px;
   margin-top: 40px;
+  background: var(--paper-card);
   border-top: 1.5px dashed var(--hairline-strong);
   font-size: 0.78rem;
   color: var(--ink-soft);
