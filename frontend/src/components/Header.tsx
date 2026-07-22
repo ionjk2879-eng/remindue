@@ -19,6 +19,9 @@ export default function Header() {
       </Link>
       {isAuthenticated ? (
         <div className="site-header__nav">
+          <Link to="/feedback" className="site-header__link">
+            문의/제안
+          </Link>
           <Link to="/settings" className="site-header__link">
             설정
           </Link>

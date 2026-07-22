@@ -2,7 +2,7 @@
 // 도메인 인증 전에도 바로 테스트할 수 있도록 발신 주소는 Resend의 sandbox 주소를 기본값으로 쓴다 —
 // 실제 도메인을 Resend에 등록하면 이 상수만 바꾸면 된다.
 
-import type { PurchaseType } from '../types';
+import type { FeedbackCategory, PurchaseType } from '../types';
 import { buildDigestTitle, buildItemClause, formatDDay, type DigestItem } from './messages';
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
@@ -320,6 +320,30 @@ export function buildShareAcceptedEmailHtml(ownerNickname: string, accepterEmail
     message: `${escapeHtml(accepterEmail)}님이 초대를 수락해서 이제 회원님의 챙길 목록을 함께 볼 수 있어요.`,
     ctaLabel: '대시보드에서 확인하기',
     ctaUrl: dashboardUrl,
+  });
+}
+
+const FEEDBACK_CATEGORY_LABEL: Record<FeedbackCategory, string> = {
+  BUG: '버그 제보',
+  FEATURE_REQUEST: '기능 제안',
+  QUESTION: '질문',
+  OTHER: '기타',
+};
+
+/** 새 문의 등록 알림 — 운영자(Env.ADMIN_EMAIL)에게만 보낸다. */
+export function buildAdminFeedbackNotificationEmailHtml(
+  authorNickname: string,
+  category: FeedbackCategory,
+  title: string,
+  feedbackUrl: string
+): string {
+  return buildSimpleEmailHtml({
+    nickname: '운영자',
+    headingPlain: `새 문의가 등록됐어요 — `,
+    headingHighlight: FEEDBACK_CATEGORY_LABEL[category],
+    message: `${escapeHtml(authorNickname)}님이 "${escapeHtml(title)}" 글을 남겼어요.`,
+    ctaLabel: '문의 확인하기',
+    ctaUrl: feedbackUrl,
   });
 }
 

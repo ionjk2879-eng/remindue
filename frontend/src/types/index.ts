@@ -86,3 +86,44 @@ export interface SharedAccess {
   status: SharedAccessStatus;
   createdAt: string;
 }
+
+export type FeedbackCategory = 'BUG' | 'FEATURE_REQUEST' | 'QUESTION' | 'OTHER';
+export type FeedbackStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+
+export interface FeedbackListItem {
+  id: number;
+  category: FeedbackCategory;
+  title: string;
+  status: FeedbackStatus;
+  authorNickname: string;
+  replyCount: number;
+  createdAt: string;
+}
+
+export interface FeedbackReply {
+  id: number;
+  content: string;
+  isAdmin: boolean;
+  createdAt: string;
+}
+
+export interface FeedbackDetail {
+  id: number;
+  category: FeedbackCategory;
+  title: string;
+  content: string;
+  status: FeedbackStatus;
+  authorNickname: string;
+  /** 조회자가 이 글의 작성자 본인인지 — 답글 작성 폼 노출 여부에 쓴다. */
+  isMine: boolean;
+  /** 조회자가 운영자인지 — 상태 변경 UI 노출 여부에 쓴다. */
+  viewerIsAdmin: boolean;
+  createdAt: string;
+  replies: FeedbackReply[];
+}
+
+export interface FeedbackInput {
+  category: FeedbackCategory;
+  title: string;
+  content: string;
+}

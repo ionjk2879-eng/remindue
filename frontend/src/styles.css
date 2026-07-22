@@ -284,7 +284,8 @@ select {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   background: transparent;
   border: none;
   border-bottom: 1.5px solid var(--hairline-strong);
@@ -292,6 +293,11 @@ select {
   font-size: 0.96rem;
   color: var(--ink);
   transition: border-color 0.15s ease;
+}
+
+.field textarea {
+  font-family: inherit;
+  resize: vertical;
 }
 
 .field input::placeholder {
@@ -307,8 +313,10 @@ select {
 }
 
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   border-bottom-color: var(--ink);
+  outline: none;
 }
 
 .form-error {
@@ -1796,4 +1804,199 @@ a.plan-counter:hover {
     overflow-x: auto;
     white-space: nowrap;
   }
+}
+
+/* --------------------------------------------------------------------------
+   Feedback board (문의/제안)
+   -------------------------------------------------------------------------- */
+
+.feedback-page,
+.feedback-detail {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 20px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.feedback-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  padding: 20px;
+}
+
+.feedback-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedback-list-item {
+  display: block;
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  padding: 16px 18px;
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.feedback-list-item:hover {
+  box-shadow: var(--shadow-rest);
+  border-color: var(--hairline-strong);
+}
+
+.feedback-list-item__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.feedback-list-item__title {
+  font-weight: 700;
+  font-size: 0.98rem;
+  color: var(--ink);
+}
+
+.feedback-list-item__meta {
+  margin-top: 8px;
+  display: flex;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.feedback-category-badge,
+.feedback-status-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.feedback-category-badge--BUG {
+  background: #fbe8e8;
+  color: var(--stamp-red);
+  border-color: #f1c5c5;
+}
+
+.feedback-category-badge--FEATURE_REQUEST {
+  background: #e5f4f0;
+  color: var(--safe-teal);
+  border-color: #bfe4d8;
+}
+
+.feedback-category-badge--QUESTION {
+  background: var(--type-electronics-bg);
+  color: var(--type-electronics);
+  border-color: var(--type-electronics-border);
+}
+
+.feedback-category-badge--OTHER {
+  background: #efefea;
+  color: var(--ink-soft);
+  border-color: var(--hairline-strong);
+}
+
+.feedback-status-badge--OPEN {
+  background: #efefea;
+  color: var(--ink-soft);
+  border-color: var(--hairline-strong);
+}
+
+.feedback-status-badge--IN_PROGRESS {
+  background: #fbf1e1;
+  color: var(--stamp-amber);
+  border-color: #efd9ae;
+}
+
+.feedback-status-badge--RESOLVED {
+  background: #e5f4f0;
+  color: var(--safe-teal);
+  border-color: #bfe4d8;
+}
+
+.feedback-detail__post {
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  padding: 20px;
+}
+
+.feedback-detail__post h1 {
+  margin-top: 10px;
+  font-size: 1.3rem;
+}
+
+.feedback-detail__meta {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.feedback-detail__content {
+  margin-top: 16px;
+  font-size: 0.94rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.feedback-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedback-reply {
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+}
+
+.feedback-reply--admin {
+  background: #fbf1e1;
+  border-color: #efd9ae;
+}
+
+.feedback-reply__meta {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.feedback-reply p {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.feedback-reply-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  padding: 20px;
 }
