@@ -15,7 +15,7 @@ export default function LandingPage() {
         <Logo size={64} className="landing__stamp" />
         <span className="landing__badge">D-DAY TRACKER</span>
         <h1 className="landing__headline">
-          보증기간, 반품기한, 정기배송,
+          보증기간, 반품기한, 정기배송, 정기구독,
           <br />
           흩어진 기한을 <span className="accent">한 장의 티켓</span>으로
         </h1>
