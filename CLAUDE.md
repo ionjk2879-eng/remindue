@@ -42,6 +42,11 @@ cd workers && npm run deploy:dev     # wrangler versions upload --preview-alias 
 cd frontend && npm run deploy:dev    # builds with .env.dev, then the same upload
 ```
 
+**Production deployment** is handled automatically by Cloudflare Workers Builds
+when `main` is pushed to GitHub — no manual `wrangler deploy` needed. The full
+workflow is: work on `dev` → deploy:dev to check the preview → merge to `main`
+and push → Cloudflare auto-deploys to production.
+
 `frontend/.env.dev` points `VITE_API_BASE_URL` at the dev backend alias above;
 `frontend/.env.production` points at the real production backend. Both are
 committed (they're not secret, just a base URL) — Vite picks the right one via
