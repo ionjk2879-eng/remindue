@@ -301,7 +301,12 @@ export default function DashboardPage() {
     setItemName(item.itemName ?? '');
     setAmount(item.amount !== null ? String(item.amount) : '');
     if (isRecurringType(item.type)) {
-      setBaseDate(item.expectedDeliveryDate ?? item.orderDate ?? '');
+      // baseDate("시작일")는 항상 이미 벌어진 기준일이어야 회차·이번 달 지출 계산이 맞는다 —
+      // orderDate(이번 결제/신청이 실제로 일어난 날)를 우선하고, 그게 없을 때만 미래 예정일인
+      // expectedDeliveryDate("다음" 배송·결제일)로 대체한다. 반대로 하면 "이미 결제된 이번
+      // 회차"가 baseDate로 안 잡혀서 회차가 다음 회차 기준 1회차로 리셋되고, 이번 달 지출
+      // 계산에서도 빠지는 문제가 있었다.
+      setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
       const st = item.scheduleType ?? 'INTERVAL';
       setScheduleType(st);
       if (st === 'FIXED_DAY' && item.fixedDayOfMonth !== null) {
