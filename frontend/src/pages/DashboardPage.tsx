@@ -534,11 +534,18 @@ export default function DashboardPage() {
   const monthlySpendTotals = Array.from({ length: 12 }, (_, i) => totalSpendInMonth(purchases, currentYearNum, i + 1));
   const yearlySpendEstimate = monthlySpendTotals.reduce((sum, v) => sum + v, 0);
 
-  /** "카테고리별 분석" — 카테고리가 지정된 정기배송/구독만 종류별 개수로 집계. */
-  const categoryCounts = PURCHASE_CATEGORIES.map((cat) => ({
-    category: cat,
-    count: purchases.filter((p) => isRecurringType(p.type) && p.category === cat).length,
-  })).filter((c) => c.count > 0);
+  /**
+   * "카테고리별 분석" — 카테고리가 지정된 정기배송/구독의 개수와, 그중 이번 달에 실제로 결제되는
+   * 항목들의 금액 합(occurrencesInMonth 기준 — 이번 달에 결제가 없는 항목은 개수엔 잡히되 금액엔 0으로 반영).
+   */
+  const categoryCounts = PURCHASE_CATEGORIES.map((cat) => {
+    const items = purchases.filter((p) => isRecurringType(p.type) && p.category === cat);
+    const amount = items.reduce((sum, p) => {
+      if (p.amount === null) return sum;
+      return sum + occurrencesInMonth(p, currentYearNum, currentMonthNum) * p.amount;
+    }, 0);
+    return { category: cat, count: items.length, amount: Math.round(amount) };
+  }).filter((c) => c.count > 0);
   const uncategorizedRecurringCount = purchases.filter((p) => isRecurringType(p.type) && p.category === null).length;
 
   /** 확인 대기 중인 "가격 인상 감지" 건수 — pending-purchase-intake.ts가 matched_purchase_id를 채운 것만. */
@@ -746,12 +753,15 @@ export default function DashboardPage() {
             <div className="spending-detail__section">
               <p className="spending-detail__heading">🗂 카테고리별 분석</p>
               <ul className="spending-detail__category-list">
-                {categoryCounts.map(({ category: cat, count }) => (
+                {categoryCounts.map(({ category: cat, count, amount }) => (
                   <li key={cat}>
                     <span>
                       {CATEGORY_ICON[cat]} {CATEGORY_LABEL[cat]}
                     </span>
-                    <span className="mono">{count}개</span>
+                    <span className="spending-detail__category-stats">
+                      <span className="mono">{count}개</span>
+                      <span className="mono">{amount.toLocaleString('ko-KR')}원</span>
+                    </span>
                   </li>
                 ))}
               </ul>

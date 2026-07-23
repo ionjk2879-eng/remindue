@@ -829,7 +829,7 @@ button.summary-board__tile:hover {
 
 .spending-detail__category-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 8px;
 }
 
@@ -845,7 +845,20 @@ button.summary-board__tile:hover {
   color: var(--ink);
 }
 
-.spending-detail__category-list li span:last-child {
+.spending-detail__category-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.spending-detail__category-stats span:first-child {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.spending-detail__category-stats span:last-child {
   font-weight: 700;
 }
 
