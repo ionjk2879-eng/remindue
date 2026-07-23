@@ -67,6 +67,12 @@
   --radius-sm: 8px;
   --shadow-rest: 0 1px 2px rgba(var(--shadow-rgb), 0.06);
   --shadow-lift: 0 10px 24px rgba(var(--shadow-rgb), 0.14);
+
+  /* select 드롭다운 목록·스크롤바 등 브라우저 네이티브 UI가 이 값을 보고 라이트/다크를 고른다.
+     이걸 안 알려주면 앱은 다크인데 네이티브 팝업만 라이트로 그려져서(밝은 배경 위에 --ink의
+     밝은 글자색이 얹혀) select 옵션 목록의 글자가 안 보이는 문제가 생긴다. 기본은 system 설정을
+     따르고, 토글로 명시 선택하면 아래 [data-theme] 블록이 덮어쓴다. */
+  color-scheme: light dark;
 }
 
 /* --------------------------------------------------------------------------
@@ -176,6 +182,12 @@
   --stamp-ring: rgba(23, 24, 28, 0.6);
 
   --shadow-rgb: 0, 0, 0;
+
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 * {
@@ -226,6 +238,14 @@ input,
 select {
   font: inherit;
   color: inherit;
+}
+
+/* select 자체는 폼 필드마다 배경을 다르게 얹으므로 여기서 강제하지 않지만, 펼쳤을 때 나오는
+   option 목록은 브라우저 네이티브 팝업이라 위의 color-scheme만으로 일부 환경(구형 브라우저 등)
+   에서 못 미더울 수 있어 배경/글자색을 직접 명시해 이중으로 보장한다. */
+select option {
+  background-color: var(--paper-card);
+  color: var(--ink);
 }
 
 :focus-visible {
