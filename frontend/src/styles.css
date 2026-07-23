@@ -594,7 +594,7 @@ a.plan-counter:hover {
 
 .summary-board {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px;
   margin-bottom: 22px;
 }
@@ -612,6 +612,26 @@ a.plan-counter:hover {
   box-shadow: var(--shadow-rest);
 }
 
+/* 클릭 가능한 타일(월/연 예상 지출)은 <button>이라 기본 버튼 스타일을 지우고 카드처럼 보이게 되돌린다. */
+button.summary-board__tile {
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+button.summary-board__tile:hover {
+  box-shadow: var(--shadow-lift);
+  border-color: var(--hairline-strong);
+}
+
+.summary-board__chevron {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+
 .summary-board__tile--delivery {
   border-left-color: var(--type-recurring);
 }
@@ -622,6 +642,10 @@ a.plan-counter:hover {
 
 .summary-board__tile--spending {
   border-left-color: var(--stamp-red);
+}
+
+.summary-board__tile--yearly {
+  border-left-color: var(--type-electronics);
 }
 
 .summary-board__tile--week {
@@ -662,6 +686,136 @@ a.plan-counter:hover {
   font-weight: 600;
   color: var(--ink-soft);
   margin-left: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Spending detail panel ("월 예상 지출"/"올해 예상 지출" 타일을 클릭하면 펼쳐지는 상세 분석)
+   -------------------------------------------------------------------------- */
+
+.spending-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  padding: 18px 20px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow-rest);
+}
+
+.spending-detail__section + .spending-detail__section {
+  padding-top: 16px;
+  border-top: 1px dashed var(--hairline);
+}
+
+.spending-detail__heading {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+
+.spending-detail__empty {
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+}
+
+.spending-detail__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.spending-detail__list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+
+.spending-detail__list li span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spending-detail__list li span:last-child {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+}
+
+.spending-detail__total {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--ink);
+  display: flex;
+  justify-content: space-between;
+}
+
+.spending-detail__category-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.spending-detail__category-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--neutral-bg);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+
+.spending-detail__category-list li span:last-child {
+  font-weight: 700;
+}
+
+.spending-detail__hint {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.spending-detail__yearly-row {
+  display: flex;
+  gap: 12px;
+}
+
+.spending-detail__yearly-item {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--neutral-bg);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+}
+
+.spending-detail__yearly-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.spending-detail__yearly-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.spending-detail__yearly-value--total {
+  color: var(--stamp-red);
+  font-size: 1.35rem;
 }
 
 /* --------------------------------------------------------------------------
@@ -2181,6 +2335,10 @@ a.plan-counter:hover {
   .summary-board__label {
     overflow: visible;
     white-space: normal;
+  }
+
+  .spending-detail__yearly-row {
+    flex-direction: column;
   }
 
   .push-banner {

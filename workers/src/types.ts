@@ -1,7 +1,10 @@
 export type PurchaseType = 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION';
 export type ScheduleType = 'INTERVAL' | 'FIXED_DAY';
+/** 정기배송/구독 전용 지출 카테고리 — 대시보드의 "카테고리별 분석"에 쓴다. 그 외 타입은 항상 null. */
+export type PurchaseCategory = 'STREAMING' | 'SHOPPING' | 'FOOD' | 'SOFTWARE' | 'OTHER';
 
 export const PURCHASE_TYPES: readonly PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY', 'SUBSCRIPTION'];
+export const PURCHASE_CATEGORIES: readonly PurchaseCategory[] = ['STREAMING', 'SHOPPING', 'FOOD', 'SOFTWARE', 'OTHER'];
 
 /** RECURRING_DELIVERY(실물 정기배송)와 SUBSCRIPTION(디지털 정기구독)은 라벨/색상만 다르고
  *  스케줄 계산(INTERVAL/FIXED_DAY, 회차, 다음 일정)은 완전히 동일하다 — 이 둘을 묶어 판단할
@@ -30,6 +33,8 @@ export interface PurchaseRow {
   delivery_confirm_count: number;
   /** 이력 보관(프리미엄). NULL이면 활성 항목, 값이 있으면 그 시각에 보관 처리됨 — dDay/알림 대상에서 제외. */
   archived_at: string | null;
+  /** 정기배송/구독 전용 지출 카테고리. 그 외 타입은 NULL. */
+  category: PurchaseCategory | null;
   created_at: string;
   updated_at: string;
 }
@@ -92,6 +97,8 @@ export interface PendingPurchaseRow {
   schedule_estimated: number;
   /** AI가 추출한 금액(원). 원본에 없으면 NULL. */
   amount: number | null;
+  /** AI가 추정한 지출 카테고리(RECURRING_DELIVERY/SUBSCRIPTION만). 그 외 NULL. */
+  category: PurchaseCategory | null;
   status: PendingPurchaseStatus;
   created_at: string;
 }
@@ -112,6 +119,8 @@ export interface PendingPurchaseResponse {
   scheduleEstimated: boolean;
   /** AI가 추출한 금액(원). 원본에 없으면 null. */
   amount: number | null;
+  /** AI가 추정한 지출 카테고리(RECURRING_DELIVERY/SUBSCRIPTION만). 그 외 null. */
+  category: PurchaseCategory | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }
@@ -136,6 +145,8 @@ export interface PurchaseResponse {
   deliveryRound: number | null;
   /** 이력 보관(프리미엄) 시각. null이면 활성 항목. */
   archivedAt: string | null;
+  /** 정기배송/구독 전용 지출 카테고리. 그 외 타입은 null. */
+  category: PurchaseCategory | null;
   createdAt: string;
 }
 
@@ -174,6 +185,7 @@ export interface PurchaseRequestBody {
   intervalDays?: number | null;
   scheduleType?: ScheduleType;
   fixedDayOfMonth?: number | null;
+  category?: PurchaseCategory | null;
 }
 
 export type BillingPlan = 'ONE_TIME' | 'MONTHLY' | 'ANNUAL';

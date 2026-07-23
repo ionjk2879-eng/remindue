@@ -17,6 +17,8 @@ export interface ExtractedOrder {
   estimatedType: 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION' | null;
   /** 결제/주문 금액(원). 통화 기호·콤마 없는 정수. 원본에 금액이 없으면 null. */
   amount: number | null;
+  /** estimatedType이 RECURRING_DELIVERY/SUBSCRIPTION일 때만 채운다: 지출 카테고리 추정. 그 외 null. */
+  category: 'STREAMING' | 'SHOPPING' | 'FOOD' | 'SOFTWARE' | 'OTHER' | null;
   /** 반품/교환 기한이 원본에 구체적으로 명시되어 있었는지. */
   foundExplicitDeadline: boolean;
   /** 주문일 기준 반품/교환 가능 일수. foundExplicitDeadline=false면 null. */
@@ -78,6 +80,17 @@ const EXTRACTION_SCHEMA = {
         '결제/주문 금액을 원(KRW) 단위 정수로 추출. "12,900원"→12900, "\\u20a91,900"→1900. ' +
         '여러 상품/금액이 섞여 있으면 실제 결제된 총액(최종 결제금액)을 우선. 원본에 금액이 전혀 없으면 null.',
     },
+    category: {
+      anyOf: [{ type: 'string', enum: ['STREAMING', 'SHOPPING', 'FOOD', 'SOFTWARE', 'OTHER'] }, { type: 'null' }],
+      description:
+        'estimatedType이 RECURRING_DELIVERY 또는 SUBSCRIPTION일 때만 채운다: 지출 카테고리 추정.\n' +
+        'STREAMING: 넷플릭스, 유튜브 프리미엄, 스포티파이, 디즈니플러스, 왓챠 등 영상·음악 스트리밍/OTT.\n' +
+        'SHOPPING: 쿠팡 와우, 네이버플러스 멤버십 등 쇼핑 멤버십/정기할인 구독.\n' +
+        'FOOD: 생수, 밀키트, 신선식품, 커피, 반찬 등 실물 식품·음료 정기배송.\n' +
+        'SOFTWARE: 클라우드 저장공간, 도메인/호스팅, 소프트웨어·앱 라이선스 정기결제.\n' +
+        '위 넷 중 뚜렷이 해당하지 않으면 OTHER(사료·화장품 정기배송 등). ' +
+        'estimatedType이 ELECTRONICS/ONLINE_ORDER이거나 isOrderConfirmation=false면 반드시 null.',
+    },
     foundExplicitDeadline: {
       type: 'boolean',
       description:
@@ -129,6 +142,7 @@ const EXTRACTION_SCHEMA = {
     'expectedDeliveryDate',
     'estimatedType',
     'amount',
+    'category',
     'foundExplicitDeadline',
     'returnDeadlineDays',
     'intervalDays',
@@ -176,7 +190,15 @@ isOrderConfirmation=true일 때, 아래 순서대로 판단한다. 핵심 기준
 
 **ONLINE_ORDER**: 위 세 가지에 해당하지 않는 일반 주문 (의류, 식품, 도서, 화장품 등 일회성 구매)
 
-## 3단계: 스케줄 방식 판단 (scheduleType) + 주기 추출 (intervalDays / fixedDayOfMonth / scheduleEstimated)
+## 3단계: 지출 카테고리 추정 (category) — estimatedType이 RECURRING_DELIVERY/SUBSCRIPTION일 때만
+- STREAMING: 넷플릭스, 유튜브 프리미엄, 스포티파이, 디즈니플러스, 왓챠 등 영상·음악 스트리밍/OTT
+- SHOPPING: 쿠팡 와우, 네이버플러스 멤버십 등 쇼핑 멤버십/정기할인 구독
+- FOOD: 생수, 밀키트, 신선식품, 커피, 반찬 등 실물 식품·음료 정기배송
+- SOFTWARE: 클라우드 저장공간, 도메인/호스팅, 소프트웨어·앱 라이선스 정기결제
+- 위 넷 중 뚜렷이 해당하지 않으면 OTHER (사료·화장품 정기배송 등)
+estimatedType이 ELECTRONICS/ONLINE_ORDER이거나 isOrderConfirmation=false면 반드시 null.
+
+## 4단계: 스케줄 방식 판단 (scheduleType) + 주기 추출 (intervalDays / fixedDayOfMonth / scheduleEstimated)
 RECURRING_DELIVERY 또는 SUBSCRIPTION으로 판단했을 때:
 
 **FIXED_DAY 판단**: "매월 N일", "매월 N일에 자동결제", "every month on the Nth" 등 달력의
@@ -202,24 +224,24 @@ intervalDays 변환 기준:
 
 판단 불가능하면 scheduleType=INTERVAL(기본값), fixedDayOfMonth=null, scheduleEstimated=false.
 
-## 4단계: 날짜 추출
+## 5단계: 날짜 추출
 - orderDate: 주문일/구독 신청일/결제일 (yyyy-MM-dd)
 - expectedDeliveryDate: RECURRING_DELIVERY/SUBSCRIPTION이면 "다음 배송일", "다음 결제일", "갱신일", "만료일",
   "다음 청구일" 중 가장 명확한 날짜를 최우선으로 추출. 일반 주문이면 예상 도착일.
   next billing date, renewal date, expiry date 같은 영문 표현도 해당.
 - 명시되지 않은 날짜는 추측하지 말고 null로 남겨라. 날짜는 반드시 yyyy-MM-dd로 변환.
 
-## 5단계: 반품기한 추출 (ONLINE_ORDER/ELECTRONICS만 실질적으로 의미 있음)
+## 6단계: 반품기한 추출 (ONLINE_ORDER/ELECTRONICS만 실질적으로 의미 있음)
 반품/교환 가능 기한이 구체적인 숫자 또는 날짜로 명시된 경우에만 foundExplicitDeadline=true.
 없으면 false, returnDeadlineDays=null (서버가 법정 최소 기준으로 대체).
 
-## 6단계: 금액 추출 (amount)
+## 7단계: 금액 추출 (amount)
 실제 결제/청구된 총액을 원(KRW) 단위 정수로 추출("12,900원"→12900). 여러 금액이 나오면
 할인 전 정가가 아니라 최종 결제금액을 우선. 통화 기호·콤마 없는 순수 정수만 담고, 원본에
 금액이 전혀 없으면 null.
 
 ## 개인정보 보호
-상품명, 날짜, 주기, 종류, 금액만 추출. 수령인 이름, 전화번호, 배송지 주소, 카드번호·결제수단
+상품명, 날짜, 주기, 종류, 카테고리, 금액만 추출. 수령인 이름, 전화번호, 배송지 주소, 카드번호·결제수단
 (마스킹된 카드번호 포함)은 절대 어떤 필드에도 포함하지 마라.`;
 
 type MessageContent =

@@ -1,5 +1,7 @@
 export type PurchaseType = 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION';
 export type ScheduleType = 'INTERVAL' | 'FIXED_DAY';
+/** 정기배송/구독 전용 지출 카테고리 — 대시보드 "카테고리별 분석"에 쓴다. 그 외 타입은 항상 null. */
+export type PurchaseCategory = 'STREAMING' | 'SHOPPING' | 'FOOD' | 'SOFTWARE' | 'OTHER';
 
 /** RECURRING_DELIVERY(실물 정기배송)와 SUBSCRIPTION(디지털 정기구독)은 라벨/색상만 다르고
  *  스케줄(다음 일정, 회차, 확인 버튼 등)은 완전히 동일하게 동작한다. */
@@ -24,6 +26,7 @@ export interface Purchase {
   dDay: number;
   deliveryRound: number | null;
   archivedAt: string | null;
+  category: PurchaseCategory | null;
   createdAt: string;
 }
 
@@ -38,6 +41,7 @@ export interface PurchaseInput {
   intervalDays?: number;
   scheduleType?: ScheduleType;
   fixedDayOfMonth?: number | null;
+  category?: PurchaseCategory | null;
 }
 
 export interface AuthResponse {
@@ -69,6 +73,8 @@ export interface PendingPurchase {
   scheduleEstimated: boolean;
   /** AI가 추출한 금액(원). 원본에 없으면 null. */
   amount: number | null;
+  /** AI가 추정한 지출 카테고리(RECURRING_DELIVERY/SUBSCRIPTION만). 그 외 null. */
+  category: PurchaseCategory | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

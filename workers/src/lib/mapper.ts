@@ -22,6 +22,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     dDay,
     deliveryRound,
     archivedAt: row.archived_at,
+    category: row.category,
     createdAt: row.created_at,
   };
 }
@@ -41,6 +42,7 @@ export function toPendingPurchaseResponse(row: PendingPurchaseRow): PendingPurch
     fixedDayOfMonth: row.fixed_day_of_month,
     scheduleEstimated: row.schedule_estimated === 1,
     amount: row.amount,
+    category: row.category,
     status: row.status,
     createdAt: row.created_at,
   };

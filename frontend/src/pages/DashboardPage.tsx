@@ -14,7 +14,15 @@ import {
 import { fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
 import { completeOnboarding as apiCompleteOnboarding, regenerateForwardingAddress } from '../api/settings';
 import { fetchReceivedInvites, fetchSharedPurchases } from '../api/sharing';
-import { isRecurringType, type PendingPurchase, type Purchase, type PurchaseType, type ScheduleType, type SharedAccess } from '../types';
+import {
+  isRecurringType,
+  type PendingPurchase,
+  type Purchase,
+  type PurchaseCategory,
+  type PurchaseType,
+  type ScheduleType,
+  type SharedAccess,
+} from '../types';
 import { useAuth } from '../context/AuthContext';
 import StampBadge from '../components/StampBadge';
 import PremiumBadge from '../components/PremiumBadge';
@@ -43,6 +51,25 @@ const TYPE_SHORT_LABEL: Record<PurchaseType, string> = {
 };
 
 const PURCHASE_TYPES: PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY', 'SUBSCRIPTION'];
+
+/** 정기배송/구독 전용 지출 카테고리 — "카테고리별 분석" 보드에서 이 순서대로 노출한다. */
+const PURCHASE_CATEGORIES: PurchaseCategory[] = ['STREAMING', 'SHOPPING', 'FOOD', 'SOFTWARE', 'OTHER'];
+
+const CATEGORY_LABEL: Record<PurchaseCategory, string> = {
+  STREAMING: '영상',
+  SHOPPING: '쇼핑',
+  FOOD: '식품',
+  SOFTWARE: '소프트웨어',
+  OTHER: '기타',
+};
+
+const CATEGORY_ICON: Record<PurchaseCategory, string> = {
+  STREAMING: '🎬',
+  SHOPPING: '🛒',
+  FOOD: '🍽️',
+  SOFTWARE: '💻',
+  OTHER: '📦',
+};
 
 type FilterType = 'ALL' | PurchaseType;
 
@@ -93,6 +120,7 @@ export default function DashboardPage() {
   const [intervalDays, setIntervalDays] = useState('30');
   const [scheduleType, setScheduleType] = useState<ScheduleType>('INTERVAL');
   const [fixedDayOfMonth, setFixedDayOfMonth] = useState('1');
+  const [category, setCategory] = useState<PurchaseCategory>('OTHER');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showPremiumUpsell, setShowPremiumUpsell] = useState(false);
   const [forwardingEmail, setForwardingEmail] = useState('');
@@ -108,6 +136,7 @@ export default function DashboardPage() {
   const [sharedPurchases, setSharedPurchases] = useState<Purchase[]>([]);
   const [exporting, setExporting] = useState(false);
   const [purchasesLoaded, setPurchasesLoaded] = useState(false);
+  const [showSpendingDetail, setShowSpendingDetail] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
   const itemNameInputRef = useRef<HTMLInputElement>(null);
 
@@ -171,6 +200,7 @@ export default function DashboardPage() {
     setIntervalDays('30');
     setScheduleType('INTERVAL');
     setFixedDayOfMonth('1');
+    setCategory('OTHER');
   };
 
   const handleEditClick = (p: Purchase) => {
@@ -185,6 +215,7 @@ export default function DashboardPage() {
     setIntervalDays(String(p.intervalDays ?? 30));
     setScheduleType(p.scheduleType ?? 'INTERVAL');
     setFixedDayOfMonth(String(p.fixedDayOfMonth ?? 1));
+    setCategory(p.category ?? 'OTHER');
   };
 
   const handleCancelEdit = () => {
@@ -212,6 +243,7 @@ export default function DashboardPage() {
       } else if (item.intervalDays !== null) {
         setIntervalDays(String(item.intervalDays));
       }
+      setCategory(item.category ?? 'OTHER');
     } else {
       setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
       if (item.returnDeadlineDays !== null) setReturnDeadlineDays(String(item.returnDeadlineDays));
@@ -263,6 +295,7 @@ export default function DashboardPage() {
       intervalDays: isRecurringType(type) && scheduleType === 'INTERVAL' ? Number(intervalDays) : undefined,
       scheduleType: isRecurringType(type) ? scheduleType : undefined,
       fixedDayOfMonth: isRecurringType(type) && scheduleType === 'FIXED_DAY' ? Number(fixedDayOfMonth) : undefined,
+      category: isRecurringType(type) ? category : undefined,
     };
     const confirmingPendingId = pendingConfirmId;
     try {
@@ -351,15 +384,26 @@ export default function DashboardPage() {
   /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
   const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
   const subscriptionCount = purchases.filter((p) => p.type === 'SUBSCRIPTION').length;
+
   /** N일마다 항목은 30일 기준 월 환산액으로, 매월 특정일 고정 항목은 금액을 그대로 더한다. */
-  const monthlySpendEstimate = Math.round(
-    purchases
-      .filter((p) => isRecurringType(p.type) && p.amount !== null)
-      .reduce((sum, p) => {
-        const monthly = p.scheduleType === 'FIXED_DAY' ? p.amount! : (p.amount! * 30) / (p.intervalDays || 30);
-        return sum + monthly;
-      }, 0)
-  );
+  const monthlyEquivalent = (p: Purchase): number =>
+    p.scheduleType === 'FIXED_DAY' ? p.amount! : (p.amount! * 30) / (p.intervalDays || 30);
+
+  /** "월 예상 지출" 클릭 시 펼쳐지는 항목별 내역 — 금액이 있는 정기배송/구독만, 큰 금액순. */
+  const spendingBreakdown = purchases
+    .filter((p) => isRecurringType(p.type) && p.amount !== null)
+    .map((p) => ({ id: p.id, itemName: p.itemName, monthly: Math.round(monthlyEquivalent(p)) }))
+    .sort((a, b) => b.monthly - a.monthly);
+
+  const monthlySpendEstimate = spendingBreakdown.reduce((sum, item) => sum + item.monthly, 0);
+  const yearlySpendEstimate = monthlySpendEstimate * 12;
+
+  /** "카테고리별 분석" — 카테고리가 지정된 정기배송/구독만 종류별 개수로 집계. */
+  const categoryCounts = PURCHASE_CATEGORIES.map((cat) => ({
+    category: cat,
+    count: purchases.filter((p) => isRecurringType(p.type) && p.category === cat).length,
+  })).filter((c) => c.count > 0);
+  const uncategorizedRecurringCount = purchases.filter((p) => isRecurringType(p.type) && p.category === null).length;
 
   const displayedPurchases = filterType === 'ALL' ? purchases : purchases.filter((p) => p.type === filterType);
 
@@ -405,7 +449,12 @@ export default function DashboardPage() {
               </span>
             </div>
           </div>
-          <div className="summary-board__tile summary-board__tile--spending">
+          <button
+            type="button"
+            className="summary-board__tile summary-board__tile--spending summary-board__tile--clickable"
+            onClick={() => setShowSpendingDetail((v) => !v)}
+            aria-expanded={showSpendingDetail}
+          >
             <span className="summary-board__icon" aria-hidden="true">💰</span>
             <div className="summary-board__text">
               <span className="summary-board__label">월 예상 지출</span>
@@ -414,7 +463,24 @@ export default function DashboardPage() {
                 <span className="summary-board__unit">원</span>
               </span>
             </div>
-          </div>
+            <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
+          </button>
+          <button
+            type="button"
+            className="summary-board__tile summary-board__tile--yearly summary-board__tile--clickable"
+            onClick={() => setShowSpendingDetail((v) => !v)}
+            aria-expanded={showSpendingDetail}
+          >
+            <span className="summary-board__icon" aria-hidden="true">📈</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">올해 예상 지출</span>
+              <span className="summary-board__value mono">
+                {yearlySpendEstimate.toLocaleString('ko-KR')}
+                <span className="summary-board__unit">원</span>
+              </span>
+            </div>
+            <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
+          </button>
           <div className="summary-board__tile summary-board__tile--week">
             <span className="summary-board__icon" aria-hidden="true">📅</span>
             <div className="summary-board__text">
@@ -423,6 +489,74 @@ export default function DashboardPage() {
                 {weeklyRecurring.length}
                 <span className="summary-board__unit">건</span>
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSpendingDetail && (
+        <div className="spending-detail">
+          <div className="spending-detail__section">
+            <p className="spending-detail__heading">📋 이번 달 정기지출 내역</p>
+            {spendingBreakdown.length === 0 ? (
+              <p className="spending-detail__empty">
+                금액이 등록된 정기배송/구독이 없어요. 항목을 "수정"해서 금액을 입력하면 여기 반영돼요.
+              </p>
+            ) : (
+              <>
+                <ul className="spending-detail__list">
+                  {spendingBreakdown.map((item) => (
+                    <li key={item.id}>
+                      <span>{item.itemName}</span>
+                      <span className="mono">{item.monthly.toLocaleString('ko-KR')}원</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="spending-detail__total">
+                  총 월 정기지출{' '}
+                  <span className="mono">{monthlySpendEstimate.toLocaleString('ko-KR')}원</span>
+                </p>
+              </>
+            )}
+          </div>
+
+          {categoryCounts.length > 0 && (
+            <div className="spending-detail__section">
+              <p className="spending-detail__heading">🗂 카테고리별 분석</p>
+              <ul className="spending-detail__category-list">
+                {categoryCounts.map(({ category: cat, count }) => (
+                  <li key={cat}>
+                    <span>
+                      {CATEGORY_ICON[cat]} {CATEGORY_LABEL[cat]}
+                    </span>
+                    <span className="mono">{count}개</span>
+                  </li>
+                ))}
+              </ul>
+              {uncategorizedRecurringCount > 0 && (
+                <p className="spending-detail__hint">
+                  카테고리 미지정 <span className="mono">{uncategorizedRecurringCount}</span>건 — 항목을 수정해서
+                  카테고리를 지정해보세요.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="spending-detail__section spending-detail__section--yearly">
+            <p className="spending-detail__heading">📈 올해 예상 지출</p>
+            <div className="spending-detail__yearly-row">
+              <div className="spending-detail__yearly-item">
+                <span className="spending-detail__yearly-label">이번 달</span>
+                <span className="spending-detail__yearly-value mono">
+                  {monthlySpendEstimate.toLocaleString('ko-KR')}원
+                </span>
+              </div>
+              <div className="spending-detail__yearly-item">
+                <span className="spending-detail__yearly-label">올해 예상</span>
+                <span className="spending-detail__yearly-value spending-detail__yearly-value--total mono">
+                  {yearlySpendEstimate.toLocaleString('ko-KR')}원
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -527,6 +661,7 @@ export default function DashboardPage() {
                   {item.amount !== null && (
                     <p className="pending-card__meta">
                       금액 <span className="mono">{item.amount.toLocaleString('ko-KR')}원</span>
+                      {item.category && ` · ${CATEGORY_ICON[item.category]} ${CATEGORY_LABEL[item.category]}`}
                     </p>
                   )}
                   {(item.type === 'ONLINE_ORDER' || item.type === 'ELECTRONICS') && (
@@ -689,6 +824,18 @@ export default function DashboardPage() {
                 value={fixedDayOfMonth}
                 onChange={(e) => setFixedDayOfMonth(e.target.value)}
               />
+            </div>
+          )}
+          {isRecurringType(type) && (
+            <div className="field field--narrow">
+              <label htmlFor="category">카테고리</label>
+              <select id="category" value={category} onChange={(e) => setCategory(e.target.value as PurchaseCategory)}>
+                {PURCHASE_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {CATEGORY_ICON[c]} {CATEGORY_LABEL[c]}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
           {type === 'RECURRING_DELIVERY' && editingId === null && (

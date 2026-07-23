@@ -3,7 +3,7 @@
 // sanitize를 거쳐 저장한다(모델이 스키마를 벗어난 값을 줄 수 있으므로).
 
 import { DEFAULT_RETURN_DEADLINE_DAYS, DEFAULT_INTERVAL_DAYS } from './purchase-logic';
-import { isRecurringType, PURCHASE_TYPES, type PurchaseType } from '../types';
+import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES, type PurchaseCategory, type PurchaseType } from '../types';
 import type { ExtractedOrder } from './order-extraction';
 
 /** AI가 준 종류 추정값이 유효한 4종 중 하나가 아니면(모델 오류 등) 안전하게 기본값으로 되돌린다. */
@@ -28,6 +28,13 @@ export function sanitizeAmount(amount: number | null): number | null {
   return typeof amount === 'number' && Number.isInteger(amount) && amount >= 0 ? amount : null;
 }
 
+/** 카테고리는 RECURRING_DELIVERY/SUBSCRIPTION일 때만 의미가 있다 — 그 외 타입이거나 AI가 준
+ *  값이 유효한 5종을 벗어나면(모델 오류 등) null로 되돌린다. */
+export function sanitizeCategory(type: PurchaseType, category: string | null): PurchaseCategory | null {
+  if (!isRecurringType(type)) return null;
+  return PURCHASE_CATEGORIES.includes(category as PurchaseCategory) ? (category as PurchaseCategory) : 'OTHER';
+}
+
 export interface PendingPurchaseFields {
   type: PurchaseType;
   returnDeadlineDays: number;
@@ -37,6 +44,7 @@ export interface PendingPurchaseFields {
   fixedDayOfMonth: number | null;
   scheduleEstimated: 0 | 1;
   amount: number | null;
+  category: PurchaseCategory | null;
 }
 
 /** ExtractedOrder(AI 원시 응답)를 pending_purchases에 저장할 안전한 필드로 변환한다. */
@@ -80,6 +88,7 @@ export function buildPendingPurchaseFields(extracted: ExtractedOrder): PendingPu
     fixedDayOfMonth,
     scheduleEstimated,
     amount: sanitizeAmount(extracted.amount),
+    category: sanitizeCategory(type, extracted.category),
   };
 }
 
@@ -95,8 +104,8 @@ export async function insertPendingPurchase(
   const result = await db
     .prepare(
       `INSERT INTO pending_purchases
-         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       userId,
@@ -111,7 +120,8 @@ export async function insertPendingPurchase(
       fields.scheduleType,
       fields.fixedDayOfMonth,
       fields.scheduleEstimated,
-      fields.amount
+      fields.amount,
+      fields.category
     )
     .run();
 

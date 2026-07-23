@@ -6,7 +6,7 @@ import { toPurchaseResponse } from '../lib/mapper';
 import { FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
 import { buildCsv, buildPdf } from '../lib/export';
 import { BadRequestError, ForbiddenError, PaymentRequiredError } from '../lib/errors';
-import { PURCHASE_TYPES } from '../types';
+import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES } from '../types';
 import type { Env, PurchaseRequestBody, PurchaseRow, UserRow } from '../types';
 
 const purchases = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
@@ -41,6 +41,9 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
   if (!body.baseDate || !/^\d{4}-\d{2}-\d{2}$/.test(body.baseDate)) {
     throw new BadRequestError('baseDate는 yyyy-MM-dd 형식이어야 합니다');
   }
+  // 카테고리는 정기배송/구독에서만 의미가 있다 — 그 외 타입이면 클라이언트가 뭘 보내든 무시하고 null로 저장한다.
+  const category =
+    isRecurringType(body.type) && body.category && PURCHASE_CATEGORIES.includes(body.category) ? body.category : null;
   return {
     type: body.type,
     itemName: body.itemName.trim(),
@@ -52,6 +55,7 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
     intervalDays: body.intervalDays ?? null,
     scheduleType: body.scheduleType ?? 'INTERVAL',
     fixedDayOfMonth: body.fixedDayOfMonth ?? null,
+    category,
   };
 }
 
@@ -132,8 +136,8 @@ purchases.post('/', async (c) => {
 
   const insert = await c.env.DB.prepare(
     `INSERT INTO purchases
-       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, last_delivered_date)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, last_delivered_date, category)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       user.id,
@@ -147,7 +151,8 @@ purchases.post('/', async (c) => {
       body.intervalDays,
       body.scheduleType,
       body.fixedDayOfMonth,
-      lastDeliveredDate
+      lastDeliveredDate,
+      body.category
     )
     .run();
 
@@ -168,7 +173,7 @@ purchases.put('/:id', async (c) => {
     `UPDATE purchases
         SET type = ?, item_name = ?, base_date = ?, amount = ?, memo = ?,
             warranty_months = ?, return_deadline_days = ?, interval_days = ?,
-            schedule_type = ?, fixed_day_of_month = ?,
+            schedule_type = ?, fixed_day_of_month = ?, category = ?,
             updated_at = datetime('now')
       WHERE id = ?`
   )
@@ -183,6 +188,7 @@ purchases.put('/:id', async (c) => {
       body.intervalDays,
       body.scheduleType,
       body.fixedDayOfMonth,
+      body.category,
       id
     )
     .run();
