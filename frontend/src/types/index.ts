@@ -67,6 +67,8 @@ export interface PendingPurchase {
   fixedDayOfMonth: number | null;
   /** true면 원본(이메일/이미지)에 주기·고정일이 명시되지 않아 30일 기본값으로 추정한 값. */
   scheduleEstimated: boolean;
+  /** AI가 추출한 금액(원). 원본에 없으면 null. */
+  amount: number | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

@@ -87,6 +87,7 @@ export default function DashboardPage() {
   const [type, setType] = useState<PurchaseType>('ELECTRONICS');
   const [itemName, setItemName] = useState('');
   const [baseDate, setBaseDate] = useState('');
+  const [amount, setAmount] = useState('');
   const [warrantyMonths, setWarrantyMonths] = useState('12');
   const [returnDeadlineDays, setReturnDeadlineDays] = useState('7');
   const [intervalDays, setIntervalDays] = useState('30');
@@ -164,6 +165,7 @@ export default function DashboardPage() {
     setType('ELECTRONICS');
     setItemName('');
     setBaseDate('');
+    setAmount('');
     setWarrantyMonths('12');
     setReturnDeadlineDays('7');
     setIntervalDays('30');
@@ -177,6 +179,7 @@ export default function DashboardPage() {
     setType(p.type);
     setItemName(p.itemName);
     setBaseDate(p.baseDate);
+    setAmount(p.amount !== null ? String(p.amount) : '');
     setWarrantyMonths(String(p.warrantyMonths ?? 12));
     setReturnDeadlineDays(String(p.returnDeadlineDays ?? 7));
     setIntervalDays(String(p.intervalDays ?? 30));
@@ -199,6 +202,7 @@ export default function DashboardPage() {
     resetForm();
     setType(item.type);
     setItemName(item.itemName ?? '');
+    setAmount(item.amount !== null ? String(item.amount) : '');
     if (isRecurringType(item.type)) {
       setBaseDate(item.expectedDeliveryDate ?? item.orderDate ?? '');
       const st = item.scheduleType ?? 'INTERVAL';
@@ -253,6 +257,7 @@ export default function DashboardPage() {
       type,
       itemName,
       baseDate,
+      amount: amount.trim() !== '' ? Number(amount) : undefined,
       warrantyMonths: type === 'ELECTRONICS' ? Number(warrantyMonths) : undefined,
       returnDeadlineDays: type === 'ONLINE_ORDER' ? Number(returnDeadlineDays) : undefined,
       intervalDays: isRecurringType(type) && scheduleType === 'INTERVAL' ? Number(intervalDays) : undefined,
@@ -343,6 +348,19 @@ export default function DashboardPage() {
     .filter((p) => isRecurringType(p.type) && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
 
+  /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
+  const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
+  const subscriptionCount = purchases.filter((p) => p.type === 'SUBSCRIPTION').length;
+  /** N일마다 항목은 30일 기준 월 환산액으로, 매월 특정일 고정 항목은 금액을 그대로 더한다. */
+  const monthlySpendEstimate = Math.round(
+    purchases
+      .filter((p) => isRecurringType(p.type) && p.amount !== null)
+      .reduce((sum, p) => {
+        const monthly = p.scheduleType === 'FIXED_DAY' ? p.amount! : (p.amount! * 30) / (p.intervalDays || 30);
+        return sum + monthly;
+      }, 0)
+  );
+
   const displayedPurchases = filterType === 'ALL' ? purchases : purchases.filter((p) => p.type === filterType);
 
   // 신규 가입자 온보딩 — 아직 안 봤고(hasSeenOnboarding=false), 목록 조회가 끝난 뒤에도 등록된
@@ -364,6 +382,51 @@ export default function DashboardPage() {
           </Link>
         )}
       </div>
+
+      {purchasesLoaded && purchases.length > 0 && (
+        <div className="summary-board">
+          <div className="summary-board__tile summary-board__tile--delivery">
+            <span className="summary-board__icon" aria-hidden="true">📦</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">정기배송</span>
+              <span className="summary-board__value mono">
+                {recurringDeliveryCount}
+                <span className="summary-board__unit">건</span>
+              </span>
+            </div>
+          </div>
+          <div className="summary-board__tile summary-board__tile--subscription">
+            <span className="summary-board__icon" aria-hidden="true">💳</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">정기구독</span>
+              <span className="summary-board__value mono">
+                {subscriptionCount}
+                <span className="summary-board__unit">건</span>
+              </span>
+            </div>
+          </div>
+          <div className="summary-board__tile summary-board__tile--spending">
+            <span className="summary-board__icon" aria-hidden="true">💰</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">월 예상 지출</span>
+              <span className="summary-board__value mono">
+                {monthlySpendEstimate.toLocaleString('ko-KR')}
+                <span className="summary-board__unit">원</span>
+              </span>
+            </div>
+          </div>
+          <div className="summary-board__tile summary-board__tile--week">
+            <span className="summary-board__icon" aria-hidden="true">📅</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">이번 주 결제 예정</span>
+              <span className="summary-board__value mono">
+                {weeklyRecurring.length}
+                <span className="summary-board__unit">건</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isPremium && weeklyRecurring.length > 0 && (
         <div className="weekly-summary-banner">
@@ -461,6 +524,11 @@ export default function DashboardPage() {
                       </>
                     )}
                   </p>
+                  {item.amount !== null && (
+                    <p className="pending-card__meta">
+                      금액 <span className="mono">{item.amount.toLocaleString('ko-KR')}원</span>
+                    </p>
+                  )}
                   {(item.type === 'ONLINE_ORDER' || item.type === 'ELECTRONICS') && (
                     <p className="pending-card__hint">
                       이 정보는 AI가 완벽히 인식하지 못할 수 있어요. 직접 입력을 더 추천해요.
@@ -539,6 +607,18 @@ export default function DashboardPage() {
               {isRecurringType(type) ? '시작일' : type === 'ONLINE_ORDER' ? '수령일' : '구매일'}
             </label>
             <input id="baseDate" type="date" value={baseDate} onChange={(e) => setBaseDate(e.target.value)} required />
+          </div>
+
+          <div className="field field--narrow">
+            <label htmlFor="amount">금액(원)</label>
+            <input
+              id="amount"
+              type="number"
+              min={0}
+              placeholder="선택 입력"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
           </div>
 
           {type === 'ELECTRONICS' && (
@@ -710,6 +790,9 @@ export default function DashboardPage() {
                     <p className="ticket-card__deadline">
                       {DEADLINE_LABEL[p.type]} · <span className="mono">{p.deadline}</span>
                     </p>
+                  )}
+                  {p.amount !== null && (
+                    <p className="ticket-card__amount mono">{p.amount.toLocaleString('ko-KR')}원</p>
                   )}
                   <div className="ticket-card__actions">
                     {isRecurringType(p.type) && p.dDay <= 0 &&
