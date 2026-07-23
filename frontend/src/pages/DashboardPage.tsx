@@ -123,6 +123,52 @@ function daysSinceBaseDate(baseDate: string): number {
   return Math.floor((now - start) / 86_400_000);
 }
 
+/**
+ * 정기배송/구독이 특정 연/월(month는 1~12)에 몇 번 결제·배송되는지. FIXED_DAY는 시작월 이후로
+ * 매달 정확히 1번, INTERVAL은 주기에 따라 그 달에 0번일 수도 여러 번일 수도 있다(예: 7일마다
+ * 항목은 한 달에 4~5번). 정기배송/구독이 아니면 항상 0.
+ */
+function occurrencesInMonth(p: Purchase, year: number, month: number): number {
+  if (!isRecurringType(p.type)) return 0;
+  const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
+
+  if (p.scheduleType === 'FIXED_DAY') {
+    return year > baseYear || (year === baseYear && month >= baseMonth) ? 1 : 0;
+  }
+
+  const interval = Math.max(1, p.intervalDays || 30);
+  const monthStart = new Date(`${year}-${String(month).padStart(2, '0')}-01T00:00:00`).getTime();
+  const monthEndExclusive = new Date(
+    month === 12 ? `${year + 1}-01-01T00:00:00` : `${year}-${String(month + 1).padStart(2, '0')}-01T00:00:00`
+  ).getTime();
+  const baseTime = new Date(`${p.baseDate}T00:00:00`).getTime();
+  if (baseTime >= monthEndExclusive) return 0;
+
+  const stepMs = interval * 86_400_000;
+  const kMin = Math.max(0, Math.ceil((monthStart - baseTime) / stepMs));
+  let count = 0;
+  for (let t = baseTime + kMin * stepMs; t < monthEndExclusive; t += stepMs) {
+    if (t >= monthStart) count++;
+  }
+  return count;
+}
+
+/** 정기배송/구독은 occurrencesInMonth × amount, 1회성(ELECTRONICS/ONLINE_ORDER)은 baseDate가
+ *  그 연/월이면 amount 그대로 — 특정 연/월의 총 지출액. */
+function totalSpendInMonth(purchases: Purchase[], year: number, month: number): number {
+  let total = 0;
+  for (const p of purchases) {
+    if (p.amount === null) continue;
+    if (isRecurringType(p.type)) {
+      total += occurrencesInMonth(p, year, month) * p.amount;
+    } else {
+      const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
+      if (baseYear === year && baseMonth === month) total += p.amount;
+    }
+  }
+  return Math.round(total);
+}
+
 export default function DashboardPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -411,14 +457,34 @@ export default function DashboardPage() {
   const monthlyEquivalent = (p: Purchase): number =>
     p.scheduleType === 'FIXED_DAY' ? p.amount! : (p.amount! * 30) / (p.intervalDays || 30);
 
-  /** "월 예상 지출" 클릭 시 펼쳐지는 항목별 내역 — 금액이 있는 정기배송/구독만, 큰 금액순. */
-  const spendingBreakdown = purchases
-    .filter((p) => isRecurringType(p.type) && p.amount !== null)
-    .map((p) => ({ id: p.id, itemName: p.itemName, monthly: Math.round(monthlyEquivalent(p)) }))
-    .sort((a, b) => b.monthly - a.monthly);
+  const today = todayDateOnly();
+  const [currentYearNum, currentMonthNum] = today.split('-').map(Number);
 
-  const monthlySpendEstimate = spendingBreakdown.reduce((sum, item) => sum + item.monthly, 0);
-  const yearlySpendEstimate = monthlySpendEstimate * 12;
+  /**
+   * "이번 달 예상지출" 클릭 시 펼쳐지는 항목별 내역 — 정기배송/구독은 이번 달에 실제로 결제되는
+   * 횟수만큼, ELECTRONICS/ONLINE_ORDER 같은 1회성 결제도 baseDate가 이번 달이면 포함한다(둘 다
+   * 그냥 다 지출이니까). 금액이 없는 항목은 애초에 지출 계산에 낄 수 없어 제외.
+   */
+  const spendingBreakdown = purchases
+    .map((p) => {
+      if (p.amount === null) return null;
+      if (isRecurringType(p.type)) {
+        const occurrences = occurrencesInMonth(p, currentYearNum, currentMonthNum);
+        if (occurrences === 0) return null;
+        return { id: p.id, itemName: p.itemName, type: p.type, amount: occurrences * p.amount };
+      }
+      const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
+      if (baseYear !== currentYearNum || baseMonth !== currentMonthNum) return null;
+      return { id: p.id, itemName: p.itemName, type: p.type, amount: p.amount };
+    })
+    .filter((item): item is { id: number; itemName: string; type: PurchaseType; amount: number } => item !== null)
+    .sort((a, b) => b.amount - a.amount);
+
+  const monthlySpendEstimate = spendingBreakdown.reduce((sum, item) => sum + item.amount, 0);
+
+  /** "올해 예상 지출" — 1~12월 각각의 실제 지출 총액(정기 결제 발생 횟수 + 1회성 결제)과 그 합계. */
+  const monthlySpendTotals = Array.from({ length: 12 }, (_, i) => totalSpendInMonth(purchases, currentYearNum, i + 1));
+  const yearlySpendEstimate = monthlySpendTotals.reduce((sum, v) => sum + v, 0);
 
   /** "카테고리별 분석" — 카테고리가 지정된 정기배송/구독만 종류별 개수로 집계. */
   const categoryCounts = PURCHASE_CATEGORIES.map((cat) => ({
@@ -500,7 +566,7 @@ export default function DashboardPage() {
           >
             <span className="summary-board__icon" aria-hidden="true">💳</span>
             <div className="summary-board__text">
-              <span className="summary-board__label">이번 달 정기지출</span>
+              <span className="summary-board__label">이번 달 예상지출</span>
               <span className="summary-board__value mono">
                 {monthlySpendEstimate.toLocaleString('ko-KR')}
                 <span className="summary-board__unit">원</span>
@@ -574,23 +640,28 @@ export default function DashboardPage() {
       {showSpendingDetail && (
         <div className="spending-detail">
           <div className="spending-detail__section">
-            <p className="spending-detail__heading">📋 이번 달 정기지출 내역</p>
+            <p className="spending-detail__heading">📋 이번 달 예상지출 내역</p>
             {spendingBreakdown.length === 0 ? (
               <p className="spending-detail__empty">
-                금액이 등록된 정기배송/구독이 없어요. 항목을 "수정"해서 금액을 입력하면 여기 반영돼요.
+                금액이 등록된 항목이 없어요. 항목을 "수정"해서 금액을 입력하면 여기 반영돼요.
               </p>
             ) : (
               <>
                 <ul className="spending-detail__list">
                   {spendingBreakdown.map((item) => (
                     <li key={item.id}>
-                      <span>{item.itemName}</span>
-                      <span className="mono">{item.monthly.toLocaleString('ko-KR')}원</span>
+                      <span>
+                        {item.itemName}
+                        <span className="spending-detail__list-type">
+                          {isRecurringType(item.type) ? '정기' : TYPE_SHORT_LABEL[item.type]}
+                        </span>
+                      </span>
+                      <span className="mono">{item.amount.toLocaleString('ko-KR')}원</span>
                     </li>
                   ))}
                 </ul>
                 <p className="spending-detail__total">
-                  총 월 정기지출{' '}
+                  이번 달 총 지출{' '}
                   <span className="mono">{monthlySpendEstimate.toLocaleString('ko-KR')}원</span>
                 </p>
               </>
@@ -621,20 +692,23 @@ export default function DashboardPage() {
 
           <div className="spending-detail__section spending-detail__section--yearly">
             <p className="spending-detail__heading">📈 올해 예상 지출</p>
-            <div className="spending-detail__yearly-row">
-              <div className="spending-detail__yearly-item">
-                <span className="spending-detail__yearly-label">이번 달</span>
-                <span className="spending-detail__yearly-value mono">
-                  {monthlySpendEstimate.toLocaleString('ko-KR')}원
-                </span>
-              </div>
-              <div className="spending-detail__yearly-item">
-                <span className="spending-detail__yearly-label">올해 예상</span>
-                <span className="spending-detail__yearly-value spending-detail__yearly-value--total mono">
-                  {yearlySpendEstimate.toLocaleString('ko-KR')}원
-                </span>
-              </div>
-            </div>
+            <ul className="spending-detail__month-list">
+              {monthlySpendTotals.map((total, idx) => (
+                <li
+                  key={idx}
+                  className={`spending-detail__month-item${
+                    idx + 1 === currentMonthNum ? ' spending-detail__month-item--current' : ''
+                  }`}
+                >
+                  <span>{idx + 1}월</span>
+                  <span className="mono">{total.toLocaleString('ko-KR')}원</span>
+                </li>
+              ))}
+            </ul>
+            <p className="spending-detail__total">
+              올해 예상 지출{' '}
+              <span className="mono">{yearlySpendEstimate.toLocaleString('ko-KR')}원</span>
+            </p>
           </div>
 
           {reviewCandidates.length > 0 && (
