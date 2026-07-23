@@ -23,6 +23,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     deliveryRound,
     archivedAt: row.archived_at,
     category: row.category,
+    deliveryConfirmCount: row.delivery_confirm_count,
     createdAt: row.created_at,
   };
 }

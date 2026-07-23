@@ -85,6 +85,13 @@ const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
 /** "7일 이내" 배너와 동일한 기준 — 이 안으로 들어오면 다시 챙길 때가 된 것으로 본다. */
 const URGENT_WINDOW_DAYS = 7;
 
+/**
+ * "AI 절약 제안"(미사용 구독 추천) 기준일 — 정기배송/구독 이메일이 실제로 몇 통 왔는지는 추적하지
+ * 않으므로(원본 메일을 저장하지 않아서), 대신 "시작한 지 오래됐고 그동안 '이번 회차 확인'을 한
+ * 번도 안 눌렀는지"로 대체한다. 완벽한 신호는 아니라 라벨에도 "확인 안 함"을 명시해 과장하지 않는다.
+ */
+const UNUSED_SUBSCRIPTION_THRESHOLD_DAYS = 180;
+
 /** 무료 플랜(isPremium=false) 최대 등록 개수 — 백엔드 purchase-logic.ts의 FREE_PLAN_MAX_PURCHASES와 값을 맞춘다. */
 const FREE_PLAN_MAX_PURCHASES = 5;
 
@@ -106,6 +113,14 @@ function todayDateOnly(): string {
  */
 function isFullyConfirmed(p: Purchase): boolean {
   return isRecurringType(p.type) && p.lastDeliveredDate === todayDateOnly();
+}
+
+/** yyyy-MM-dd 문자열 기준으로 오늘까지 며칠 지났는지. 시각 정밀도는 필요 없어(임계값이 180일
+ *  단위) 자정 기준으로만 비교해도 충분하다. */
+function daysSinceBaseDate(baseDate: string): number {
+  const start = new Date(`${baseDate}T00:00:00`).getTime();
+  const now = new Date(`${todayDateOnly()}T00:00:00`).getTime();
+  return Math.floor((now - start) / 86_400_000);
 }
 
 export default function DashboardPage() {
@@ -415,6 +430,22 @@ export default function DashboardPage() {
   /** 확인 대기 중인 "가격 인상 감지" 건수 — pending-purchase-intake.ts가 matched_purchase_id를 채운 것만. */
   const priceChangeCount = pendingItems.filter((item) => item.matchedPurchaseId !== null).length;
 
+  /**
+   * "AI 절약 제안" — 시작한 지 UNUSED_SUBSCRIPTION_THRESHOLD_DAYS(180일) 이상 지났는데
+   * "이번 회차 확인"을 한 번도 안 누른(deliveryConfirmCount===0) 정기배송/구독. 실제 사용 여부를
+   * 직접 아는 건 아니라 참고용 추천이다 — 라벨에도 "확인 안 함"을 그대로 드러낸다.
+   */
+  const reviewCandidates = purchases
+    .filter(
+      (p) =>
+        isRecurringType(p.type) &&
+        p.amount !== null &&
+        p.deliveryConfirmCount === 0 &&
+        daysSinceBaseDate(p.baseDate) >= UNUSED_SUBSCRIPTION_THRESHOLD_DAYS
+    )
+    .map((p) => ({ id: p.id, itemName: p.itemName, monthly: Math.round(monthlyEquivalent(p)) }));
+  const savingsEstimate = reviewCandidates.reduce((sum, item) => sum + item.monthly, 0);
+
   const displayedPurchases = filterType === 'ALL' ? purchases : purchases.filter((p) => p.type === filterType);
 
   // 신규 가입자 온보딩 — 아직 안 봤고(hasSeenOnboarding=false), 목록 조회가 끝난 뒤에도 등록된
@@ -497,6 +528,24 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
+          {reviewCandidates.length > 0 && (
+            <button
+              type="button"
+              className="summary-board__tile summary-board__tile--savings summary-board__tile--clickable"
+              onClick={() => setShowSpendingDetail((v) => !v)}
+              aria-expanded={showSpendingDetail}
+            >
+              <span className="summary-board__icon" aria-hidden="true">💡</span>
+              <div className="summary-board__text">
+                <span className="summary-board__label">AI 절약 제안</span>
+                <span className="summary-board__value mono">
+                  {savingsEstimate.toLocaleString('ko-KR')}
+                  <span className="summary-board__unit">원 절약 가능</span>
+                </span>
+              </div>
+              <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -565,6 +614,29 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+
+          {reviewCandidates.length > 0 && (
+            <div className="spending-detail__section">
+              <p className="spending-detail__heading">💡 절약 제안</p>
+              <ul className="spending-detail__save-list">
+                {reviewCandidates.map((item) => (
+                  <li key={item.id}>
+                    <div className="spending-detail__save-item-info">
+                      <p className="spending-detail__save-item-name">{item.itemName}</p>
+                      <p className="spending-detail__save-item-reason">
+                        {Math.floor(UNUSED_SUBSCRIPTION_THRESHOLD_DAYS / 30)}개월째 등록만 되어있고 한 번도 확인하지
+                        않았어요 — 해지를 고려해보세요.
+                      </p>
+                    </div>
+                    <span className="mono spending-detail__save-item-amount">월 {item.monthly.toLocaleString('ko-KR')}원</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="spending-detail__total">
+                이번 달 약 <span className="mono">{savingsEstimate.toLocaleString('ko-KR')}원</span>을 절약할 수 있어요
+              </p>
+            </div>
+          )}
         </div>
       )}
 

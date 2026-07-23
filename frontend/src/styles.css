@@ -673,6 +673,15 @@ button.summary-board__tile:hover {
   background: var(--danger-bg);
 }
 
+.summary-board__tile--savings {
+  border-left-color: var(--safe-teal);
+  background: var(--safe-bg);
+}
+
+.summary-board__tile--savings .summary-board__unit {
+  white-space: normal;
+}
+
 .summary-board__icon {
   flex: 0 0 auto;
   font-size: 1.3rem;
@@ -837,6 +846,40 @@ button.summary-board__tile:hover {
 .spending-detail__yearly-value--total {
   color: var(--stamp-red);
   font-size: 1.35rem;
+}
+
+.spending-detail__save-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.spending-detail__save-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--safe-bg);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.spending-detail__save-item-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.spending-detail__save-item-reason {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.spending-detail__save-item-amount {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--safe-teal);
 }
 
 /* --------------------------------------------------------------------------

@@ -27,6 +27,8 @@ export interface Purchase {
   deliveryRound: number | null;
   archivedAt: string | null;
   category: PurchaseCategory | null;
+  /** "이번 회차 확인"을 누른 누적 횟수 — "AI 절약 제안"(장기 미확인 구독 추천)에 쓴다. */
+  deliveryConfirmCount: number;
   createdAt: string;
 }
 

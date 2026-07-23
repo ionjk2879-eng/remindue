@@ -155,6 +155,8 @@ export interface PurchaseResponse {
   archivedAt: string | null;
   /** 정기배송/구독 전용 지출 카테고리. 그 외 타입은 null. */
   category: PurchaseCategory | null;
+  /** "이번 회차 확인"을 누른 누적 횟수 — 대시보드의 "AI 절약 제안"(장기 미확인 구독 추천)에 쓴다. */
+  deliveryConfirmCount: number;
   createdAt: string;
 }
 
