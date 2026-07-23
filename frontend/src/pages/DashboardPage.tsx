@@ -614,7 +614,7 @@ export default function DashboardPage() {
           >
             <span className="summary-board__icon" aria-hidden="true">💳</span>
             <div className="summary-board__text">
-              <span className="summary-board__label">이번 달 예상지출</span>
+              <span className="summary-board__label">{currentMonthNum}월 예상지출</span>
               <span className="summary-board__value mono">
                 {monthlySpendEstimate.toLocaleString('ko-KR')}
                 <span className="summary-board__unit">원</span>
@@ -704,7 +704,7 @@ export default function DashboardPage() {
       {showSpendingDetail && (
         <div className="spending-detail">
           <div className="spending-detail__section">
-            <p className="spending-detail__heading">📋 이번 달 예상지출 내역</p>
+            <p className="spending-detail__heading">📋 {currentMonthNum}월 예상지출 내역</p>
             {spendingByDate.length === 0 ? (
               <p className="spending-detail__empty">
                 금액이 등록된 항목이 없어요. 항목을 "수정"해서 금액을 입력하면 여기 반영돼요.
@@ -735,7 +735,7 @@ export default function DashboardPage() {
                   ))}
                 </div>
                 <p className="spending-detail__total">
-                  이번 달 총 지출{' '}
+                  {currentMonthNum}월 총 지출{' '}
                   <span className="mono">{monthlySpendEstimate.toLocaleString('ko-KR')}원</span>
                 </p>
               </>
@@ -782,7 +782,7 @@ export default function DashboardPage() {
                 ))}
               </ul>
               <p className="spending-detail__total">
-                이번 달 약 <span className="mono">{savingsEstimate.toLocaleString('ko-KR')}원</span>을 절약할 수 있어요
+                {currentMonthNum}월 약 <span className="mono">{savingsEstimate.toLocaleString('ko-KR')}원</span>을 절약할 수 있어요
               </p>
             </div>
           )}
