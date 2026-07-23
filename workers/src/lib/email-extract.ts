@@ -24,6 +24,10 @@ export interface ExtractedOrder {
   returnDeadlineDays: number | null;
   /** RECURRING_DELIVERY일 때만 채운다: 배송 주기(일수). null이면 메일에 명시 안 됨. */
   intervalDays: number | null;
+  /** RECURRING_DELIVERY일 때만 채운다: 스케줄 방식. "매월 N일" 고정이면 FIXED_DAY, 그 외 INTERVAL. */
+  scheduleType: 'INTERVAL' | 'FIXED_DAY';
+  /** scheduleType=FIXED_DAY일 때만 채운다: 매월 결제/배송되는 날짜(1~31). 그 외 null. */
+  fixedDayOfMonth: number | null;
 }
 
 const EXTRACTION_SCHEMA = {
@@ -74,14 +78,29 @@ const EXTRACTION_SCHEMA = {
     intervalDays: {
       anyOf: [{ type: 'integer' }, { type: 'null' }],
       description:
-        'estimatedType=RECURRING_DELIVERY일 때만 채운다: 배송·결제·갱신 주기를 일수(정수)로 변환.\n' +
+        'estimatedType=RECURRING_DELIVERY이고 scheduleType=INTERVAL일 때만 채운다: 배송·결제·갱신 주기를 일수(정수)로 변환.\n' +
         '변환 기준: "매주"=7, "격주"=14, "3주마다"=21, "4주마다"/"28일마다"=28, ' +
         '"매월"/"한달마다"/"30일마다"=30, "6주마다"=42, "2달마다"/"격월"=60, ' +
         '"분기마다"/"3달마다"=90, "연간"/"매년"/"1년마다"=365. ' +
-        '주기가 명시되지 않았거나 RECURRING_DELIVERY가 아니면 null.',
+        'scheduleType=FIXED_DAY이거나 주기가 명시되지 않았거나 RECURRING_DELIVERY가 아니면 null.',
+    },
+    scheduleType: {
+      type: 'string',
+      enum: ['INTERVAL', 'FIXED_DAY'],
+      description:
+        'estimatedType=RECURRING_DELIVERY일 때만 의미 있다. ' +
+        '"매월 N일", "매월 N일에 자동결제", "every month on the Nth" 처럼 달력의 특정 날짜(1~31)가 고정된 방식이면 FIXED_DAY. ' +
+        '"매월"(일 미지정), "4주마다", "30일마다", "매주" 등 간격(일수) 기반이면 INTERVAL. ' +
+        'RECURRING_DELIVERY가 아니거나 판단 불가능하면 INTERVAL(기본값).',
+    },
+    fixedDayOfMonth: {
+      anyOf: [{ type: 'integer', minimum: 1, maximum: 31 }, { type: 'null' }],
+      description:
+        'scheduleType=FIXED_DAY일 때만 채운다: "매월 N일"에서 N(1~31). ' +
+        '"매월 1일 자동결제"→1, "15일에 청구"→15. scheduleType=INTERVAL이면 반드시 null.',
     },
   },
-  required: ['isOrderConfirmation', 'itemName', 'orderDate', 'expectedDeliveryDate', 'estimatedType', 'foundExplicitDeadline', 'returnDeadlineDays', 'intervalDays'],
+  required: ['isOrderConfirmation', 'itemName', 'orderDate', 'expectedDeliveryDate', 'estimatedType', 'foundExplicitDeadline', 'returnDeadlineDays', 'intervalDays', 'scheduleType', 'fixedDayOfMonth'],
   additionalProperties: false,
 } as const;
 
@@ -118,18 +137,28 @@ isOrderConfirmation=true일 때:
 
 **ONLINE_ORDER**: 위 두 가지에 해당하지 않는 일반 주문 (의류, 식품, 도서, 화장품 등)
 
-## 3단계: 주기 추출 (intervalDays)
-RECURRING_DELIVERY로 판단했을 때, 배송·결제·갱신 주기를 찾아 일수로 변환:
+## 3단계: 스케줄 방식 판단 (scheduleType) + 주기 추출 (intervalDays / fixedDayOfMonth)
+RECURRING_DELIVERY로 판단했을 때:
+
+**FIXED_DAY 판단**: "매월 N일", "매월 N일에 자동결제", "every month on the Nth" 등 달력의
+특정 날짜가 고정된 경우 → scheduleType=FIXED_DAY, fixedDayOfMonth=N, intervalDays=null
+예시: "매월 1일 자동결제됩니다" → FIXED_DAY, fixedDayOfMonth=1
+예시: "15일에 청구됩니다" + 월 단위 구독 → FIXED_DAY, fixedDayOfMonth=15
+
+**INTERVAL 판단**: 간격 기반 (일/주/월 단위 간격) → scheduleType=INTERVAL, fixedDayOfMonth=null
+intervalDays 변환 기준:
 - "매주" → 7
 - "격주" → 14
 - "3주마다" → 21
 - "4주마다" / "28일마다" → 28
-- "매월" / "한달마다" / "30일마다" / monthly → 30
+- "매월"(일 미지정) / "한달마다" / "30일마다" / monthly → 30
 - "6주마다" → 42
 - "2달마다" / "격월" → 60
 - "분기마다" / "3달마다" → 90
 - "연간" / "매년" / "1년마다" / annually / yearly → 365
-주기가 메일에 명시되지 않았으면 null.
+주기가 메일에 명시되지 않았으면 intervalDays=null.
+
+판단 불가능하면 scheduleType=INTERVAL(기본값), fixedDayOfMonth=null.
 
 ## 4단계: 날짜 추출
 - orderDate: 주문일/구독 신청일/결제일 (yyyy-MM-dd)

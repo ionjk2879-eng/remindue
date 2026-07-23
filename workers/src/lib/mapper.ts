@@ -15,6 +15,8 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     warrantyMonths: row.warranty_months,
     returnDeadlineDays: row.return_deadline_days,
     intervalDays: row.interval_days,
+    scheduleType: row.schedule_type,
+    fixedDayOfMonth: row.fixed_day_of_month,
     lastDeliveredDate: row.last_delivered_date,
     deadline,
     dDay,
@@ -35,6 +37,8 @@ export function toPendingPurchaseResponse(row: PendingPurchaseRow): PendingPurch
     returnDeadlineDays: row.return_deadline_days,
     returnDeadlineEstimated: row.return_deadline_estimated === 1,
     intervalDays: row.interval_days,
+    scheduleType: row.schedule_type,
+    fixedDayOfMonth: row.fixed_day_of_month,
     status: row.status,
     createdAt: row.created_at,
   };

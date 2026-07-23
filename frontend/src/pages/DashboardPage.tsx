@@ -14,7 +14,7 @@ import {
 import { fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
 import { completeOnboarding as apiCompleteOnboarding, regenerateForwardingAddress } from '../api/settings';
 import { fetchReceivedInvites, fetchSharedPurchases } from '../api/sharing';
-import type { PendingPurchase, Purchase, PurchaseType, SharedAccess } from '../types';
+import type { PendingPurchase, Purchase, PurchaseType, ScheduleType, SharedAccess } from '../types';
 import { useAuth } from '../context/AuthContext';
 import StampBadge from '../components/StampBadge';
 import PremiumBadge from '../components/PremiumBadge';
@@ -86,6 +86,8 @@ export default function DashboardPage() {
   const [warrantyMonths, setWarrantyMonths] = useState('12');
   const [returnDeadlineDays, setReturnDeadlineDays] = useState('7');
   const [intervalDays, setIntervalDays] = useState('30');
+  const [scheduleType, setScheduleType] = useState<ScheduleType>('INTERVAL');
+  const [fixedDayOfMonth, setFixedDayOfMonth] = useState('1');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showPremiumUpsell, setShowPremiumUpsell] = useState(false);
   const [forwardingEmail, setForwardingEmail] = useState('');
@@ -161,6 +163,8 @@ export default function DashboardPage() {
     setWarrantyMonths('12');
     setReturnDeadlineDays('7');
     setIntervalDays('30');
+    setScheduleType('INTERVAL');
+    setFixedDayOfMonth('1');
   };
 
   const handleEditClick = (p: Purchase) => {
@@ -172,6 +176,8 @@ export default function DashboardPage() {
     setWarrantyMonths(String(p.warrantyMonths ?? 12));
     setReturnDeadlineDays(String(p.returnDeadlineDays ?? 7));
     setIntervalDays(String(p.intervalDays ?? 30));
+    setScheduleType(p.scheduleType ?? 'INTERVAL');
+    setFixedDayOfMonth(String(p.fixedDayOfMonth ?? 1));
   };
 
   const handleCancelEdit = () => {
@@ -191,7 +197,13 @@ export default function DashboardPage() {
     setItemName(item.itemName ?? '');
     if (item.type === 'RECURRING_DELIVERY') {
       setBaseDate(item.expectedDeliveryDate ?? item.orderDate ?? '');
-      if (item.intervalDays !== null) setIntervalDays(String(item.intervalDays));
+      const st = item.scheduleType ?? 'INTERVAL';
+      setScheduleType(st);
+      if (st === 'FIXED_DAY' && item.fixedDayOfMonth !== null) {
+        setFixedDayOfMonth(String(item.fixedDayOfMonth));
+      } else if (item.intervalDays !== null) {
+        setIntervalDays(String(item.intervalDays));
+      }
     } else {
       setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
       if (item.returnDeadlineDays !== null) setReturnDeadlineDays(String(item.returnDeadlineDays));
@@ -238,7 +250,9 @@ export default function DashboardPage() {
       baseDate,
       warrantyMonths: type === 'ELECTRONICS' ? Number(warrantyMonths) : undefined,
       returnDeadlineDays: type === 'ONLINE_ORDER' ? Number(returnDeadlineDays) : undefined,
-      intervalDays: type === 'RECURRING_DELIVERY' ? Number(intervalDays) : undefined,
+      intervalDays: type === 'RECURRING_DELIVERY' && scheduleType === 'INTERVAL' ? Number(intervalDays) : undefined,
+      scheduleType: type === 'RECURRING_DELIVERY' ? scheduleType : undefined,
+      fixedDayOfMonth: type === 'RECURRING_DELIVERY' && scheduleType === 'FIXED_DAY' ? Number(fixedDayOfMonth) : undefined,
     };
     const confirmingPendingId = pendingConfirmId;
     try {
@@ -404,18 +418,20 @@ export default function DashboardPage() {
                   <p className="pending-card__meta">
                     {item.type === 'RECURRING_DELIVERY' ? (
                       <>
-                        {item.intervalDays !== null && (
+                        {item.scheduleType === 'FIXED_DAY' && item.fixedDayOfMonth !== null ? (
+                          <>매월 <span className="mono">{item.fixedDayOfMonth}일</span> 고정</>
+                        ) : item.intervalDays !== null ? (
                           <>배송주기 <span className="mono">{item.intervalDays}일마다</span></>
-                        )}
+                        ) : null}
                         {item.expectedDeliveryDate && (
                           <>
-                            {item.intervalDays !== null && ' · '}
+                            {(item.scheduleType === 'FIXED_DAY' ? item.fixedDayOfMonth !== null : item.intervalDays !== null) && ' · '}
                             다음배송 <span className="mono">{item.expectedDeliveryDate}</span>
                           </>
                         )}
                         {item.orderDate && (
                           <>
-                            {(item.intervalDays !== null || item.expectedDeliveryDate) && ' · '}
+                            {(item.scheduleType === 'FIXED_DAY' ? item.fixedDayOfMonth !== null : item.intervalDays !== null || item.expectedDeliveryDate) && ' · '}
                             신청일 <span className="mono">{item.orderDate}</span>
                           </>
                         )}
@@ -445,7 +461,7 @@ export default function DashboardPage() {
                       이 정보는 AI가 완벽히 인식하지 못할 수 있어요. 직접 입력을 더 추천해요.
                     </p>
                   )}
-                  {item.type === 'RECURRING_DELIVERY' && item.intervalDays === null && (
+                  {item.type === 'RECURRING_DELIVERY' && item.scheduleType !== 'FIXED_DAY' && item.intervalDays === null && (
                     <p className="pending-card__hint">
                       배송 주기가 명시되지 않아 직접 입력이 필요해요.
                     </p>
@@ -453,7 +469,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="pending-card__actions">
                   <button type="button" className="btn btn-sm" onClick={() => handlePendingRegisterClick(item)}>
-                    {item.type === 'RECURRING_DELIVERY' && item.intervalDays !== null ? '바로 등록' : '확인 후 등록'}
+                    {item.type === 'RECURRING_DELIVERY' && (item.scheduleType === 'FIXED_DAY' ? item.fixedDayOfMonth !== null : item.intervalDays !== null) ? '바로 등록' : '확인 후 등록'}
                   </button>
                   <button type="button" className="btn-text" onClick={() => handleIgnorePending(item.id)}>
                     무시
@@ -542,6 +558,30 @@ export default function DashboardPage() {
             </div>
           )}
           {type === 'RECURRING_DELIVERY' && (
+            <div className="schedule-radio-group">
+              <label className="schedule-radio">
+                <input
+                  type="radio"
+                  name="scheduleType"
+                  value="INTERVAL"
+                  checked={scheduleType === 'INTERVAL'}
+                  onChange={() => setScheduleType('INTERVAL')}
+                />
+                N일마다
+              </label>
+              <label className="schedule-radio">
+                <input
+                  type="radio"
+                  name="scheduleType"
+                  value="FIXED_DAY"
+                  checked={scheduleType === 'FIXED_DAY'}
+                  onChange={() => setScheduleType('FIXED_DAY')}
+                />
+                매월 특정일 고정
+              </label>
+            </div>
+          )}
+          {type === 'RECURRING_DELIVERY' && scheduleType === 'INTERVAL' && (
             <div className="field field--narrow">
               <label htmlFor="intervalDays">주기(일)</label>
               <input
@@ -549,6 +589,19 @@ export default function DashboardPage() {
                 type="number"
                 value={intervalDays}
                 onChange={(e) => setIntervalDays(e.target.value)}
+              />
+            </div>
+          )}
+          {type === 'RECURRING_DELIVERY' && scheduleType === 'FIXED_DAY' && (
+            <div className="field field--narrow">
+              <label htmlFor="fixedDayOfMonth">매월 몇 일</label>
+              <input
+                id="fixedDayOfMonth"
+                type="number"
+                min={1}
+                max={31}
+                value={fixedDayOfMonth}
+                onChange={(e) => setFixedDayOfMonth(e.target.value)}
               />
             </div>
           )}
@@ -638,7 +691,10 @@ export default function DashboardPage() {
                   <h3 className="ticket-card__title">{p.itemName}</h3>
                   {p.type === 'RECURRING_DELIVERY' && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
-                      다음 일정: <span className="mono">{p.deliveryRound}회차</span> ({formatShortDate(p.deadline)})
+                      다음 일정: <span className="mono">{p.deliveryRound}회차</span>
+                      {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
+                        ? ` · 매월 ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
+                        : ` (${formatShortDate(p.deadline)})`}
                     </p>
                   ) : (
                     <p className="ticket-card__deadline">
@@ -732,7 +788,10 @@ export default function DashboardPage() {
                   <h3 className="ticket-card__title">{p.itemName}</h3>
                   {p.type === 'RECURRING_DELIVERY' && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
-                      다음 일정: <span className="mono">{p.deliveryRound}회차</span> ({formatShortDate(p.deadline)})
+                      다음 일정: <span className="mono">{p.deliveryRound}회차</span>
+                      {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
+                        ? ` · 매월 ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
+                        : ` (${formatShortDate(p.deadline)})`}
                     </p>
                   ) : (
                     <p className="ticket-card__deadline">

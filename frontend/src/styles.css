@@ -1102,6 +1102,30 @@ a.plan-counter:hover {
   line-height: 1.6;
 }
 
+.schedule-radio-group {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 6px 0;
+  flex-shrink: 0;
+}
+
+.schedule-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.schedule-radio input[type="radio"] {
+  accent-color: var(--primary);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
 /* --------------------------------------------------------------------------
    Ticket-stub cards
    -------------------------------------------------------------------------- */

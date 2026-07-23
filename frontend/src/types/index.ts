@@ -1,4 +1,5 @@
 export type PurchaseType = 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY';
+export type ScheduleType = 'INTERVAL' | 'FIXED_DAY';
 
 export interface Purchase {
   id: number;
@@ -10,6 +11,8 @@ export interface Purchase {
   warrantyMonths: number | null;
   returnDeadlineDays: number | null;
   intervalDays: number | null;
+  scheduleType: ScheduleType;
+  fixedDayOfMonth: number | null;
   lastDeliveredDate: string | null;
   deadline: string;
   dDay: number;
@@ -27,6 +30,8 @@ export interface PurchaseInput {
   warrantyMonths?: number;
   returnDeadlineDays?: number;
   intervalDays?: number;
+  scheduleType?: ScheduleType;
+  fixedDayOfMonth?: number | null;
 }
 
 export interface AuthResponse {
@@ -52,6 +57,8 @@ export interface PendingPurchase {
   returnDeadlineEstimated: boolean;
   /** RECURRING_DELIVERY 전용: 배송 주기(일수). null이면 메일에 명시 안 됨. */
   intervalDays: number | null;
+  scheduleType: ScheduleType;
+  fixedDayOfMonth: number | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

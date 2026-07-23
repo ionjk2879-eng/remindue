@@ -4,7 +4,7 @@
 // receipt), which drifts away from the vendor's real schedule after any late delivery.
 // This now anchors to baseDate as a fixed recurring schedule instead (see computeDeadline).
 
-import { addDays, addMonths, daysBetween, todayDateOnly } from './date';
+import { addDays, addMonths, daysBetween, nextFixedDayOfMonth, parseDateOnly, todayDateOnly } from './date';
 import type { PurchaseRow, PurchaseType } from '../types';
 
 export const DEFAULT_WARRANTY_MONTHS = 12;
@@ -13,7 +13,7 @@ export const DEFAULT_INTERVAL_DAYS = 30;
 /** 무료 플랜(is_premium=0)이 등록할 수 있는 최대 항목 개수. 프리미엄은 무제한. */
 export const FREE_PLAN_MAX_PURCHASES = 5;
 
-type DeadlineInput = Pick<PurchaseRow, 'type' | 'base_date' | 'warranty_months' | 'return_deadline_days' | 'interval_days'>;
+type DeadlineInput = Pick<PurchaseRow, 'type' | 'base_date' | 'warranty_months' | 'return_deadline_days' | 'interval_days' | 'schedule_type' | 'fixed_day_of_month'>;
 
 export interface DeadlineResult {
   deadline: string;
@@ -32,11 +32,21 @@ export function computeDeadline(row: DeadlineInput): DeadlineResult {
         deliveryRound: null,
       };
     case 'RECURRING_DELIVERY': {
-      // 고정 스케줄: baseDate + intervalDays의 배수 중 "오늘" 이후로 가장 가까운 날짜.
-      // 실제 수령 확인일과 무관하게 항상 최초 구독일 기준 스케줄을 따른다 —
-      // 한 번 늦게 받았다고 이후 스케줄 전체가 밀리지 않는다.
+      const scheduleType = row.schedule_type ?? 'INTERVAL';
+
+      if (scheduleType === 'FIXED_DAY') {
+        // 매월 고정일 방식: 오늘 이후 가장 가까운 fixedDayOfMonth 날짜를 다음 일정으로 삼는다.
+        // 회차: 구독 시작월(baseDate 기준)부터 다음 일정까지 몇 달이 지났는지 + 1.
+        const fixedDay = row.fixed_day_of_month ?? 1;
+        const deadline = nextFixedDayOfMonth(fixedDay, todayDateOnly());
+        const base = parseDateOnly(row.base_date);
+        const next = parseDateOnly(deadline);
+        const monthsElapsed = (next.year - base.year) * 12 + (next.month - base.month);
+        return { deadline, deliveryRound: monthsElapsed + 1 };
+      }
+
+      // INTERVAL(기본): baseDate + intervalDays*k 방식.
       // 회차: 1회차 = baseDate(k=0), n회차 = baseDate + (n-1)*intervalDays.
-      // 다음 배송 회차 = 지금 막 지난 사이클 수(k) + 1.
       const interval = row.interval_days ?? DEFAULT_INTERVAL_DAYS;
       const daysSinceStart = daysBetween(row.base_date, todayDateOnly());
       const cyclesElapsed = Math.max(0, Math.ceil(daysSinceStart / interval));
