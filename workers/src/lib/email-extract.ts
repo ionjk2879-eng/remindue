@@ -94,9 +94,11 @@ const EXTRACTION_SCHEMA = {
         'RECURRING_DELIVERY가 아니거나 판단 불가능하면 INTERVAL(기본값).',
     },
     fixedDayOfMonth: {
-      anyOf: [{ type: 'integer', minimum: 1, maximum: 31 }, { type: 'null' }],
+      // Anthropic 구조화 출력 스키마는 integer 타입에 minimum/maximum 제약을 지원하지 않는다
+      // (지정 시 output_config.format.schema 검증에서 400) — 범위 검증은 sanitizeFixedDayOfMonth로 옮겼다.
+      anyOf: [{ type: 'integer' }, { type: 'null' }],
       description:
-        'scheduleType=FIXED_DAY일 때만 채운다: "매월 N일"에서 N(1~31). ' +
+        'scheduleType=FIXED_DAY일 때만 채운다: "매월 N일"에서 N(1~31 사이의 정수). ' +
         '"매월 1일 자동결제"→1, "15일에 청구"→15. scheduleType=INTERVAL이면 반드시 null.',
     },
   },

@@ -32,6 +32,9 @@ interface AuthContextValue {
   premiumSince: string | null;
   /** 성공한 결제 총 횟수 — 프리미엄 뱃지의 "N회차"에 쓴다. */
   paymentCount: number;
+  /** 요금제/자동갱신 여부/만료일 등 설정 화면 전용 상세 정보 — 로그인 시점에 한 번 가져와 캐싱되고,
+   * 결제/해지 시점에만 refreshPremium으로 갱신된다. 아직 못 가져왔으면 null(스켈레톤 표시용). */
+  billingStatus: BillingStatus | null;
   /** 3단계 온보딩 안내를 완료했거나 건너뛰었는지 — false면 대시보드가 빈 목록일 때 온보딩을 띄운다. */
   hasSeenOnboarding: boolean;
   setAuth: (accessToken: string, nickname: string, isPremium: boolean, hasSeenOnboarding: boolean) => void;
@@ -40,7 +43,7 @@ interface AuthContextValue {
   /** 온보딩 완료/건너뛰기 직후 서버 응답을 기다리지 않고 즉시 모달을 숨기기 위한 낙관적 갱신. */
   completeOnboarding: () => void;
   /** 결제/해지 직후 토큰 재발급 없이 프리미엄 상태만 갱신한다 — 액세스 토큰은 그대로 둔다. */
-  refreshPremium: (status: Pick<BillingStatus, 'isPremium' | 'premiumSince' | 'paymentCount'>) => void;
+  refreshPremium: (status: BillingStatus) => void;
   logout: () => void;
 }
 
@@ -55,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isPremium, setIsPremium] = useState<boolean>(localStorage.getItem('isPremium') === 'true');
   const [premiumSince, setPremiumSince] = useState<string | null>(null);
   const [paymentCount, setPaymentCount] = useState(0);
+  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean>(localStorage.getItem('hasSeenOnboarding') === 'true');
 
   const setAuth = (accessToken: string, nickname: string, isPremium: boolean, hasSeenOnboarding: boolean) => {
@@ -77,11 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setNickname(newNickname);
   };
 
-  const refreshPremium = (status: Pick<BillingStatus, 'isPremium' | 'premiumSince' | 'paymentCount'>) => {
+  const refreshPremium = (status: BillingStatus) => {
     localStorage.setItem('isPremium', String(status.isPremium));
     setIsPremium(status.isPremium);
     setPremiumSince(status.premiumSince);
     setPaymentCount(status.paymentCount);
+    setBillingStatus(status);
     billingFetchedAt = Date.now();
   };
 
@@ -91,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsPremium(false);
     setPremiumSince(null);
     setPaymentCount(0);
+    setBillingStatus(null);
     setHasSeenOnboarding(false);
   };
 
@@ -120,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isPremium,
         premiumSince,
         paymentCount,
+        billingStatus,
         hasSeenOnboarding,
         setAuth,
         updateNickname,

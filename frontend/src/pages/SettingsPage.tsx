@@ -3,10 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { fetchNotificationDays, updateNotificationDays, updateNickname as apiUpdateNickname } from '../api/settings';
 import { acceptInvite, fetchReceivedInvites, fetchSentInvites, inviteMember, revokeShare } from '../api/sharing';
-import { cancelSubscription, fetchBillingStatus } from '../api/billing';
+import { cancelSubscription } from '../api/billing';
 import { deleteAccount } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
-import type { BillingStatus, SharedAccess } from '../types';
+import Skeleton from '../components/Skeleton';
+import type { SharedAccess } from '../types';
 
 const PLAN_LABEL: Record<'ONE_TIME' | 'MONTHLY' | 'ANNUAL', string> = {
   ONE_TIME: '1회성 이용권',
@@ -27,7 +28,7 @@ function formatDayLabel(day: number): string {
 }
 
 export default function SettingsPage() {
-  const { nickname, isPremium, logout, updateNickname, refreshPremium } = useAuth();
+  const { nickname, isPremium, billingStatus, logout, updateNickname, refreshPremium } = useAuth();
   const navigate = useNavigate();
 
   const [nicknameInput, setNicknameInput] = useState('');
@@ -45,7 +46,6 @@ export default function SettingsPage() {
   const [sentInvites, setSentInvites] = useState<SharedAccess[]>([]);
   const [receivedInvites, setReceivedInvites] = useState<SharedAccess[]>([]);
 
-  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
 
@@ -53,10 +53,7 @@ export default function SettingsPage() {
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
 
-  const loadBillingStatus = async () => {
-    const data = await fetchBillingStatus();
-    setBillingStatus(data);
-  };
+  const [sharingLoaded, setSharingLoaded] = useState(false);
 
   const loadNotificationDays = async () => {
     const data = await fetchNotificationDays();
@@ -67,10 +64,13 @@ export default function SettingsPage() {
     const [sent, received] = await Promise.all([fetchSentInvites(), fetchReceivedInvites()]);
     setSentInvites(sent);
     setReceivedInvites(received);
+    setSharingLoaded(true);
   };
 
+  // billingStatus는 AuthContext가 로그인 시점에 한 번 가져와 캐싱해둔 값을 그대로 재사용한다 —
+  // 여기서 따로 /billing/status를 다시 부르지 않는다. 결제/해지 직후에는 각 처리 함수가
+  // refreshPremium()으로 context를 갱신한다.
   useEffect(() => {
-    loadBillingStatus();
     loadNotificationDays();
     loadSharing();
   }, []);
@@ -154,7 +154,6 @@ export default function SettingsPage() {
     setCancelling(true);
     try {
       const result = await cancelSubscription();
-      setBillingStatus(result);
       refreshPremium(result);
       setCancelMessage('정기결제를 해지했어요. 결제된 기간까지는 프리미엄이 유지됩니다.');
     } catch (err) {
@@ -236,7 +235,12 @@ export default function SettingsPage() {
             )
           )}
         </div>
-        {isPremium && billingStatus?.plan && (billingStatus.plan === 'MONTHLY' || billingStatus.plan === 'ANNUAL') ? (
+        {billingStatus === null ? (
+          <div className="skeleton-block">
+            <Skeleton width="60%" />
+            <Skeleton width="30%" />
+          </div>
+        ) : isPremium && billingStatus.plan && (billingStatus.plan === 'MONTHLY' || billingStatus.plan === 'ANNUAL') ? (
           <>
             <p className="settings-section__hint">
               {PLAN_LABEL[billingStatus.plan]} 이용 중
@@ -259,7 +263,12 @@ export default function SettingsPage() {
       <section className="settings-section">
         <h2>알림 시점</h2>
         {isPremium ? (
-          selectedDays === null ? null : (
+          selectedDays === null ? (
+            <div className="skeleton-block">
+              <Skeleton width="80%" />
+              <Skeleton width="50%" />
+            </div>
+          ) : (
             <>
               <p className="settings-section__hint">D-day가 며칠 남았을 때 알림을 받을지 골라주세요.</p>
               <div className="notification-day-options">
@@ -303,7 +312,13 @@ export default function SettingsPage() {
             </form>
             {inviteError && <p className="form-error">{inviteError}</p>}
 
-            {sentInvites.length > 0 && (
+            {!sharingLoaded && (
+              <div className="skeleton-block">
+                <Skeleton width="70%" />
+              </div>
+            )}
+
+            {sharingLoaded && sentInvites.length > 0 && (
               <ul className="invite-list">
                 {sentInvites.map((invite) => (
                   <li key={invite.id}>
