@@ -69,4 +69,33 @@ pendingPurchases.post('/:id/ignore', async (c) => {
   return c.body(null, 204);
 });
 
+/**
+ * 가격 인상 감지("matchedPurchaseId"가 있는 확인 대기 항목) 전용 — 새 항목을 또 만드는 대신
+ * 기존 항목(matched_purchase_id)의 amount를 이번에 추출된 금액으로 갱신하고, 이 확인 대기
+ * 항목은 confirmed 처리한다.
+ */
+pendingPurchases.post('/:id/apply-price-change', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const id = Number(c.req.param('id'));
+  const pending = await getOwnedPendingPurchase(c.env.DB, user.id, id);
+
+  if (pending.matched_purchase_id === null || pending.amount === null) {
+    throw new BadRequestError('가격 인상이 감지된 항목이 아닙니다');
+  }
+
+  const purchase = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?')
+    .bind(pending.matched_purchase_id)
+    .first<{ user_id: number }>();
+  if (!purchase || purchase.user_id !== user.id) {
+    throw new ForbiddenError('본인 소유의 항목만 처리할 수 있습니다');
+  }
+
+  await c.env.DB.prepare(`UPDATE purchases SET amount = ?, updated_at = datetime('now') WHERE id = ?`)
+    .bind(pending.amount, pending.matched_purchase_id)
+    .run();
+  await setStatus(c.env.DB, id, 'confirmed');
+
+  return c.body(null, 204);
+});
+
 export default pendingPurchases;

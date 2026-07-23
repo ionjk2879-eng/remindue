@@ -43,6 +43,8 @@ export function toPendingPurchaseResponse(row: PendingPurchaseRow): PendingPurch
     scheduleEstimated: row.schedule_estimated === 1,
     amount: row.amount,
     category: row.category,
+    matchedPurchaseId: row.matched_purchase_id,
+    previousAmount: row.previous_amount,
     status: row.status,
     createdAt: row.created_at,
   };

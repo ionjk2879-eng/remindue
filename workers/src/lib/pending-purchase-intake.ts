@@ -92,6 +92,29 @@ export function buildPendingPurchaseFields(extracted: ExtractedOrder): PendingPu
   };
 }
 
+/**
+ * 이 사용자의 활성(archived 아님) 정기배송/구독 중 상품명이 같은 항목을 찾는다 — "가격 인상
+ * 감지"의 기반이 되는 매칭이다. 상품명은 대소문자만 다른 표기 차이(예: "Netflix"/"netflix")를
+ * 같은 항목으로 보기 위해 COLLATE NOCASE로 비교한다. 여러 개가 매칭되면(흔치 않지만) 가장 최근
+ * 등록한 것을 기준으로 삼는다.
+ */
+async function findMatchingActivePurchase(
+  db: D1Database,
+  userId: number,
+  type: PurchaseType,
+  itemName: string
+): Promise<{ id: number; amount: number | null } | null> {
+  const match = await db
+    .prepare(
+      `SELECT id, amount FROM purchases
+        WHERE user_id = ? AND type = ? AND archived_at IS NULL AND item_name = ? COLLATE NOCASE
+        ORDER BY created_at DESC LIMIT 1`
+    )
+    .bind(userId, type, itemName)
+    .first<{ id: number; amount: number | null }>();
+  return match ?? null;
+}
+
 /** 삽입된 pending_purchases.id를 반환한다 — 호출부가 바로 조회해 응답에 쓸 수 있게. */
 export async function insertPendingPurchase(
   db: D1Database,
@@ -101,11 +124,24 @@ export async function insertPendingPurchase(
 ): Promise<number> {
   const fields = buildPendingPurchaseFields(extracted);
 
+  // 가격 인상 감지: 같은 이름의 활성 정기배송/구독이 이미 있고, 이번에 추출한 금액이 그때와
+  // 다르면 matched_purchase_id/previous_amount를 채운다 — 신규 항목이거나 금액이 그대로면 둘 다
+  // null로 남아 지금까지와 동일하게(그냥 확인 대기 항목으로) 동작한다.
+  let matchedPurchaseId: number | null = null;
+  let previousAmount: number | null = null;
+  if (isRecurringType(fields.type) && extracted.itemName && fields.amount !== null) {
+    const existing = await findMatchingActivePurchase(db, userId, fields.type, extracted.itemName);
+    if (existing && existing.amount !== null && existing.amount !== fields.amount) {
+      matchedPurchaseId = existing.id;
+      previousAmount = existing.amount;
+    }
+  }
+
   const result = await db
     .prepare(
       `INSERT INTO pending_purchases
-         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category, matched_purchase_id, previous_amount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       userId,
@@ -121,7 +157,9 @@ export async function insertPendingPurchase(
       fields.fixedDayOfMonth,
       fields.scheduleEstimated,
       fields.amount,
-      fields.category
+      fields.category,
+      matchedPurchaseId,
+      previousAmount
     )
     .run();
 

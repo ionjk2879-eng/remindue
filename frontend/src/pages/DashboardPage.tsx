@@ -11,7 +11,7 @@ import {
   unarchivePurchase,
   downloadExport,
 } from '../api/purchases';
-import { fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
+import { applyPriceChange, fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
 import { completeOnboarding as apiCompleteOnboarding, regenerateForwardingAddress } from '../api/settings';
 import { fetchReceivedInvites, fetchSharedPurchases } from '../api/sharing';
 import {
@@ -256,6 +256,13 @@ export default function DashboardPage() {
     await loadPending();
   };
 
+  /** 가격 인상 감지 카드의 "가격 반영" — 새 항목을 만들지 않고 매칭된 기존 항목의 금액만 갱신한다. */
+  const handleApplyPriceChange = async (id: number) => {
+    await applyPriceChange(id);
+    await loadPending();
+    await load();
+  };
+
 
   const handleRegenerateForwardingAddress = async () => {
     if (!window.confirm('주소를 재생성하면 기존 주소로는 더 이상 메일을 받을 수 없어요. 계속할까요?')) return;
@@ -405,6 +412,9 @@ export default function DashboardPage() {
   })).filter((c) => c.count > 0);
   const uncategorizedRecurringCount = purchases.filter((p) => isRecurringType(p.type) && p.category === null).length;
 
+  /** 확인 대기 중인 "가격 인상 감지" 건수 — pending-purchase-intake.ts가 matched_purchase_id를 채운 것만. */
+  const priceChangeCount = pendingItems.filter((item) => item.matchedPurchaseId !== null).length;
+
   const displayedPurchases = filterType === 'ALL' ? purchases : purchases.filter((p) => p.type === filterType);
 
   // 신규 가입자 온보딩 — 아직 안 봤고(hasSeenOnboarding=false), 목록 조회가 끝난 뒤에도 등록된
@@ -429,6 +439,22 @@ export default function DashboardPage() {
 
       {purchasesLoaded && purchases.length > 0 && (
         <div className="summary-board">
+          <button
+            type="button"
+            className="summary-board__tile summary-board__tile--spending summary-board__tile--clickable"
+            onClick={() => setShowSpendingDetail((v) => !v)}
+            aria-expanded={showSpendingDetail}
+          >
+            <span className="summary-board__icon" aria-hidden="true">💳</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">이번 달 정기지출</span>
+              <span className="summary-board__value mono">
+                {monthlySpendEstimate.toLocaleString('ko-KR')}
+                <span className="summary-board__unit">원</span>
+              </span>
+            </div>
+            <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
+          </button>
           <div className="summary-board__tile summary-board__tile--delivery">
             <span className="summary-board__icon" aria-hidden="true">📦</span>
             <div className="summary-board__text">
@@ -440,7 +466,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="summary-board__tile summary-board__tile--subscription">
-            <span className="summary-board__icon" aria-hidden="true">💳</span>
+            <span className="summary-board__icon" aria-hidden="true">🔄</span>
             <div className="summary-board__text">
               <span className="summary-board__label">정기구독</span>
               <span className="summary-board__value mono">
@@ -449,48 +475,28 @@ export default function DashboardPage() {
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            className="summary-board__tile summary-board__tile--spending summary-board__tile--clickable"
-            onClick={() => setShowSpendingDetail((v) => !v)}
-            aria-expanded={showSpendingDetail}
-          >
-            <span className="summary-board__icon" aria-hidden="true">💰</span>
-            <div className="summary-board__text">
-              <span className="summary-board__label">월 예상 지출</span>
-              <span className="summary-board__value mono">
-                {monthlySpendEstimate.toLocaleString('ko-KR')}
-                <span className="summary-board__unit">원</span>
-              </span>
-            </div>
-            <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
-          </button>
-          <button
-            type="button"
-            className="summary-board__tile summary-board__tile--yearly summary-board__tile--clickable"
-            onClick={() => setShowSpendingDetail((v) => !v)}
-            aria-expanded={showSpendingDetail}
-          >
-            <span className="summary-board__icon" aria-hidden="true">📈</span>
-            <div className="summary-board__text">
-              <span className="summary-board__label">올해 예상 지출</span>
-              <span className="summary-board__value mono">
-                {yearlySpendEstimate.toLocaleString('ko-KR')}
-                <span className="summary-board__unit">원</span>
-              </span>
-            </div>
-            <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
-          </button>
           <div className="summary-board__tile summary-board__tile--week">
             <span className="summary-board__icon" aria-hidden="true">📅</span>
             <div className="summary-board__text">
-              <span className="summary-board__label">이번 주 결제 예정</span>
+              <span className="summary-board__label">이번 주 결제</span>
               <span className="summary-board__value mono">
                 {weeklyRecurring.length}
                 <span className="summary-board__unit">건</span>
               </span>
             </div>
           </div>
+          {priceChangeCount > 0 && (
+            <div className="summary-board__tile summary-board__tile--price-change">
+              <span className="summary-board__icon" aria-hidden="true">⚠</span>
+              <div className="summary-board__text">
+                <span className="summary-board__label">가격 인상</span>
+                <span className="summary-board__value mono">
+                  {priceChangeCount}
+                  <span className="summary-board__unit">건</span>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -607,8 +613,10 @@ export default function DashboardPage() {
             📥 확인 대기 중인 항목 <span className="mono">{pendingItems.length}</span>건
           </p>
           <div className="pending-list">
-            {pendingItems.map((item) => (
-              <div className="pending-card" key={item.id}>
+            {pendingItems.map((item) => {
+              const isPriceChange = item.matchedPurchaseId !== null && item.previousAmount !== null && item.amount !== null;
+              return (
+              <div className={`pending-card${isPriceChange ? ' pending-card--price-change' : ''}`} key={item.id}>
                 <div className="pending-card__body">
                   <p className="pending-card__name">
                     <span className={`type-dot type-dot--${item.type}`} aria-hidden="true" />
@@ -617,6 +625,16 @@ export default function DashboardPage() {
                       {TYPE_SHORT_LABEL[item.type]}
                     </span>
                   </p>
+                  {isPriceChange && (
+                    <p className="pending-card__price-change">
+                      ⚠ 가격 인상 감지 — <span className="mono">{item.previousAmount!.toLocaleString('ko-KR')}원</span>
+                      {' → '}
+                      <span className="mono">{item.amount!.toLocaleString('ko-KR')}원</span>{' '}
+                      <span className="pending-card__price-change-delta">
+                        (+{(item.amount! - item.previousAmount!).toLocaleString('ko-KR')}원)
+                      </span>
+                    </p>
+                  )}
                   <p className="pending-card__meta">
                     {isRecurringType(item.type) ? (
                       <>
@@ -658,10 +676,15 @@ export default function DashboardPage() {
                       </>
                     )}
                   </p>
-                  {item.amount !== null && (
+                  {((!isPriceChange && item.amount !== null) || item.category) && (
                     <p className="pending-card__meta">
-                      금액 <span className="mono">{item.amount.toLocaleString('ko-KR')}원</span>
-                      {item.category && ` · ${CATEGORY_ICON[item.category]} ${CATEGORY_LABEL[item.category]}`}
+                      {!isPriceChange && item.amount !== null && (
+                        <>
+                          금액 <span className="mono">{item.amount.toLocaleString('ko-KR')}원</span>
+                          {item.category && ' · '}
+                        </>
+                      )}
+                      {item.category && `${CATEGORY_ICON[item.category]} ${CATEGORY_LABEL[item.category]}`}
                     </p>
                   )}
                   {(item.type === 'ONLINE_ORDER' || item.type === 'ELECTRONICS') && (
@@ -676,15 +699,22 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div className="pending-card__actions">
-                  <button type="button" className="btn btn-sm" onClick={() => handlePendingRegisterClick(item)}>
-                    {isRecurringType(item.type) && !item.scheduleEstimated ? '바로 등록' : '확인 후 등록'}
-                  </button>
+                  {isPriceChange ? (
+                    <button type="button" className="btn btn-sm" onClick={() => handleApplyPriceChange(item.id)}>
+                      가격 반영
+                    </button>
+                  ) : (
+                    <button type="button" className="btn btn-sm" onClick={() => handlePendingRegisterClick(item)}>
+                      {isRecurringType(item.type) && !item.scheduleEstimated ? '바로 등록' : '확인 후 등록'}
+                    </button>
+                  )}
                   <button type="button" className="btn-text" onClick={() => handleIgnorePending(item.id)}>
                     무시
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

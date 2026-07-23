@@ -75,6 +75,10 @@ export interface PendingPurchase {
   amount: number | null;
   /** AI가 추정한 지출 카테고리(RECURRING_DELIVERY/SUBSCRIPTION만). 그 외 null. */
   category: PurchaseCategory | null;
+  /** 같은 상품명의 기존 활성 항목과 매칭됐고 금액이 달라졌을 때만 그 항목의 id — "가격 인상 감지". 그 외 null. */
+  matchedPurchaseId: number | null;
+  /** matchedPurchaseId가 있을 때 그 항목의 변경 전 금액. 그 외 null. */
+  previousAmount: number | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

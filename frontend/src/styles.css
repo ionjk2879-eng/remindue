@@ -664,12 +664,13 @@ button.summary-board__tile:hover {
   border-left-color: var(--stamp-red);
 }
 
-.summary-board__tile--yearly {
-  border-left-color: var(--type-electronics);
-}
-
 .summary-board__tile--week {
   border-left-color: var(--stamp-amber);
+}
+
+.summary-board__tile--price-change {
+  border-left-color: var(--stamp-red);
+  background: var(--danger-bg);
 }
 
 .summary-board__icon {
@@ -1307,6 +1308,22 @@ button.summary-board__tile:hover {
   margin-top: 2px;
   font-size: 0.8rem;
   color: var(--ink-soft);
+}
+
+.pending-card--price-change {
+  background: var(--danger-bg);
+  border-color: var(--stamp-red);
+}
+
+.pending-card__price-change {
+  margin-top: 2px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--stamp-red);
+}
+
+.pending-card__price-change-delta {
+  font-weight: 800;
 }
 
 .pending-card__hint {
