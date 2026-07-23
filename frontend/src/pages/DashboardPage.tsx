@@ -508,6 +508,16 @@ export default function DashboardPage() {
             </div>
             <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
           </button>
+          <div className="summary-board__tile summary-board__tile--week">
+            <span className="summary-board__icon" aria-hidden="true">📅</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">이번 주 결제</span>
+              <span className="summary-board__value mono">
+                {weeklyRecurring.length}
+                <span className="summary-board__unit">건</span>
+              </span>
+            </div>
+          </div>
           <div className="summary-board__tile summary-board__tile--delivery">
             <span className="summary-board__icon" aria-hidden="true">📦</span>
             <div className="summary-board__text">
@@ -524,16 +534,6 @@ export default function DashboardPage() {
               <span className="summary-board__label">정기구독</span>
               <span className="summary-board__value mono">
                 {subscriptionCount}
-                <span className="summary-board__unit">건</span>
-              </span>
-            </div>
-          </div>
-          <div className="summary-board__tile summary-board__tile--week">
-            <span className="summary-board__icon" aria-hidden="true">📅</span>
-            <div className="summary-board__text">
-              <span className="summary-board__label">이번 주 결제</span>
-              <span className="summary-board__value mono">
-                {weeklyRecurring.length}
                 <span className="summary-board__unit">건</span>
               </span>
             </div>
