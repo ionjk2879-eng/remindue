@@ -33,6 +33,10 @@
   --type-recurring-bg: #e5f4e3;
   --type-recurring-border: #bfe4bb;
 
+  --type-subscription: #c17817;
+  --type-subscription-bg: #fbf0e0;
+  --type-subscription-border: #edc98e;
+
   /* 상태 배경 3종(위험/안전/주의) — 배너/배지 여러 곳에서 재사용하는 옅은 틴트 배경 + 테두리.
      밝기만 바뀌는 게 아니라 다크모드에서는 채도 낮춘 어두운 틴트로 따로 정의한다(아래 dark 블록). */
   --danger-bg: #fbeaea;
@@ -102,6 +106,10 @@
     --type-recurring-bg: #1f2f1f;
     --type-recurring-border: #3a553a;
 
+    --type-subscription: #e0a94f;
+    --type-subscription-bg: #332715;
+    --type-subscription-border: #5c4526;
+
     --danger-bg: #3a2020;
     --danger-border: #5c2f2f;
     --safe-bg: #16302a;
@@ -148,6 +156,10 @@
   --type-recurring: #6bbf6b;
   --type-recurring-bg: #1f2f1f;
   --type-recurring-border: #3a553a;
+
+  --type-subscription: #e0a94f;
+  --type-subscription-bg: #332715;
+  --type-subscription-border: #5c4526;
 
   --danger-bg: #3a2020;
   --danger-border: #5c2f2f;
@@ -707,6 +719,10 @@ a.plan-counter:hover {
   background: var(--type-recurring);
 }
 
+.type-dot--SUBSCRIPTION {
+  background: var(--type-subscription);
+}
+
 .view-tabs {
   display: flex;
   align-items: center;
@@ -804,6 +820,12 @@ a.plan-counter:hover {
   color: var(--type-recurring);
   background: var(--type-recurring-bg);
   border-color: var(--type-recurring);
+}
+
+.type-filter__btn--SUBSCRIPTION.type-filter__btn--active {
+  color: var(--type-subscription);
+  background: var(--type-subscription-bg);
+  border-color: var(--type-subscription);
 }
 
 .type-select-row {
@@ -1025,6 +1047,12 @@ a.plan-counter:hover {
   border-color: var(--type-recurring-border);
 }
 
+.pending-card__type--SUBSCRIPTION {
+  color: var(--type-subscription);
+  background: var(--type-subscription-bg);
+  border-color: var(--type-subscription-border);
+}
+
 .pending-card__meta {
   margin-top: 2px;
   font-size: 0.8rem;
@@ -1042,6 +1070,10 @@ a.plan-counter:hover {
   align-items: center;
   gap: 4px;
   flex: 0 0 auto;
+}
+
+.image-upload-row {
+  margin-bottom: 14px;
 }
 
 /* --------------------------------------------------------------------------
@@ -1172,6 +1204,10 @@ a.plan-counter:hover {
   background: var(--type-recurring);
 }
 
+.ticket-card__type-tab--SUBSCRIPTION {
+  background: var(--type-subscription);
+}
+
 .ticket-card__body {
   flex: 1;
   min-width: 0;
@@ -1210,6 +1246,12 @@ a.plan-counter:hover {
   color: var(--type-recurring);
   background: var(--type-recurring-bg);
   border-color: var(--type-recurring-border);
+}
+
+.ticket-card__type--SUBSCRIPTION {
+  color: var(--type-subscription);
+  background: var(--type-subscription-bg);
+  border-color: var(--type-subscription-border);
 }
 
 .ticket-card__title {

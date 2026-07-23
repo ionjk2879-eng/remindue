@@ -1,5 +1,5 @@
 // Cloudflare Email Routing이 "Send to a Worker"로 넘겨준 메일을 처리하는 email() 핸들러 본체.
-// add-{forwarding_token}@{도메인} 형태의 개인 수신 주소로 온 메일만 처리한다 — 토큰으로 어느
+// {forwarding_token}@{도메인} 형태의 개인 수신 주소로 온 메일만 처리한다 — 토큰으로 어느
 // 사용자의 메일인지 식별하고, Claude로 "온라인 쇼핑 주문확인 메일이 맞는지 + 상품명/일자"를
 // 추출해서 pending_purchases에 확인 대기 상태로만 넣는다(바로 purchases에 등록하지 않음).
 //
@@ -9,35 +9,16 @@
 
 import PostalMime from 'postal-mime';
 import { extractOrderConfirmation } from './email-extract';
-import { DEFAULT_RETURN_DEADLINE_DAYS } from './purchase-logic';
-import { PURCHASE_TYPES, type Env, type PurchaseType, type UserRow } from '../types';
+import { insertPendingPurchase } from './pending-purchase-intake';
+import type { Env, UserRow } from '../types';
 
 const TO_LOCAL_PART_PATTERN = /^([a-z]+)$/i;
-
-/** AI가 준 종류 추정값이 유효한 3종 중 하나가 아니면(모델 오류 등) 안전하게 기본값으로 되돌린다. */
-function sanitizeEstimatedType(value: string | null): PurchaseType {
-  return PURCHASE_TYPES.includes(value as PurchaseType) ? (value as PurchaseType) : 'ONLINE_ORDER';
-}
-
-/** AI가 준 반품기한 일수가 비정상(0 이하 등)이면 안전하게 기본값으로 되돌린다. */
-function sanitizeReturnDeadlineDays(days: number | null): number {
-  return typeof days === 'number' && Number.isInteger(days) && days > 0 ? days : DEFAULT_RETURN_DEADLINE_DAYS;
-}
-
-/** AI가 준 매월 결제/배송일이 1~31 범위를 벗어나면(모델 오류 등) null로 되돌린다.
- *  스키마 자체에는 범위 제약을 걸 수 없어(Anthropic 구조화 출력이 integer의 min/max 미지원)
- *  여기서 후처리로 검증한다. */
-function sanitizeFixedDayOfMonth(day: number | null): number | null {
-  return typeof day === 'number' && Number.isInteger(day) && day >= 1 && day <= 31 ? day : null;
-}
 
 function extractForwardingToken(toAddress: string): string | null {
   const localPart = toAddress.split('@')[0] ?? '';
   const match = TO_LOCAL_PART_PATTERN.exec(localPart);
   return match ? match[1].toLowerCase() : null;
 }
-
-
 
 /** postal-mime이 text 파트를 못 찾았을 때(html-only 메일) 최소한의 텍스트만 뽑아내는 폴백. */
 function stripHtml(html: string): string {
@@ -83,25 +64,7 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
     return;
   }
 
-  const type = sanitizeEstimatedType(extracted.estimatedType);
-  // 메일에 반품기한이 구체적으로 명시되지 않았으면 전자상거래법 최소 기준(7일)으로 채우고
-  // return_deadline_estimated=1로 표시해서 확인 대기 화면에서 "추정값" 경고를 보여줄 수 있게 한다.
-  const returnDeadlineDays = extracted.foundExplicitDeadline
-    ? sanitizeReturnDeadlineDays(extracted.returnDeadlineDays)
-    : DEFAULT_RETURN_DEADLINE_DAYS;
-  const returnDeadlineEstimated = extracted.foundExplicitDeadline ? 0 : 1;
-
-  const intervalDays = type === 'RECURRING_DELIVERY' ? (extracted.intervalDays ?? null) : null;
-  const scheduleType = type === 'RECURRING_DELIVERY' ? (extracted.scheduleType ?? 'INTERVAL') : 'INTERVAL';
-  const fixedDayOfMonth = scheduleType === 'FIXED_DAY' ? sanitizeFixedDayOfMonth(extracted.fixedDayOfMonth) : null;
-
-  await env.DB.prepare(
-    `INSERT INTO pending_purchases
-       (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month)
-     VALUES (?, 'email', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(user.id, type, extracted.itemName, extracted.orderDate, extracted.expectedDeliveryDate, returnDeadlineDays, returnDeadlineEstimated, intervalDays, scheduleType, fixedDayOfMonth)
-    .run();
+  await insertPendingPurchase(env.DB, user.id, 'email', extracted);
 
   console.log(`[email-intake] 확인 대기 항목 추가 (수신자: ${user.email}, 상품명: ${extracted.itemName ?? '(없음)'})`);
 }

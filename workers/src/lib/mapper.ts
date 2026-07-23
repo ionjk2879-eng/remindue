@@ -39,6 +39,7 @@ export function toPendingPurchaseResponse(row: PendingPurchaseRow): PendingPurch
     intervalDays: row.interval_days,
     scheduleType: row.schedule_type,
     fixedDayOfMonth: row.fixed_day_of_month,
+    scheduleEstimated: row.schedule_estimated === 1,
     status: row.status,
     createdAt: row.created_at,
   };

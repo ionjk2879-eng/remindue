@@ -1,7 +1,14 @@
-export type PurchaseType = 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY';
+export type PurchaseType = 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION';
 export type ScheduleType = 'INTERVAL' | 'FIXED_DAY';
 
-export const PURCHASE_TYPES: readonly PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY'];
+export const PURCHASE_TYPES: readonly PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY', 'SUBSCRIPTION'];
+
+/** RECURRING_DELIVERY(실물 정기배송)와 SUBSCRIPTION(디지털 정기구독)은 라벨/색상만 다르고
+ *  스케줄 계산(INTERVAL/FIXED_DAY, 회차, 다음 일정)은 완전히 동일하다 — 이 둘을 묶어 판단할
+ *  때는 항상 이 헬퍼를 쓴다. */
+export function isRecurringType(type: PurchaseType): boolean {
+  return type === 'RECURRING_DELIVERY' || type === 'SUBSCRIPTION';
+}
 
 // D1 row shape (snake_case columns from migrations/0001_init.sql)
 export interface PurchaseRow {
@@ -77,10 +84,12 @@ export interface PendingPurchaseRow {
   return_deadline_days: number | null;
   /** SQLite boolean(0/1) — true면 return_deadline_days가 메일에 명시된 값이 아니라 추정값. */
   return_deadline_estimated: number;
-  /** RECURRING_DELIVERY 전용: 배송 주기(일수). INTERVAL 방식일 때만 의미 있음. */
+  /** RECURRING_DELIVERY/SUBSCRIPTION 전용: 배송·결제 주기(일수). INTERVAL 방식일 때만 의미 있음. */
   interval_days: number | null;
   schedule_type: ScheduleType;
   fixed_day_of_month: number | null;
+  /** SQLite boolean(0/1) — true면 원본에 주기/고정일이 명시되지 않아 30일 기본값으로 추정한 값. */
+  schedule_estimated: number;
   status: PendingPurchaseStatus;
   created_at: string;
 }
@@ -98,6 +107,7 @@ export interface PendingPurchaseResponse {
   intervalDays: number | null;
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
+  scheduleEstimated: boolean;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

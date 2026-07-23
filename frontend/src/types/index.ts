@@ -1,5 +1,11 @@
-export type PurchaseType = 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY';
+export type PurchaseType = 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION';
 export type ScheduleType = 'INTERVAL' | 'FIXED_DAY';
+
+/** RECURRING_DELIVERY(실물 정기배송)와 SUBSCRIPTION(디지털 정기구독)은 라벨/색상만 다르고
+ *  스케줄(다음 일정, 회차, 확인 버튼 등)은 완전히 동일하게 동작한다. */
+export function isRecurringType(type: PurchaseType): boolean {
+  return type === 'RECURRING_DELIVERY' || type === 'SUBSCRIPTION';
+}
 
 export interface Purchase {
   id: number;
@@ -55,10 +61,12 @@ export interface PendingPurchase {
   returnDeadlineDays: number | null;
   /** true면 메일에 명시된 값이 아니라 법정 최소 기준(7일)으로 추정한 값. */
   returnDeadlineEstimated: boolean;
-  /** RECURRING_DELIVERY 전용: 배송 주기(일수). null이면 메일에 명시 안 됨. */
+  /** RECURRING_DELIVERY/SUBSCRIPTION 전용: 배송·결제 주기(일수). */
   intervalDays: number | null;
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
+  /** true면 원본(이메일/이미지)에 주기·고정일이 명시되지 않아 30일 기본값으로 추정한 값. */
+  scheduleEstimated: boolean;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

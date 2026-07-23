@@ -11,7 +11,8 @@ const FROM_ADDRESS = 'Remindue <onboarding@resend.dev>';
 const TYPE_SHORT_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '전자제품',
   ONLINE_ORDER: '온라인주문',
-  RECURRING_DELIVERY: '정기구독·배송',
+  RECURRING_DELIVERY: '정기배송',
+  SUBSCRIPTION: '정기구독',
 };
 
 export type { DigestItem };

@@ -41,7 +41,7 @@ export async function runWeeklyDigest(env: Env): Promise<WeeklyDigestRunResult> 
             u.is_premium AS user_is_premium
        FROM purchases p
        JOIN users u ON u.id = p.user_id
-      WHERE p.type = 'RECURRING_DELIVERY' AND p.archived_at IS NULL`
+      WHERE p.type IN ('RECURRING_DELIVERY', 'SUBSCRIPTION') AND p.archived_at IS NULL`
   ).all<RecurringPurchaseWithUser>();
 
   const bucketsByUserId = new Map<number, UserWeeklyBucket>();
