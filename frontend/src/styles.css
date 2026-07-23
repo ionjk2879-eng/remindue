@@ -664,6 +664,10 @@ button.summary-board__tile:hover {
   border-left-color: var(--stamp-red);
 }
 
+.summary-board__tile--yearly {
+  border-left-color: var(--type-electronics);
+}
+
 .summary-board__tile--week {
   border-left-color: var(--stamp-amber);
 }
@@ -1414,6 +1418,35 @@ button.summary-board__tile:hover {
   text-transform: uppercase;
   color: var(--ink-soft);
   margin-bottom: 12px;
+}
+
+.register-form__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: var(--paper-card);
+  border: 1.5px dashed var(--hairline-strong);
+  border-radius: var(--radius-card);
+  padding: 14px 20px;
+  margin-bottom: 28px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.register-form__toggle:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+
+.register-form__toggle-icon {
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .register-form__row {

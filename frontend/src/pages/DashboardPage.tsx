@@ -198,6 +198,8 @@ export default function DashboardPage() {
   const [exporting, setExporting] = useState(false);
   const [purchasesLoaded, setPurchasesLoaded] = useState(false);
   const [showSpendingDetail, setShowSpendingDetail] = useState(false);
+  const [showYearlyDetail, setShowYearlyDetail] = useState(false);
+  const [showRegisterForm, setShowRegisterForm] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
   const itemNameInputRef = useRef<HTMLInputElement>(null);
 
@@ -262,10 +264,12 @@ export default function DashboardPage() {
     setScheduleType('INTERVAL');
     setFixedDayOfMonth('1');
     setCategory('OTHER');
+    setShowRegisterForm(false);
   };
 
   const handleEditClick = (p: Purchase) => {
     setErrorMessage(null);
+    setShowRegisterForm(true);
     setEditingId(p.id);
     setType(p.type);
     setItemName(p.itemName);
@@ -292,6 +296,7 @@ export default function DashboardPage() {
   const handlePendingRegisterClick = (item: PendingPurchase) => {
     setErrorMessage(null);
     resetForm();
+    setShowRegisterForm(true);
     setType(item.type);
     setItemName(item.itemName ?? '');
     setAmount(item.amount !== null ? String(item.amount) : '');
@@ -423,8 +428,13 @@ export default function DashboardPage() {
       console.error(err);
     }
     if (focusForm) {
-      itemNameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      itemNameInputRef.current?.focus();
+      setShowRegisterForm(true);
+      // 폼이 접혀있던 상태였다면 이 시점엔 아직 DOM에 없다 — 다음 페인트 이후로 미뤄서
+      // itemNameInputRef가 실제로 붙은 뒤에 스크롤/포커스한다.
+      setTimeout(() => {
+        itemNameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        itemNameInputRef.current?.focus();
+      }, 0);
     }
   };
 
@@ -574,6 +584,22 @@ export default function DashboardPage() {
             </div>
             <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
           </button>
+          <button
+            type="button"
+            className="summary-board__tile summary-board__tile--yearly summary-board__tile--clickable"
+            onClick={() => setShowYearlyDetail((v) => !v)}
+            aria-expanded={showYearlyDetail}
+          >
+            <span className="summary-board__icon" aria-hidden="true">📈</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">올해 예상 지출</span>
+              <span className="summary-board__value mono">
+                {yearlySpendEstimate.toLocaleString('ko-KR')}
+                <span className="summary-board__unit">원</span>
+              </span>
+            </div>
+            <span className="summary-board__chevron" aria-hidden="true">{showYearlyDetail ? '▲' : '▾'}</span>
+          </button>
           <div className="summary-board__tile summary-board__tile--week">
             <span className="summary-board__icon" aria-hidden="true">📅</span>
             <div className="summary-board__text">
@@ -690,27 +716,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <div className="spending-detail__section spending-detail__section--yearly">
-            <p className="spending-detail__heading">📈 올해 예상 지출</p>
-            <ul className="spending-detail__month-list">
-              {monthlySpendTotals.map((total, idx) => (
-                <li
-                  key={idx}
-                  className={`spending-detail__month-item${
-                    idx + 1 === currentMonthNum ? ' spending-detail__month-item--current' : ''
-                  }`}
-                >
-                  <span>{idx + 1}월</span>
-                  <span className="mono">{total.toLocaleString('ko-KR')}원</span>
-                </li>
-              ))}
-            </ul>
-            <p className="spending-detail__total">
-              올해 예상 지출{' '}
-              <span className="mono">{yearlySpendEstimate.toLocaleString('ko-KR')}원</span>
-            </p>
-          </div>
-
           {reviewCandidates.length > 0 && (
             <div className="spending-detail__section">
               <p className="spending-detail__heading">💡 절약 제안</p>
@@ -733,6 +738,31 @@ export default function DashboardPage() {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {showYearlyDetail && (
+        <div className="spending-detail">
+          <div className="spending-detail__section spending-detail__section--yearly">
+            <p className="spending-detail__heading">📈 올해 예상 지출 — 월별 내역</p>
+            <ul className="spending-detail__month-list">
+              {monthlySpendTotals.map((total, idx) => (
+                <li
+                  key={idx}
+                  className={`spending-detail__month-item${
+                    idx + 1 === currentMonthNum ? ' spending-detail__month-item--current' : ''
+                  }`}
+                >
+                  <span>{idx + 1}월</span>
+                  <span className="mono">{total.toLocaleString('ko-KR')}원</span>
+                </li>
+              ))}
+            </ul>
+            <p className="spending-detail__total">
+              올해 예상 지출{' '}
+              <span className="mono">{yearlySpendEstimate.toLocaleString('ko-KR')}원</span>
+            </p>
+          </div>
         </div>
       )}
 
@@ -883,6 +913,11 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {!showRegisterForm ? (
+        <button type="button" className="register-form__toggle" onClick={() => setShowRegisterForm(true)}>
+          <span className="register-form__toggle-icon" aria-hidden="true">+</span> 새 항목 등록
+        </button>
+      ) : (
       <form className="register-form" onSubmit={handleSubmit}>
         <p className="register-form__title">
           {editingId !== null ? '항목 수정' : pendingConfirmId !== null ? '확인 대기 항목 등록' : '새 항목 등록'}
@@ -1028,11 +1063,9 @@ export default function DashboardPage() {
           <button type="submit" className="btn">
             {editingId !== null ? '수정 완료' : '등록'}
           </button>
-          {(editingId !== null || pendingConfirmId !== null) && (
-            <button type="button" className="btn-text" onClick={handleCancelEdit}>
-              취소
-            </button>
-          )}
+          <button type="button" className="btn-text" onClick={handleCancelEdit}>
+            {editingId !== null || pendingConfirmId !== null ? '취소' : '접기'}
+          </button>
         </div>
         {errorMessage && <p className="form-error" style={{ marginTop: 12 }}>{errorMessage}</p>}
         {showPremiumUpsell && (
@@ -1042,6 +1075,7 @@ export default function DashboardPage() {
           </p>
         )}
       </form>
+      )}
 
       <div className="view-tabs" role="tablist" aria-label="목록 종류">
         <button type="button" className={`view-tabs__btn${view === 'ACTIVE' ? ' view-tabs__btn--active' : ''}`} onClick={() => setView('ACTIVE')}>
