@@ -535,6 +535,30 @@ export default function DashboardPage() {
   const yearlySpendEstimate = monthlySpendTotals.reduce((sum, v) => sum + v, 0);
 
   /**
+   * 각 달을 전월 대비로 비교 — 1월은 작년 12월과 비교(연 경계도 실제 데이터로 계산). 아직 오지
+   * 않은 달(이번 달보다 미래)은 "예상"일 뿐 실제 증감이라 부르기 애매해 색을 입히지 않는다
+   * (isFuture=true). %는 전월 지출이 0원이면 나눗셈이 무의미해 "신규"로 대신 표시한다.
+   */
+  const monthlySpendDetails = monthlySpendTotals.map((total, i) => {
+    const month = i + 1;
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? currentYearNum - 1 : currentYearNum;
+    const prevTotal = totalSpendInMonth(purchases, prevYear, prevMonth);
+
+    const trend: 'up' | 'down' | 'flat' = total > prevTotal ? 'up' : total < prevTotal ? 'down' : 'flat';
+    const percentLabel =
+      prevTotal > 0
+        ? `${Math.round(((total - prevTotal) / prevTotal) * 100) > 0 ? '+' : ''}${Math.round(
+            ((total - prevTotal) / prevTotal) * 100
+          )}%`
+        : total > 0
+          ? '신규'
+          : '0%';
+
+    return { month, total, trend, percentLabel, isFuture: month > currentMonthNum };
+  });
+
+  /**
    * "카테고리별 분석" — 카테고리가 지정된 정기배송/구독의 개수와, 그중 이번 달에 실제로 결제되는
    * 항목들의 금액 합(occurrencesInMonth 기준 — 이번 달에 결제가 없는 항목은 개수엔 잡히되 금액엔 0으로 반영).
    */
@@ -804,15 +828,22 @@ export default function DashboardPage() {
           <div className="spending-detail__section spending-detail__section--yearly">
             <p className="spending-detail__heading">📈 올해 예상 지출 — 월별 내역</p>
             <ul className="spending-detail__month-list">
-              {monthlySpendTotals.map((total, idx) => (
+              {monthlySpendDetails.map(({ month, total, trend, percentLabel, isFuture }) => (
                 <li
-                  key={idx}
+                  key={month}
                   className={`spending-detail__month-item${
-                    idx + 1 === currentMonthNum ? ' spending-detail__month-item--current' : ''
+                    month === currentMonthNum ? ' spending-detail__month-item--current' : ''
                   }`}
                 >
-                  <span>{idx + 1}월</span>
+                  <span>{month}월</span>
                   <span className="mono">{total.toLocaleString('ko-KR')}원</span>
+                  <span
+                    className={`spending-detail__month-change ${
+                      isFuture ? 'spending-detail__month-change--neutral' : `spending-detail__month-change--${trend}`
+                    }`}
+                  >
+                    {percentLabel}
+                  </span>
                 </li>
               ))}
             </ul>

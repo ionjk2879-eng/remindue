@@ -886,7 +886,7 @@ button.summary-board__tile:hover {
   color: var(--ink-soft);
 }
 
-.spending-detail__month-item span:last-child {
+.spending-detail__month-item .mono {
   font-size: 0.88rem;
   font-weight: 700;
   color: var(--ink);
@@ -897,8 +897,26 @@ button.summary-board__tile:hover {
   border-color: var(--safe-teal);
 }
 
-.spending-detail__month-item--current span:last-child {
+.spending-detail__month-item--current .mono {
   color: var(--safe-teal);
+}
+
+.spending-detail__month-change {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.spending-detail__month-change--up {
+  color: var(--stamp-red);
+}
+
+.spending-detail__month-change--down {
+  color: var(--safe-teal);
+}
+
+.spending-detail__month-change--flat,
+.spending-detail__month-change--neutral {
+  color: var(--ink-soft);
 }
 
 .spending-detail__save-list {
