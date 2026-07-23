@@ -49,3 +49,24 @@ export function daysBetween(fromStr: string, toStr: string): number {
 export function todayDateOnly(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
 }
+
+/**
+ * FIXED_DAY 스케줄 전용 — 매월 fixedDay에 해당하는, today 이후(오늘 포함) 가장 가까운 날짜.
+ * 그 달에 fixedDay가 없으면(예: 2월의 31일) 해당 달의 마지막 날로 보정한다.
+ */
+export function nextFixedDayOfMonth(fixedDay: number, todayStr: string): string {
+  const { year, month, day } = parseDateOnly(todayStr); // month: 1-12
+
+  // 이번 달 시도 — Date.UTC(year, month, 0)은 month월의 마지막 날(0번째 다음 달 = 이전 달 마지막)
+  const daysInCurrent = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const clampedCurrent = Math.min(fixedDay, daysInCurrent);
+  if (clampedCurrent >= day) {
+    return formatDateOnly(year, month - 1, clampedCurrent); // formatDateOnly는 0-indexed month
+  }
+
+  // 다음 달로 넘어감
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonthIdx = month % 12; // 0-indexed: 1월(1)→0, 12월(12)→0이 다음 해 1월
+  const daysInNext = new Date(Date.UTC(nextYear, nextMonthIdx + 1, 0)).getUTCDate();
+  return formatDateOnly(nextYear, nextMonthIdx, Math.min(fixedDay, daysInNext));
+}

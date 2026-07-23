@@ -1,4 +1,5 @@
 export type PurchaseType = 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY';
+export type ScheduleType = 'INTERVAL' | 'FIXED_DAY';
 
 export const PURCHASE_TYPES: readonly PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY'];
 
@@ -14,6 +15,10 @@ export interface PurchaseRow {
   warranty_months: number | null;
   return_deadline_days: number | null;
   interval_days: number | null;
+  /** 정기배송/구독 스케줄 방식: INTERVAL(N일마다) 또는 FIXED_DAY(매월 특정일). 기본 INTERVAL. */
+  schedule_type: ScheduleType;
+  /** FIXED_DAY일 때만 사용: 매월 결제/배송되는 날짜(1~31). */
+  fixed_day_of_month: number | null;
   last_delivered_date: string | null;
   delivery_confirm_count: number;
   /** 이력 보관(프리미엄). NULL이면 활성 항목, 값이 있으면 그 시각에 보관 처리됨 — dDay/알림 대상에서 제외. */
@@ -72,8 +77,10 @@ export interface PendingPurchaseRow {
   return_deadline_days: number | null;
   /** SQLite boolean(0/1) — true면 return_deadline_days가 메일에 명시된 값이 아니라 추정값. */
   return_deadline_estimated: number;
-  /** RECURRING_DELIVERY 전용: 배송 주기(일수). 메일에 명시되지 않았으면 NULL. */
+  /** RECURRING_DELIVERY 전용: 배송 주기(일수). INTERVAL 방식일 때만 의미 있음. */
   interval_days: number | null;
+  schedule_type: ScheduleType;
+  fixed_day_of_month: number | null;
   status: PendingPurchaseStatus;
   created_at: string;
 }
@@ -89,6 +96,8 @@ export interface PendingPurchaseResponse {
   returnDeadlineDays: number | null;
   returnDeadlineEstimated: boolean;
   intervalDays: number | null;
+  scheduleType: ScheduleType;
+  fixedDayOfMonth: number | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }
@@ -104,10 +113,12 @@ export interface PurchaseResponse {
   warrantyMonths: number | null;
   returnDeadlineDays: number | null;
   intervalDays: number | null;
+  scheduleType: ScheduleType;
+  fixedDayOfMonth: number | null;
   lastDeliveredDate: string | null;
   deadline: string;
   dDay: number;
-  /** RECURRING_DELIVERY 전용 — 몇 회차 배송인지(1부터 시작). 그 외 타입은 null. */
+  /** RECURRING_DELIVERY 전용 — 몇 회차인지(1부터 시작). 그 외 타입은 null. */
   deliveryRound: number | null;
   /** 이력 보관(프리미엄) 시각. null이면 활성 항목. */
   archivedAt: string | null;
@@ -147,6 +158,8 @@ export interface PurchaseRequestBody {
   warrantyMonths?: number | null;
   returnDeadlineDays?: number | null;
   intervalDays?: number | null;
+  scheduleType?: ScheduleType;
+  fixedDayOfMonth?: number | null;
 }
 
 export type BillingPlan = 'ONE_TIME' | 'MONTHLY' | 'ANNUAL';

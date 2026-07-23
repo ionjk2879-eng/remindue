@@ -50,6 +50,8 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
     warrantyMonths: body.warrantyMonths ?? null,
     returnDeadlineDays: body.returnDeadlineDays ?? null,
     intervalDays: body.intervalDays ?? null,
+    scheduleType: body.scheduleType ?? 'INTERVAL',
+    fixedDayOfMonth: body.fixedDayOfMonth ?? null,
   };
 }
 
@@ -130,8 +132,8 @@ purchases.post('/', async (c) => {
 
   const insert = await c.env.DB.prepare(
     `INSERT INTO purchases
-       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, last_delivered_date)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, last_delivered_date)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       user.id,
@@ -143,6 +145,8 @@ purchases.post('/', async (c) => {
       body.warrantyMonths,
       body.returnDeadlineDays,
       body.intervalDays,
+      body.scheduleType,
+      body.fixedDayOfMonth,
       lastDeliveredDate
     )
     .run();
@@ -164,6 +168,7 @@ purchases.put('/:id', async (c) => {
     `UPDATE purchases
         SET type = ?, item_name = ?, base_date = ?, amount = ?, memo = ?,
             warranty_months = ?, return_deadline_days = ?, interval_days = ?,
+            schedule_type = ?, fixed_day_of_month = ?,
             updated_at = datetime('now')
       WHERE id = ?`
   )
@@ -176,6 +181,8 @@ purchases.put('/:id', async (c) => {
       body.warrantyMonths,
       body.returnDeadlineDays,
       body.intervalDays,
+      body.scheduleType,
+      body.fixedDayOfMonth,
       id
     )
     .run();
