@@ -218,15 +218,23 @@ type MessageContent =
   | { type: 'text'; text: string }
   | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
 
+export interface ExtractionResult {
+  order: ExtractedOrder | null;
+  /** order가 null일 때만 채워진다 — API 호출 자체가 왜 실패했는지(키 없음/HTTP 에러/거부/파싱
+   *  실패). wrangler tail이 안 잡히는 dev 프리뷰에서도 원인을 확인할 수 있게 라우트에 노출한다. */
+  failureReason: string | null;
+}
+
 /** 로그에 어느 채널(email/image) 호출인지 남기기 위한 접두사 — 호출부에서 넘긴다. */
 export async function callExtractionApi(
   apiKey: string,
   content: MessageContent[],
   logPrefix: string
-): Promise<ExtractedOrder | null> {
+): Promise<ExtractionResult> {
   if (!apiKey) {
-    console.warn(`[${logPrefix}] ANTHROPIC_API_KEY가 없어 파싱을 건너뜁니다`);
-    return null;
+    const reason = 'ANTHROPIC_API_KEY가 없어 파싱을 건너뜁니다';
+    console.warn(`[${logPrefix}] ${reason}`);
+    return { order: null, failureReason: reason };
   }
 
   const res = await fetch(ANTHROPIC_ENDPOINT, {
@@ -247,27 +255,31 @@ export async function callExtractionApi(
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    console.error(`[${logPrefix}] Claude API 호출 실패 (${res.status}): ${body}`);
-    return null;
+    const reason = `Claude API 호출 실패 (${res.status}): ${body}`;
+    console.error(`[${logPrefix}] ${reason}`);
+    return { order: null, failureReason: reason };
   }
 
   const data = await res.json<{ content: Array<{ type: string; text?: string }>; stop_reason: string }>();
 
   if (data.stop_reason === 'refusal') {
-    console.warn(`[${logPrefix}] Claude가 이 요청 처리를 거부했습니다`);
-    return null;
+    const reason = 'Claude가 이 요청 처리를 거부했습니다';
+    console.warn(`[${logPrefix}] ${reason}`);
+    return { order: null, failureReason: reason };
   }
 
   const textBlock = data.content.find((block) => block.type === 'text' && block.text);
   if (!textBlock?.text) {
-    console.error(`[${logPrefix}] 응답에 text 블록이 없습니다`);
-    return null;
+    const reason = `응답에 text 블록이 없습니다 (stop_reason: ${data.stop_reason})`;
+    console.error(`[${logPrefix}] ${reason}`);
+    return { order: null, failureReason: reason };
   }
 
   try {
-    return JSON.parse(textBlock.text) as ExtractedOrder;
+    return { order: JSON.parse(textBlock.text) as ExtractedOrder, failureReason: null };
   } catch (err) {
-    console.error(`[${logPrefix}] JSON 파싱 실패`, err, textBlock.text);
-    return null;
+    const reason = `JSON 파싱 실패: ${err}`;
+    console.error(`[${logPrefix}] ${reason}`, textBlock.text);
+    return { order: null, failureReason: reason };
   }
 }

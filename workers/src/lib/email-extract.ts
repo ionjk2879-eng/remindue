@@ -17,9 +17,10 @@ export async function extractOrderConfirmation(
 ): Promise<ExtractedOrder | null> {
   const truncatedBody = bodyText.length > MAX_BODY_CHARS ? `${bodyText.slice(0, MAX_BODY_CHARS)}…` : bodyText;
 
-  return callExtractionApi(
+  const { order } = await callExtractionApi(
     apiKey,
     [{ type: 'text', text: `제목: ${subject}\n\n본문:\n${truncatedBody}` }],
     'email-extract'
   );
+  return order;
 }

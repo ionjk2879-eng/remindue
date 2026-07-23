@@ -2,9 +2,9 @@
 // 이메일 파싱(email-extract.ts)과 완전히 동일한 분류 기준/스키마를 order-extraction.ts에서
 // 공유한다 — 여기서는 base64 이미지를 Claude vision 입력 content로 감싸는 역할만 한다.
 
-import { callExtractionApi, type ExtractedOrder } from './order-extraction';
+import { callExtractionApi, type ExtractedOrder, type ExtractionResult } from './order-extraction';
 
-export type { ExtractedOrder };
+export type { ExtractedOrder, ExtractionResult };
 
 export const ALLOWED_IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
 export type AllowedImageMediaType = (typeof ALLOWED_IMAGE_MEDIA_TYPES)[number];
@@ -22,11 +22,12 @@ export function isImageTooLarge(base64Data: string): boolean {
   return base64Data.length > MAX_BASE64_CHARS;
 }
 
+/** 이메일 채널과 달리 라우트가 실패 이유를 dev 디버그용으로 그대로 노출하므로 ExtractionResult를 통째로 반환한다. */
 export async function extractOrderFromImage(
   apiKey: string,
   base64Data: string,
   mediaType: AllowedImageMediaType
-): Promise<ExtractedOrder | null> {
+): Promise<ExtractionResult> {
   return callExtractionApi(
     apiKey,
     [

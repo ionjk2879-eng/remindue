@@ -138,8 +138,25 @@ purchases.post('/analyze-image', async (c) => {
     throw new BadRequestError('이미지 용량이 너무 커요(최대 8MB).');
   }
 
-  const extracted = await extractOrderFromImage(c.env.ANTHROPIC_API_KEY, body.image, body.mediaType);
+  const { order: extracted, failureReason } = await extractOrderFromImage(c.env.ANTHROPIC_API_KEY, body.image, body.mediaType);
   if (!extracted || !extracted.isOrderConfirmation) {
+    // 이미지 자체는 절대 로그에 남기지 않는다 — AI의 판단 결과(구조화 필드)만 남겨서 오분류 원인을
+    // 진단할 수 있게 한다. extracted가 null이면 API 호출 자체가 실패한 것(failureReason 참고).
+    console.log(
+      `[analyze-image] 주문확인으로 인식되지 않음 (사용자: ${user.email}): ${JSON.stringify(extracted)}, failureReason=${failureReason}`
+    );
+    // development(로컬/dev 프리뷰)에서만: wrangler tail이 dev 프리뷰 트래픽을 못 잡는 문제 때문에
+    // 오분류 원인을 바로 확인할 수 있게 응답 본문에 원시 판단 결과를 실어준다. production에서는
+    // 절대 노출되지 않는다(ENVIRONMENT가 항상 'production').
+    if (c.env.ENVIRONMENT === 'development') {
+      return c.json(
+        {
+          message: '이미지에서 주문/결제 정보를 찾지 못했어요. 다른 사진으로 시도해주세요.',
+          debug: extracted ?? { failureReason },
+        },
+        400
+      );
+    }
     throw new BadRequestError('이미지에서 주문/결제 정보를 찾지 못했어요. 다른 사진으로 시도해주세요.');
   }
 

@@ -238,7 +238,11 @@ export default function DashboardPage() {
       await loadPending();
     } catch (err) {
       const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
-      setImageError(message ?? '이미지를 분석하지 못했어요.');
+      // dev 환경에서만 서버가 debug 필드(AI의 원시 판단 결과)를 함께 내려준다 — 오분류 원인을
+      // 바로 화면에서 확인할 수 있게 메시지에 붙인다. production 응답에는 이 필드가 없다.
+      const debug = axios.isAxiosError(err) ? err.response?.data?.debug : undefined;
+      const debugSuffix = debug ? `\n\n[dev] ${JSON.stringify(debug)}` : '';
+      setImageError((message ?? '이미지를 분석하지 못했어요.') + debugSuffix);
     } finally {
       setAnalyzingImage(false);
     }
@@ -407,7 +411,7 @@ export default function DashboardPage() {
 
       {forwardingEmail && (
         <div className="forwarding-banner">
-          <span className="forwarding-banner__label">📧 주문확인 메일 자동 등록 주소</span>
+          <span className="forwarding-banner__label">🤖 AI 자동 등록</span>
           <div className="forwarding-banner__row">
             <span className="mono forwarding-banner__address">{forwardingEmail}</span>
             <button type="button" className="btn-text" onClick={handleCopyForwardingEmail}>
@@ -420,9 +424,37 @@ export default function DashboardPage() {
           <p className="forwarding-banner__hint">
             쇼핑몰 주문확인 메일을 이 주소로 전달(포워딩)하면 자동으로 아래 "확인 대기" 목록에 올라와요.
           </p>
+
+          <div className="forwarding-banner__photo-row">
+            {isPremium ? (
+              <>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelected}
+                  style={{ display: 'none' }}
+                />
+                <button type="button" className="btn btn-outline btn-sm" onClick={handleImageButtonClick} disabled={analyzingImage}>
+                  {analyzingImage ? '분석 중...' : '📷 영수증·결제내역 사진으로 등록'}
+                </button>
+              </>
+            ) : (
+              <span className="forwarding-banner__hint">
+                📷 영수증·결제내역 사진으로 등록도 가능해요 —{' '}
+                <Link to="/pricing">프리미엄 업그레이드하기 →</Link>
+              </span>
+            )}
+          </div>
+          {imageError && (
+            <p className="form-error" style={{ marginTop: 8, whiteSpace: 'pre-wrap' }}>
+              {imageError}
+            </p>
+          )}
+
           <p className="forwarding-banner__privacy">
-            🔒 전달하신 이메일은 상품명·날짜 추출을 위해 Claude API(Anthropic)로 처리되며, 처리 후
-            원본은 저장되지 않습니다.
+            🔒 전달하신 메일 또는 업로드한 사진은 상품명·날짜 추출을 위해 Claude API(Anthropic)로
+            처리되며, 처리 후 원본은 저장되지 않습니다.
           </p>
         </div>
       )}
@@ -526,29 +558,6 @@ export default function DashboardPage() {
           </ul>
         </div>
       )}
-
-      <div className="image-upload-row">
-        {isPremium ? (
-          <>
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageSelected}
-              style={{ display: 'none' }}
-            />
-            <button type="button" className="btn btn-outline" onClick={handleImageButtonClick} disabled={analyzingImage}>
-              {analyzingImage ? '분석 중...' : '📷 사진으로 등록'}
-            </button>
-            {imageError && <p className="form-error" style={{ marginTop: 8 }}>{imageError}</p>}
-          </>
-        ) : (
-          <p className="premium-upsell">
-            📷 영수증·결제내역 사진으로 자동 등록은 프리미엄 전용이에요.{' '}
-            <Link to="/pricing">업그레이드하기 →</Link>
-          </p>
-        )}
-      </div>
 
       <form className="register-form" onSubmit={handleSubmit}>
         <p className="register-form__title">
