@@ -24,6 +24,13 @@ function sanitizeReturnDeadlineDays(days: number | null): number {
   return typeof days === 'number' && Number.isInteger(days) && days > 0 ? days : DEFAULT_RETURN_DEADLINE_DAYS;
 }
 
+/** AI가 준 매월 결제/배송일이 1~31 범위를 벗어나면(모델 오류 등) null로 되돌린다.
+ *  스키마 자체에는 범위 제약을 걸 수 없어(Anthropic 구조화 출력이 integer의 min/max 미지원)
+ *  여기서 후처리로 검증한다. */
+function sanitizeFixedDayOfMonth(day: number | null): number | null {
+  return typeof day === 'number' && Number.isInteger(day) && day >= 1 && day <= 31 ? day : null;
+}
+
 function extractForwardingToken(toAddress: string): string | null {
   const localPart = toAddress.split('@')[0] ?? '';
   const match = TO_LOCAL_PART_PATTERN.exec(localPart);
@@ -86,7 +93,7 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
 
   const intervalDays = type === 'RECURRING_DELIVERY' ? (extracted.intervalDays ?? null) : null;
   const scheduleType = type === 'RECURRING_DELIVERY' ? (extracted.scheduleType ?? 'INTERVAL') : 'INTERVAL';
-  const fixedDayOfMonth = scheduleType === 'FIXED_DAY' ? (extracted.fixedDayOfMonth ?? null) : null;
+  const fixedDayOfMonth = scheduleType === 'FIXED_DAY' ? sanitizeFixedDayOfMonth(extracted.fixedDayOfMonth) : null;
 
   await env.DB.prepare(
     `INSERT INTO pending_purchases
