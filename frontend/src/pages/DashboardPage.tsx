@@ -101,6 +101,12 @@ function formatShortDate(dateStr: string): string {
   return `${month}/${day}`;
 }
 
+/** "2026-08-15" -> "8월 15일" */
+function formatKoreanMonthDay(dateStr: string): string {
+  const [, month, day] = dateStr.split('-').map(Number);
+  return `${month}월 ${day}일`;
+}
+
 /** date.ts의 backend todayDateOnly()와 동일한 기준(KST) — "이번 회차 확인"을 오늘 이미 눌렀는지 비교에 쓴다. */
 function todayDateOnly(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
@@ -124,33 +130,46 @@ function daysSinceBaseDate(baseDate: string): number {
 }
 
 /**
- * 정기배송/구독이 특정 연/월(month는 1~12)에 몇 번 결제·배송되는지. FIXED_DAY는 시작월 이후로
- * 매달 정확히 1번, INTERVAL은 주기에 따라 그 달에 0번일 수도 여러 번일 수도 있다(예: 7일마다
- * 항목은 한 달에 4~5번). 정기배송/구독이 아니면 항상 0.
+ * 정기배송/구독이 특정 연/월에 실제로 결제·배송되는 날짜들(yyyy-MM-dd) — FIXED_DAY는 시작월
+ * 이후로 그 달의 고정일 하루(월말보다 큰 날짜면 말일로 보정), INTERVAL은 주기에 따라 그 달에
+ * 0개일 수도 여러 개일 수도 있다(예: 7일마다 항목은 한 달에 4~5개). 정기배송/구독이 아니면 빈 배열.
  */
-function occurrencesInMonth(p: Purchase, year: number, month: number): number {
-  if (!isRecurringType(p.type)) return 0;
+function occurrenceDatesInMonth(p: Purchase, year: number, month: number): string[] {
+  if (!isRecurringType(p.type)) return [];
   const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
+  const pad = (n: number) => String(n).padStart(2, '0');
 
   if (p.scheduleType === 'FIXED_DAY') {
-    return year > baseYear || (year === baseYear && month >= baseMonth) ? 1 : 0;
+    const started = year > baseYear || (year === baseYear && month >= baseMonth);
+    if (!started) return [];
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const day = Math.min(p.fixedDayOfMonth ?? 1, daysInMonth);
+    return [`${year}-${pad(month)}-${pad(day)}`];
   }
 
   const interval = Math.max(1, p.intervalDays || 30);
-  const monthStart = new Date(`${year}-${String(month).padStart(2, '0')}-01T00:00:00`).getTime();
+  const monthStart = new Date(`${year}-${pad(month)}-01T00:00:00`).getTime();
   const monthEndExclusive = new Date(
-    month === 12 ? `${year + 1}-01-01T00:00:00` : `${year}-${String(month + 1).padStart(2, '0')}-01T00:00:00`
+    month === 12 ? `${year + 1}-01-01T00:00:00` : `${year}-${pad(month + 1)}-01T00:00:00`
   ).getTime();
   const baseTime = new Date(`${p.baseDate}T00:00:00`).getTime();
-  if (baseTime >= monthEndExclusive) return 0;
+  if (baseTime >= monthEndExclusive) return [];
 
   const stepMs = interval * 86_400_000;
   const kMin = Math.max(0, Math.ceil((monthStart - baseTime) / stepMs));
-  let count = 0;
+  const dates: string[] = [];
   for (let t = baseTime + kMin * stepMs; t < monthEndExclusive; t += stepMs) {
-    if (t >= monthStart) count++;
+    if (t >= monthStart) {
+      const d = new Date(t);
+      dates.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+    }
   }
-  return count;
+  return dates;
+}
+
+/** 정기배송/구독이 특정 연/월(month는 1~12)에 몇 번 결제·배송되는지. */
+function occurrencesInMonth(p: Purchase, year: number, month: number): number {
+  return occurrenceDatesInMonth(p, year, month).length;
 }
 
 /** 정기배송/구독은 occurrencesInMonth × amount, 1회성(ELECTRONICS/ONLINE_ORDER)은 baseDate가
@@ -477,25 +496,39 @@ export default function DashboardPage() {
 
   /**
    * "이번 달 예상지출" 클릭 시 펼쳐지는 항목별 내역 — 정기배송/구독은 이번 달에 실제로 결제되는
-   * 횟수만큼, ELECTRONICS/ONLINE_ORDER 같은 1회성 결제도 baseDate가 이번 달이면 포함한다(둘 다
-   * 그냥 다 지출이니까). 금액이 없는 항목은 애초에 지출 계산에 낄 수 없어 제외.
+   * 날짜마다 한 줄씩(같은 항목이 여러 번 결제되면 그만큼 여러 줄), ELECTRONICS/ONLINE_ORDER 같은
+   * 1회성 결제도 baseDate가 이번 달이면 그 날짜에 포함한다. 금액이 없는 항목은 제외.
    */
-  const spendingBreakdown = purchases
-    .map((p) => {
-      if (p.amount === null) return null;
-      if (isRecurringType(p.type)) {
-        const occurrences = occurrencesInMonth(p, currentYearNum, currentMonthNum);
-        if (occurrences === 0) return null;
-        return { id: p.id, itemName: p.itemName, type: p.type, amount: occurrences * p.amount };
-      }
-      const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
-      if (baseYear !== currentYearNum || baseMonth !== currentMonthNum) return null;
-      return { id: p.id, itemName: p.itemName, type: p.type, amount: p.amount };
-    })
-    .filter((item): item is { id: number; itemName: string; type: PurchaseType; amount: number } => item !== null)
-    .sort((a, b) => b.amount - a.amount);
+  const spendingOccurrences = purchases.flatMap((p) => {
+    if (p.amount === null) return [];
+    if (isRecurringType(p.type)) {
+      return occurrenceDatesInMonth(p, currentYearNum, currentMonthNum).map((date, idx) => ({
+        key: `${p.id}-${idx}`,
+        itemName: p.itemName,
+        type: p.type,
+        date,
+        amount: p.amount!,
+      }));
+    }
+    const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
+    if (baseYear !== currentYearNum || baseMonth !== currentMonthNum) return [];
+    return [{ key: String(p.id), itemName: p.itemName, type: p.type, date: p.baseDate, amount: p.amount }];
+  });
 
-  const monthlySpendEstimate = spendingBreakdown.reduce((sum, item) => sum + item.amount, 0);
+  /** 위 내역을 날짜순으로 묶은 것 — "8월 7일 아래 상품 2개, 8월 16일 아래 상품 1개" 형태로 보여준다. */
+  const spendingByDate = Object.values(
+    spendingOccurrences.reduce<Record<string, { date: string; items: typeof spendingOccurrences; total: number }>>(
+      (acc, occ) => {
+        if (!acc[occ.date]) acc[occ.date] = { date: occ.date, items: [], total: 0 };
+        acc[occ.date].items.push(occ);
+        acc[occ.date].total += occ.amount;
+        return acc;
+      },
+      {}
+    )
+  ).sort((a, b) => a.date.localeCompare(b.date));
+
+  const monthlySpendEstimate = spendingOccurrences.reduce((sum, occ) => sum + occ.amount, 0);
 
   /** "올해 예상 지출" — 1~12월 각각의 실제 지출 총액(정기 결제 발생 횟수 + 1회성 결제)과 그 합계. */
   const monthlySpendTotals = Array.from({ length: 12 }, (_, i) => totalSpendInMonth(purchases, currentYearNum, i + 1));
@@ -672,25 +705,35 @@ export default function DashboardPage() {
         <div className="spending-detail">
           <div className="spending-detail__section">
             <p className="spending-detail__heading">📋 이번 달 예상지출 내역</p>
-            {spendingBreakdown.length === 0 ? (
+            {spendingByDate.length === 0 ? (
               <p className="spending-detail__empty">
                 금액이 등록된 항목이 없어요. 항목을 "수정"해서 금액을 입력하면 여기 반영돼요.
               </p>
             ) : (
               <>
-                <ul className="spending-detail__list">
-                  {spendingBreakdown.map((item) => (
-                    <li key={item.id}>
-                      <span>
-                        {item.itemName}
-                        <span className="spending-detail__list-type">
-                          {isRecurringType(item.type) ? '정기' : TYPE_SHORT_LABEL[item.type]}
-                        </span>
-                      </span>
-                      <span className="mono">{item.amount.toLocaleString('ko-KR')}원</span>
-                    </li>
+                <div className="spending-detail__by-date">
+                  {spendingByDate.map((group) => (
+                    <div className="spending-detail__date-group" key={group.date}>
+                      <p className="spending-detail__date-heading">
+                        {formatKoreanMonthDay(group.date)}{' '}
+                        <span className="mono">{group.total.toLocaleString('ko-KR')}원</span>
+                      </p>
+                      <ul className="spending-detail__list">
+                        {group.items.map((item) => (
+                          <li key={item.key}>
+                            <span>
+                              {item.itemName}
+                              <span className="spending-detail__list-type">
+                                {isRecurringType(item.type) ? '정기' : TYPE_SHORT_LABEL[item.type]}
+                              </span>
+                            </span>
+                            <span className="mono">{item.amount.toLocaleString('ko-KR')}원</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ))}
-                </ul>
+                </div>
                 <p className="spending-detail__total">
                   이번 달 총 지출{' '}
                   <span className="mono">{monthlySpendEstimate.toLocaleString('ko-KR')}원</span>

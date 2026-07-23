@@ -755,6 +755,30 @@ button.summary-board__tile:hover {
   color: var(--ink-soft);
 }
 
+.spending-detail__by-date {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.spending-detail__date-group + .spending-detail__date-group {
+  padding-top: 12px;
+  border-top: 1px dashed var(--hairline);
+}
+
+.spending-detail__date-heading {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.spending-detail__date-heading .mono {
+  color: var(--ink);
+}
+
 .spending-detail__list {
   display: flex;
   flex-direction: column;
