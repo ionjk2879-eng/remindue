@@ -66,7 +66,7 @@ export async function runWeeklyDigest(env: Env): Promise<WeeklyDigestRunResult> 
   }
 
   const dashboardUrl = `${env.APP_URL}/dashboard`;
-  const subject = '이번 주 정기배송 리포트 — Remindue';
+  const subject = '이번 주 정기구독·배송 리포트 — Remindue';
   let emailsSent = 0;
   let pushSent = 0;
   let pushSubscriptionsPruned = 0;

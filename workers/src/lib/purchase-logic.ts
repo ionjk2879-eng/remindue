@@ -61,13 +61,13 @@ export function computeStatusLabel(dDay: number): string {
 }
 
 /**
- * 정기배송 전용 — "이번 회차 수령 확인"을 눌렀을 때 기록할 참고용 날짜(오늘)를 반환한다.
+ * 정기구독·배송 전용 — "이번 회차 확인"을 눌렀을 때 기록할 참고용 날짜(오늘)를 반환한다.
  * 이 값은 last_delivered_date에 로그로만 남고, computeDeadline은 더 이상 이 값을 읽지 않는다
- * (다음 배송일은 항상 baseDate 기준 고정 스케줄로만 계산됨).
+ * (다음 일정은 항상 baseDate 기준 고정 스케줄로만 계산됨).
  */
 export function confirmReceiptToday(type: PurchaseType): string {
   if (type !== 'RECURRING_DELIVERY') {
-    throw new InvalidPurchaseOperationError('정기배송 항목에서만 수령 확인을 할 수 있습니다');
+    throw new InvalidPurchaseOperationError('정기구독·배송 항목에서만 회차 확인을 할 수 있습니다');
   }
   return todayDateOnly();
 }

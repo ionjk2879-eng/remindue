@@ -18,7 +18,7 @@ export function formatDDay(dDay: number): string {
 const DEADLINE_NOUN: Record<PurchaseType, string> = {
   ONLINE_ORDER: '반품기한',
   ELECTRONICS: '보증만료',
-  RECURRING_DELIVERY: '다음배송',
+  RECURRING_DELIVERY: '다음일정',
 };
 
 /** 항목명을 뺀 나머지 절 — 이메일 표에서 굵은 항목명 아래에 붙일 때 쓴다(이름 중복 방지). */
@@ -36,7 +36,7 @@ export function buildItemClause(item: DigestItem): string {
       case 'ELECTRONICS':
         return '보증기간이 내일 만료돼요';
       case 'RECURRING_DELIVERY':
-        return '다음 배송이 내일이에요';
+        return '다음 일정이 내일이에요';
     }
   }
 
@@ -47,7 +47,7 @@ export function buildItemClause(item: DigestItem): string {
     case 'ELECTRONICS':
       return '보증기간이 오늘 만료돼요';
     case 'RECURRING_DELIVERY':
-      return '오늘 배송 예정이에요';
+      return '오늘 일정이에요';
   }
 }
 
