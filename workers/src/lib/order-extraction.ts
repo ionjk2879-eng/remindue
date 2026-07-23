@@ -15,6 +15,8 @@ export interface ExtractedOrder {
   expectedDeliveryDate: string | null;
   /** 상품 종류 추정 */
   estimatedType: 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION' | null;
+  /** 결제/주문 금액(원). 통화 기호·콤마 없는 정수. 원본에 금액이 없으면 null. */
+  amount: number | null;
   /** 반품/교환 기한이 원본에 구체적으로 명시되어 있었는지. */
   foundExplicitDeadline: boolean;
   /** 주문일 기준 반품/교환 가능 일수. foundExplicitDeadline=false면 null. */
@@ -70,6 +72,12 @@ const EXTRACTION_SCHEMA = {
         '4순위 ONLINE_ORDER: 위 세 조건에 해당하지 않는 일반 쇼핑몰 주문.\n' +
         'isOrderConfirmation=false면 null.',
     },
+    amount: {
+      anyOf: [{ type: 'integer' }, { type: 'null' }],
+      description:
+        '결제/주문 금액을 원(KRW) 단위 정수로 추출. "12,900원"→12900, "\\u20a91,900"→1900. ' +
+        '여러 상품/금액이 섞여 있으면 실제 결제된 총액(최종 결제금액)을 우선. 원본에 금액이 전혀 없으면 null.',
+    },
     foundExplicitDeadline: {
       type: 'boolean',
       description:
@@ -120,6 +128,7 @@ const EXTRACTION_SCHEMA = {
     'orderDate',
     'expectedDeliveryDate',
     'estimatedType',
+    'amount',
     'foundExplicitDeadline',
     'returnDeadlineDays',
     'intervalDays',
@@ -204,9 +213,14 @@ intervalDays 변환 기준:
 반품/교환 가능 기한이 구체적인 숫자 또는 날짜로 명시된 경우에만 foundExplicitDeadline=true.
 없으면 false, returnDeadlineDays=null (서버가 법정 최소 기준으로 대체).
 
+## 6단계: 금액 추출 (amount)
+실제 결제/청구된 총액을 원(KRW) 단위 정수로 추출("12,900원"→12900). 여러 금액이 나오면
+할인 전 정가가 아니라 최종 결제금액을 우선. 통화 기호·콤마 없는 순수 정수만 담고, 원본에
+금액이 전혀 없으면 null.
+
 ## 개인정보 보호
-상품명, 날짜, 주기, 종류만 추출. 수령인 이름, 전화번호, 배송지 주소, 카드번호·결제수단(마스킹된
-카드번호 포함)은 절대 어떤 필드에도 포함하지 마라.`;
+상품명, 날짜, 주기, 종류, 금액만 추출. 수령인 이름, 전화번호, 배송지 주소, 카드번호·결제수단
+(마스킹된 카드번호 포함)은 절대 어떤 필드에도 포함하지 마라.`;
 
 type MessageContent =
   | { type: 'text'; text: string };

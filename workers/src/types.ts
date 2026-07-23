@@ -90,6 +90,8 @@ export interface PendingPurchaseRow {
   fixed_day_of_month: number | null;
   /** SQLite boolean(0/1) — true면 원본에 주기/고정일이 명시되지 않아 30일 기본값으로 추정한 값. */
   schedule_estimated: number;
+  /** AI가 추출한 금액(원). 원본에 없으면 NULL. */
+  amount: number | null;
   status: PendingPurchaseStatus;
   created_at: string;
 }
@@ -108,6 +110,8 @@ export interface PendingPurchaseResponse {
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
   scheduleEstimated: boolean;
+  /** AI가 추출한 금액(원). 원본에 없으면 null. */
+  amount: number | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

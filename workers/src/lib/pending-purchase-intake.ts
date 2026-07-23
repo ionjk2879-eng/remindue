@@ -23,6 +23,11 @@ export function sanitizeFixedDayOfMonth(day: number | null): number | null {
   return typeof day === 'number' && Number.isInteger(day) && day >= 1 && day <= 31 ? day : null;
 }
 
+/** AI가 준 금액이 비정상(음수·소수 등)이면 null로 되돌린다 — 0은 실제로 무료/이벤트 배송일 수 있어 유효하게 둔다. */
+export function sanitizeAmount(amount: number | null): number | null {
+  return typeof amount === 'number' && Number.isInteger(amount) && amount >= 0 ? amount : null;
+}
+
 export interface PendingPurchaseFields {
   type: PurchaseType;
   returnDeadlineDays: number;
@@ -31,6 +36,7 @@ export interface PendingPurchaseFields {
   scheduleType: 'INTERVAL' | 'FIXED_DAY';
   fixedDayOfMonth: number | null;
   scheduleEstimated: 0 | 1;
+  amount: number | null;
 }
 
 /** ExtractedOrder(AI 원시 응답)를 pending_purchases에 저장할 안전한 필드로 변환한다. */
@@ -73,6 +79,7 @@ export function buildPendingPurchaseFields(extracted: ExtractedOrder): PendingPu
     scheduleType,
     fixedDayOfMonth,
     scheduleEstimated,
+    amount: sanitizeAmount(extracted.amount),
   };
 }
 
@@ -88,8 +95,8 @@ export async function insertPendingPurchase(
   const result = await db
     .prepare(
       `INSERT INTO pending_purchases
-         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       userId,
@@ -103,7 +110,8 @@ export async function insertPendingPurchase(
       fields.intervalDays,
       fields.scheduleType,
       fields.fixedDayOfMonth,
-      fields.scheduleEstimated
+      fields.scheduleEstimated,
+      fields.amount
     )
     .run();
 
