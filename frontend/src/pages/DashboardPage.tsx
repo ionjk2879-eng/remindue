@@ -468,6 +468,28 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {forwardingEmail && (
+        <div className="forwarding-banner">
+          <span className="forwarding-banner__label">📧 주문확인 메일 자동 등록 주소</span>
+          <div className="forwarding-banner__row">
+            <span className="mono forwarding-banner__address">{forwardingEmail}</span>
+            <button type="button" className="btn-text" onClick={handleCopyForwardingEmail}>
+              {addressCopied ? '복사됨' : '복사'}
+            </button>
+            <button type="button" className="btn-text" onClick={handleRegenerateForwardingAddress} disabled={regenerating}>
+              {regenerating ? '재생성 중...' : '재생성'}
+            </button>
+          </div>
+          <p className="forwarding-banner__hint">
+            쇼핑몰 주문확인 메일을 이 주소로 전달(포워딩)하면 자동으로 아래 "확인 대기" 목록에 올라와요.
+          </p>
+          <p className="forwarding-banner__privacy">
+            🔒 전달하신 이메일은 상품명·날짜 추출을 위해 Claude API(Anthropic)로 처리되며, 처리 후
+            원본은 저장되지 않습니다.
+          </p>
+        </div>
+      )}
+
       {purchasesLoaded && purchases.length > 0 && (
         <div className="summary-board">
           <button
@@ -656,28 +678,6 @@ export default function DashboardPage() {
       )}
 
       <PushPermissionBanner />
-
-      {forwardingEmail && (
-        <div className="forwarding-banner">
-          <span className="forwarding-banner__label">📧 주문확인 메일 자동 등록 주소</span>
-          <div className="forwarding-banner__row">
-            <span className="mono forwarding-banner__address">{forwardingEmail}</span>
-            <button type="button" className="btn-text" onClick={handleCopyForwardingEmail}>
-              {addressCopied ? '복사됨' : '복사'}
-            </button>
-            <button type="button" className="btn-text" onClick={handleRegenerateForwardingAddress} disabled={regenerating}>
-              {regenerating ? '재생성 중...' : '재생성'}
-            </button>
-          </div>
-          <p className="forwarding-banner__hint">
-            쇼핑몰 주문확인 메일을 이 주소로 전달(포워딩)하면 자동으로 아래 "확인 대기" 목록에 올라와요.
-          </p>
-          <p className="forwarding-banner__privacy">
-            🔒 전달하신 이메일은 상품명·날짜 추출을 위해 Claude API(Anthropic)로 처리되며, 처리 후
-            원본은 저장되지 않습니다.
-          </p>
-        </div>
-      )}
 
       {pendingItems.length > 0 && (
         <div className="pending-section">
