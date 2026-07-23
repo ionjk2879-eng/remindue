@@ -33,7 +33,7 @@ async function getOwnedPurchase(db: D1Database, userId: number, id: number): Pro
 
 function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRequestBody {
   if (!body.type || !PURCHASE_TYPES.includes(body.type)) {
-    throw new BadRequestError('type은 ELECTRONICS/ONLINE_ORDER/RECURRING_DELIVERY 중 하나여야 합니다');
+    throw new BadRequestError('type은 ELECTRONICS/ONLINE_ORDER/RECURRING_DELIVERY/SUBSCRIPTION 중 하나여야 합니다');
   }
   if (!body.itemName || !body.itemName.trim()) {
     throw new BadRequestError('itemName은 필수입니다');

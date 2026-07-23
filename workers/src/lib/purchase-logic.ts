@@ -5,7 +5,7 @@
 // This now anchors to baseDate as a fixed recurring schedule instead (see computeDeadline).
 
 import { addDays, addMonths, daysBetween, nextFixedDayOfMonth, parseDateOnly, todayDateOnly } from './date';
-import type { PurchaseRow, PurchaseType } from '../types';
+import { isRecurringType, type PurchaseRow, type PurchaseType } from '../types';
 
 export const DEFAULT_WARRANTY_MONTHS = 12;
 export const DEFAULT_RETURN_DEADLINE_DAYS = 7;
@@ -31,7 +31,8 @@ export function computeDeadline(row: DeadlineInput): DeadlineResult {
         deadline: addDays(row.base_date, row.return_deadline_days ?? DEFAULT_RETURN_DEADLINE_DAYS),
         deliveryRound: null,
       };
-    case 'RECURRING_DELIVERY': {
+    case 'RECURRING_DELIVERY':
+    case 'SUBSCRIPTION': {
       const scheduleType = row.schedule_type ?? 'INTERVAL';
 
       if (scheduleType === 'FIXED_DAY') {
@@ -76,7 +77,7 @@ export function computeStatusLabel(dDay: number): string {
  * (다음 일정은 항상 baseDate 기준 고정 스케줄로만 계산됨).
  */
 export function confirmReceiptToday(type: PurchaseType): string {
-  if (type !== 'RECURRING_DELIVERY') {
+  if (!isRecurringType(type)) {
     throw new InvalidPurchaseOperationError('정기구독·배송 항목에서만 회차 확인을 할 수 있습니다');
   }
   return todayDateOnly();

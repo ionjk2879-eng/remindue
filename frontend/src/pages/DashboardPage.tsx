@@ -14,7 +14,7 @@ import {
 import { fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
 import { completeOnboarding as apiCompleteOnboarding, regenerateForwardingAddress } from '../api/settings';
 import { fetchReceivedInvites, fetchSharedPurchases } from '../api/sharing';
-import type { PendingPurchase, Purchase, PurchaseType, ScheduleType, SharedAccess } from '../types';
+import { isRecurringType, type PendingPurchase, type Purchase, type PurchaseType, type ScheduleType, type SharedAccess } from '../types';
 import { useAuth } from '../context/AuthContext';
 import StampBadge from '../components/StampBadge';
 import PremiumBadge from '../components/PremiumBadge';
@@ -24,22 +24,25 @@ import OnboardingOverlay from '../components/OnboardingOverlay';
 const TYPE_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '전자제품 (보증기간)',
   ONLINE_ORDER: '온라인 주문 (반품기한)',
-  RECURRING_DELIVERY: '정기구독·배송',
+  RECURRING_DELIVERY: '정기배송',
+  SUBSCRIPTION: '정기구독',
 };
 
 const DEADLINE_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '보증만료일',
   ONLINE_ORDER: '반품기한',
   RECURRING_DELIVERY: '다음 일정',
+  SUBSCRIPTION: '다음 일정',
 };
 
 const TYPE_SHORT_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '전자제품',
   ONLINE_ORDER: '온라인주문',
-  RECURRING_DELIVERY: '정기구독·배송',
+  RECURRING_DELIVERY: '정기배송',
+  SUBSCRIPTION: '정기구독',
 };
 
-const PURCHASE_TYPES: PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY'];
+const PURCHASE_TYPES: PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY', 'SUBSCRIPTION'];
 
 type FilterType = 'ALL' | PurchaseType;
 
@@ -48,7 +51,8 @@ const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
   { key: 'ALL', label: '전체' },
   { key: 'ELECTRONICS', label: 'A/S보증' },
   { key: 'ONLINE_ORDER', label: '환불' },
-  { key: 'RECURRING_DELIVERY', label: '정기구독·배송' },
+  { key: 'RECURRING_DELIVERY', label: '정기배송' },
+  { key: 'SUBSCRIPTION', label: '정기구독' },
 ];
 
 /** "7일 이내" 배너와 동일한 기준 — 이 안으로 들어오면 다시 챙길 때가 된 것으로 본다. */
@@ -74,7 +78,7 @@ function todayDateOnly(): string {
  * 잦아 그 비교 로직 자체를 제거했다 — 지금은 "오늘 확인 버튼을 눌렀는가"만 본다.)
  */
 function isFullyConfirmed(p: Purchase): boolean {
-  return p.type === 'RECURRING_DELIVERY' && p.lastDeliveredDate === todayDateOnly();
+  return isRecurringType(p.type) && p.lastDeliveredDate === todayDateOnly();
 }
 
 export default function DashboardPage() {
@@ -195,7 +199,7 @@ export default function DashboardPage() {
     resetForm();
     setType(item.type);
     setItemName(item.itemName ?? '');
-    if (item.type === 'RECURRING_DELIVERY') {
+    if (isRecurringType(item.type)) {
       setBaseDate(item.expectedDeliveryDate ?? item.orderDate ?? '');
       const st = item.scheduleType ?? 'INTERVAL';
       setScheduleType(st);
@@ -215,6 +219,7 @@ export default function DashboardPage() {
     await ignorePendingPurchase(id);
     await loadPending();
   };
+
 
   const handleRegenerateForwardingAddress = async () => {
     if (!window.confirm('주소를 재생성하면 기존 주소로는 더 이상 메일을 받을 수 없어요. 계속할까요?')) return;
@@ -250,9 +255,9 @@ export default function DashboardPage() {
       baseDate,
       warrantyMonths: type === 'ELECTRONICS' ? Number(warrantyMonths) : undefined,
       returnDeadlineDays: type === 'ONLINE_ORDER' ? Number(returnDeadlineDays) : undefined,
-      intervalDays: type === 'RECURRING_DELIVERY' && scheduleType === 'INTERVAL' ? Number(intervalDays) : undefined,
-      scheduleType: type === 'RECURRING_DELIVERY' ? scheduleType : undefined,
-      fixedDayOfMonth: type === 'RECURRING_DELIVERY' && scheduleType === 'FIXED_DAY' ? Number(fixedDayOfMonth) : undefined,
+      intervalDays: isRecurringType(type) && scheduleType === 'INTERVAL' ? Number(intervalDays) : undefined,
+      scheduleType: isRecurringType(type) ? scheduleType : undefined,
+      fixedDayOfMonth: isRecurringType(type) && scheduleType === 'FIXED_DAY' ? Number(fixedDayOfMonth) : undefined,
     };
     const confirmingPendingId = pendingConfirmId;
     try {
@@ -329,13 +334,13 @@ export default function DashboardPage() {
   };
 
   const urgent = purchases
-    .filter((p) => p.type === 'RECURRING_DELIVERY' ? p.dDay === 0 : p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
+    .filter((p) => isRecurringType(p.type) ? p.dDay === 0 : p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
   const urgentAllHandled = urgent.length > 0 && urgent.every(isFullyConfirmed);
 
-  /** 프리미엄 알림 기능(주간 요약) — 정기배송 중 이번 주(오늘부터 7일 이내) 배송 예정인 것만. */
+  /** 프리미엄 알림 기능(주간 요약) — 정기배송·구독 중 이번 주(오늘부터 7일 이내) 예정인 것만. */
   const weeklyRecurring = purchases
-    .filter((p) => p.type === 'RECURRING_DELIVERY' && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
+    .filter((p) => isRecurringType(p.type) && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
 
   const displayedPurchases = filterType === 'ALL' ? purchases : purchases.filter((p) => p.type === filterType);
@@ -416,7 +421,7 @@ export default function DashboardPage() {
                     </span>
                   </p>
                   <p className="pending-card__meta">
-                    {item.type === 'RECURRING_DELIVERY' ? (
+                    {isRecurringType(item.type) ? (
                       <>
                         {item.scheduleType === 'FIXED_DAY' && item.fixedDayOfMonth !== null ? (
                           <>매월 <span className="mono">{item.fixedDayOfMonth}일</span> 고정</>
@@ -461,15 +466,15 @@ export default function DashboardPage() {
                       이 정보는 AI가 완벽히 인식하지 못할 수 있어요. 직접 입력을 더 추천해요.
                     </p>
                   )}
-                  {item.type === 'RECURRING_DELIVERY' && item.scheduleType !== 'FIXED_DAY' && item.intervalDays === null && (
+                  {isRecurringType(item.type) && item.scheduleEstimated && (
                     <p className="pending-card__hint">
-                      배송 주기가 명시되지 않아 직접 입력이 필요해요.
+                      주기가 명확히 적혀있지 않아 30일마다로 추정했어요 — 정확한 주기를 확인해주세요.
                     </p>
                   )}
                 </div>
                 <div className="pending-card__actions">
                   <button type="button" className="btn btn-sm" onClick={() => handlePendingRegisterClick(item)}>
-                    {item.type === 'RECURRING_DELIVERY' && (item.scheduleType === 'FIXED_DAY' ? item.fixedDayOfMonth !== null : item.intervalDays !== null) ? '바로 등록' : '확인 후 등록'}
+                    {isRecurringType(item.type) && !item.scheduleEstimated ? '바로 등록' : '확인 후 등록'}
                   </button>
                   <button type="button" className="btn-text" onClick={() => handleIgnorePending(item.id)}>
                     무시
@@ -511,7 +516,8 @@ export default function DashboardPage() {
               <select id="type" value={type} onChange={(e) => setType(e.target.value as PurchaseType)}>
                 <option value="ELECTRONICS">전자제품</option>
                 <option value="ONLINE_ORDER">온라인 주문</option>
-                <option value="RECURRING_DELIVERY">정기구독·배송</option>
+                <option value="RECURRING_DELIVERY">정기배송</option>
+                <option value="SUBSCRIPTION">정기구독</option>
               </select>
             </div>
           </div>
@@ -530,7 +536,7 @@ export default function DashboardPage() {
 
           <div className="field field--date">
             <label htmlFor="baseDate">
-              {type === 'RECURRING_DELIVERY' ? '시작일' : type === 'ONLINE_ORDER' ? '수령일' : '구매일'}
+              {isRecurringType(type) ? '시작일' : type === 'ONLINE_ORDER' ? '수령일' : '구매일'}
             </label>
             <input id="baseDate" type="date" value={baseDate} onChange={(e) => setBaseDate(e.target.value)} required />
           </div>
@@ -557,7 +563,7 @@ export default function DashboardPage() {
               />
             </div>
           )}
-          {type === 'RECURRING_DELIVERY' && (
+          {isRecurringType(type) && (
             <div className="schedule-radio-group">
               <label className="schedule-radio">
                 <input
@@ -581,7 +587,7 @@ export default function DashboardPage() {
               </label>
             </div>
           )}
-          {type === 'RECURRING_DELIVERY' && scheduleType === 'INTERVAL' && (
+          {isRecurringType(type) && scheduleType === 'INTERVAL' && (
             <div className="field field--narrow">
               <label htmlFor="intervalDays">주기(일)</label>
               <input
@@ -592,7 +598,7 @@ export default function DashboardPage() {
               />
             </div>
           )}
-          {type === 'RECURRING_DELIVERY' && scheduleType === 'FIXED_DAY' && (
+          {isRecurringType(type) && scheduleType === 'FIXED_DAY' && (
             <div className="field field--narrow">
               <label htmlFor="fixedDayOfMonth">매월 몇 일</label>
               <input
@@ -607,8 +613,12 @@ export default function DashboardPage() {
           )}
           {type === 'RECURRING_DELIVERY' && editingId === null && (
             <p className="register-form__hint">
-              생수·밀키트 같은 정기배송, 넷플릭스·도메인 갱신 같은 정기구독 등<br />
-              주기적으로 반복되는 모든 항목에 사용할 수 있어요.
+              생수·밀키트·사료처럼 실물이 정기적으로 배송되는 항목이에요.
+            </p>
+          )}
+          {type === 'SUBSCRIPTION' && editingId === null && (
+            <p className="register-form__hint">
+              넷플릭스·도메인/호스팅 갱신·멤버십처럼 실물 배송 없이 정기결제되는 항목이에요.
             </p>
           )}
 
@@ -689,7 +699,7 @@ export default function DashboardPage() {
                 <div className="ticket-card__body">
                   <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
                   <h3 className="ticket-card__title">{p.itemName}</h3>
-                  {p.type === 'RECURRING_DELIVERY' && p.deliveryRound !== null ? (
+                  {isRecurringType(p.type) && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
                       {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
@@ -702,7 +712,7 @@ export default function DashboardPage() {
                     </p>
                   )}
                   <div className="ticket-card__actions">
-                    {p.type === 'RECURRING_DELIVERY' && p.dDay <= 0 &&
+                    {isRecurringType(p.type) && p.dDay <= 0 &&
                       (isFullyConfirmed(p) ? (
                         <span className="confirm-badge">✓ 확인완료</span>
                       ) : (
@@ -786,7 +796,7 @@ export default function DashboardPage() {
                 <div className="ticket-card__body">
                   <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
                   <h3 className="ticket-card__title">{p.itemName}</h3>
-                  {p.type === 'RECURRING_DELIVERY' && p.deliveryRound !== null ? (
+                  {isRecurringType(p.type) && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
                       {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
