@@ -6,22 +6,23 @@ import Footer from './components/Footer';
 import LandingPage from './pages/LandingPage';
 import type { ReactNode } from 'react';
 
-// LandingPage는 코드분할하지 않는다 — scripts/prerender.mjs가 dist/index.html에 이 페이지를
-// 미리 렌더링해두는데, lazy()로 분리하면 클라이언트가 그 청크를 다시 비동기로 불러오는 찰나에
-// Suspense가 fallback을 커밋하면서 프리렌더링된 헤드라인이 잠깐 사라졌다 재등장하는 깜빡임이
-// 생긴다. 즉시 로드해서 첫 렌더가 프리렌더링 결과와 한 번에 일치하게 만든다.
+// 프리렌더링된 페이지는 lazy()로 분리하지 않는다 — lazy()면 클라이언트가 그 청크를 다시
+// 비동기로 불러오는 찰나에 Suspense가 fallback("불러오는 중...")을 커밋하면서 프리렌더링된
+// 콘텐츠가 잠깐 사라졌다 재등장하는 깜빡임이 생긴다. 즉시 로드해서 첫 렌더가 프리렌더링
+// 결과와 한 번에 일치하게 만든다. (프리렌더 대상: /, /pricing, /privacy, /terms)
+import PricingPage from './pages/PricingPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsPage from './pages/TermsPage';
+
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const PricingPage = lazy(() => import('./pages/PricingPage'));
 const FeedbackPage = lazy(() => import('./pages/FeedbackPage'));
 const FeedbackDetailPage = lazy(() => import('./pages/FeedbackDetailPage'));
 const BillingSuccessPage = lazy(() => import('./pages/BillingSuccessPage'));
 const BillingAuthSuccessPage = lazy(() => import('./pages/BillingAuthSuccessPage'));
 const BillingFailPage = lazy(() => import('./pages/BillingFailPage'));
-const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
-const TermsPage = lazy(() => import('./pages/TermsPage'));
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
