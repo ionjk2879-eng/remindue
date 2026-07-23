@@ -474,7 +474,6 @@ select {
 .field input:focus,
 .field select:focus,
 .field textarea:focus {
-  border-bottom-color: var(--ink);
   outline: none;
 }
 
@@ -1080,8 +1079,10 @@ a.plan-counter:hover {
 }
 
 .register-form__row .field--narrow {
-  flex: 0 1 110px;
-  min-width: 90px;
+  /* "정기구독·배송" 옵션 텍스트 + 색상 점 + select 기본 드롭다운 화살표가 모두 들어갈 폭 —
+     110px였을 때는 이 옵션 텍스트가 화살표 아이콘과 겹쳐 보였다. */
+  flex: 0 1 170px;
+  min-width: 150px;
 }
 
 .register-form__row .field--date {
