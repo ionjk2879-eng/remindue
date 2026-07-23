@@ -962,10 +962,6 @@ a.plan-counter:hover {
   color: var(--ink-soft);
 }
 
-.forwarding-banner__photo-row {
-  margin-top: 10px;
-}
-
 .forwarding-banner__privacy {
   margin-top: 6px;
   font-size: 0.74rem;

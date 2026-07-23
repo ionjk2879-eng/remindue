@@ -2,14 +2,12 @@
 
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
-import { toPendingPurchaseResponse, toPurchaseResponse } from '../lib/mapper';
+import { toPurchaseResponse } from '../lib/mapper';
 import { FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
 import { buildCsv, buildPdf } from '../lib/export';
-import { extractOrderFromImage, isAllowedImageMediaType, isImageTooLarge } from '../lib/image-extract';
-import { insertPendingPurchase } from '../lib/pending-purchase-intake';
 import { BadRequestError, ForbiddenError, PaymentRequiredError } from '../lib/errors';
 import { PURCHASE_TYPES } from '../types';
-import type { Env, PendingPurchaseRow, PurchaseRequestBody, PurchaseRow, UserRow } from '../types';
+import type { Env, PurchaseRequestBody, PurchaseRow, UserRow } from '../types';
 
 const purchases = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 purchases.use('*', authMiddleware);
@@ -111,59 +109,6 @@ purchases.get('/export', async (c) => {
       'Content-Disposition': 'attachment; filename="remindue_export.pdf"',
     },
   });
-});
-
-/**
- * 사진(영수증/결제내역 스크린샷)으로 등록(프리미엄 전용, 이메일 자동등록과 동일한 게이트) —
- * 이메일 파싱과 완전히 동일한 판단 로직(order-extraction.ts)을 이미지 입력에 적용해서
- * pending_purchases에 확인 대기 상태로 추가한다. 바로 purchases에 등록하지 않는 이유도 이메일과
- * 같다 — AI가 오인식할 수 있으니 사용자가 "확인 대기" 화면에서 검토 후 등록하게 한다.
- */
-purchases.post('/analyze-image', async (c) => {
-  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
-  if (user.is_premium !== 1) {
-    throw new PaymentRequiredError('사진으로 등록은 프리미엄 전용 기능이에요.');
-  }
-
-  const body = await c.req
-    .json<Partial<{ image: string; mediaType: string }>>()
-    .catch(() => ({}) as Partial<{ image: string; mediaType: string }>);
-  if (!body.image || !body.mediaType) {
-    throw new BadRequestError('image, mediaType은 필수입니다');
-  }
-  if (!isAllowedImageMediaType(body.mediaType)) {
-    throw new BadRequestError('지원하지 않는 이미지 형식이에요. JPEG/PNG/WEBP/GIF만 가능해요.');
-  }
-  if (isImageTooLarge(body.image)) {
-    throw new BadRequestError('이미지 용량이 너무 커요(최대 8MB).');
-  }
-
-  const { order: extracted, failureReason } = await extractOrderFromImage(c.env.ANTHROPIC_API_KEY, body.image, body.mediaType);
-  if (!extracted || !extracted.isOrderConfirmation) {
-    // 이미지 자체는 절대 로그에 남기지 않는다 — AI의 판단 결과(구조화 필드)만 남겨서 오분류 원인을
-    // 진단할 수 있게 한다. extracted가 null이면 API 호출 자체가 실패한 것(failureReason 참고).
-    console.log(
-      `[analyze-image] 주문확인으로 인식되지 않음 (사용자: ${user.email}): ${JSON.stringify(extracted)}, failureReason=${failureReason}`
-    );
-    // development(로컬/dev 프리뷰)에서만: wrangler tail이 dev 프리뷰 트래픽을 못 잡는 문제 때문에
-    // 오분류 원인을 바로 확인할 수 있게 응답 본문에 원시 판단 결과를 실어준다. production에서는
-    // 절대 노출되지 않는다(ENVIRONMENT가 항상 'production').
-    if (c.env.ENVIRONMENT === 'development') {
-      return c.json(
-        {
-          message: '이미지에서 주문/결제 정보를 찾지 못했어요. 다른 사진으로 시도해주세요.',
-          debug: extracted ?? { failureReason },
-        },
-        400
-      );
-    }
-    throw new BadRequestError('이미지에서 주문/결제 정보를 찾지 못했어요. 다른 사진으로 시도해주세요.');
-  }
-
-  const id = await insertPendingPurchase(c.env.DB, user.id, 'image', extracted);
-  const created = await c.env.DB.prepare('SELECT * FROM pending_purchases WHERE id = ?').bind(id).first<PendingPurchaseRow>();
-
-  return c.json(toPendingPurchaseResponse(created!), 201);
 });
 
 purchases.post('/', async (c) => {

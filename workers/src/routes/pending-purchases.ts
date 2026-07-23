@@ -1,5 +1,5 @@
-// 이메일(email-intake.ts) 또는 사진 업로드(routes/purchases.ts의 /analyze-image)로 자동
-// 추출된 "확인 대기" 항목 조회/처리 API. 사용자가 검토해서 등록/무시를 고른다.
+// 이메일(email-intake.ts)로 자동 추출된 "확인 대기" 항목 조회/처리 API.
+// 사용자가 검토해서 등록/무시를 고른다.
 
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';

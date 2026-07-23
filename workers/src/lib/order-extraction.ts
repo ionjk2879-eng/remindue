@@ -1,11 +1,9 @@
-// 이메일 포워딩(email-extract.ts)과 영수증/결제내역 이미지 업로드(image-extract.ts)가 공유하는
-// 주문확인 판별 + 핵심 필드 추출 로직. 입력 형태(텍스트 vs 이미지)만 다르고 분류 기준·스키마·
-// 개인정보 보호 규칙은 완전히 동일해야 하므로 한 곳에 모아둔다.
+// 이메일 포워딩(email-extract.ts)으로 들어온 메일의 주문확인 판별 + 핵심 필드 추출 로직.
 // SDK 없이 fetch로 Claude Messages API를 직접 호출한다(email.ts의 Resend REST 호출과 같은 패턴).
 
 const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
-// 분류 + 짧은 필드 추출이라 가장 저렴/빠른 모델로 충분하다. 비전(이미지 입력)도 지원한다.
+// 분류 + 짧은 필드 추출이라 가장 저렴/빠른 모델로 충분하다.
 const MODEL = 'claude-haiku-4-5';
 
 export interface ExtractedOrder {
@@ -41,7 +39,7 @@ const EXTRACTION_SCHEMA = {
     isOrderConfirmation: {
       type: 'boolean',
       description:
-        '이 원본(이메일 또는 영수증/결제내역 이미지)이 온라인 쇼핑몰/구독 서비스의 "주문 완료", "결제 완료", "정기배송 신청/변경 완료", "구독 시작" 확인이면 true. 광고, 뉴스레터, 배송 상태 업데이트(이미 지난 주문의 배송 출발·도착 알림), 설문·리뷰 요청, 다른 서비스(택배, OTP, 뉴스 등) 또는 주문과 무관한 이미지는 false.',
+        '이 메일이 온라인 쇼핑몰/구독 서비스의 "주문 완료", "결제 완료", "정기배송 신청/변경 완료", "구독 시작" 확인 메일이면 true. 광고, 뉴스레터, 배송 상태 업데이트(이미 지난 주문의 배송 출발·도착 알림), 설문·리뷰 요청, 다른 서비스(택배, OTP, 뉴스 등) 메일은 false.',
     },
     itemName: {
       anyOf: [{ type: 'string' }, { type: 'null' }],
@@ -132,25 +130,21 @@ const EXTRACTION_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-const SYSTEM_PROMPT = `너는 이메일 또는 이미지(영수증/결제내역/구독 화면 스크린샷)로 전달된 원본을 분류하고
-핵심 정보를 추출하는 전문 파서다. 원본은 이메일 본문 텍스트이거나 이미지일 수 있다 — 어느 쪽이든
-아래 규칙을 동일하게 적용해라.
+const SYSTEM_PROMPT = `너는 이메일 포워딩으로 전달된 메일을 분류하고 핵심 정보를 추출하는 전문 파서다.
 
-## 1단계: 원본 종류 판단 (isOrderConfirmation)
+## 1단계: 메일 종류 판단 (isOrderConfirmation)
 아래 중 하나면 true:
-- 온라인 쇼핑몰 주문/결제 완료 확인 (쿠팡, 네이버쇼핑, 무신사, 올리브영, 아마존 등)
-- 정기배송 신청/구독 시작/구독 변경/구독 갱신 확인
+- 온라인 쇼핑몰 주문/결제 완료 확인 메일 (쿠팡, 네이버쇼핑, 무신사, 올리브영, 아마존 등)
+- 정기배송 신청/구독 시작/구독 변경/구독 갱신 확인 메일
 - 넷플릭스·유튜브 프리미엄·스포티파이 등 디지털 구독 서비스의 결제 완료/갱신 알림
 - 도메인·호스팅·소프트웨어 라이선스 갱신 완료 또는 갱신 예정 안내
-- (이미지) 위 내용이 담긴 영수증, 결제 완료 화면, 구독 관리 화면 스크린샷
 
 아래는 전부 false:
 - 광고, 프로모션, 뉴스레터
 - 배송 상태 업데이트 (배송 출발·도착 알림)
-- "구매 확정해주세요" / "구매확정 요청" (배송 완료 후 확정 유도)
+- "구매 확정해주세요" / "구매확정 요청" 메일 (배송 완료 후 확정 유도 메일)
 - 설문·리뷰 요청
-- OTP, 비밀번호 재설정, 기타 인증
-- (이미지) 주문/결제와 무관한 사진, 글자를 알아볼 수 없을 정도로 흐리거나 잘린 이미지
+- OTP, 비밀번호 재설정, 기타 인증 메일
 
 확신이 서지 않으면 false를 선택해라 — 애매하면 등록 대기 목록에 올리지 않는 쪽이 안전하다.
 
@@ -215,26 +209,17 @@ intervalDays 변환 기준:
 카드번호 포함)은 절대 어떤 필드에도 포함하지 마라.`;
 
 type MessageContent =
-  | { type: 'text'; text: string }
-  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
+  | { type: 'text'; text: string };
 
-export interface ExtractionResult {
-  order: ExtractedOrder | null;
-  /** order가 null일 때만 채워진다 — API 호출 자체가 왜 실패했는지(키 없음/HTTP 에러/거부/파싱
-   *  실패). wrangler tail이 안 잡히는 dev 프리뷰에서도 원인을 확인할 수 있게 라우트에 노출한다. */
-  failureReason: string | null;
-}
-
-/** 로그에 어느 채널(email/image) 호출인지 남기기 위한 접두사 — 호출부에서 넘긴다. */
+/** 로그에 어느 채널 호출인지 남기기 위한 접두사 — 호출부에서 넘긴다. */
 export async function callExtractionApi(
   apiKey: string,
   content: MessageContent[],
   logPrefix: string
-): Promise<ExtractionResult> {
+): Promise<ExtractedOrder | null> {
   if (!apiKey) {
-    const reason = 'ANTHROPIC_API_KEY가 없어 파싱을 건너뜁니다';
-    console.warn(`[${logPrefix}] ${reason}`);
-    return { order: null, failureReason: reason };
+    console.warn(`[${logPrefix}] ANTHROPIC_API_KEY가 없어 파싱을 건너뜁니다`);
+    return null;
   }
 
   const res = await fetch(ANTHROPIC_ENDPOINT, {
@@ -255,31 +240,27 @@ export async function callExtractionApi(
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    const reason = `Claude API 호출 실패 (${res.status}): ${body}`;
-    console.error(`[${logPrefix}] ${reason}`);
-    return { order: null, failureReason: reason };
+    console.error(`[${logPrefix}] Claude API 호출 실패 (${res.status}): ${body}`);
+    return null;
   }
 
   const data = await res.json<{ content: Array<{ type: string; text?: string }>; stop_reason: string }>();
 
   if (data.stop_reason === 'refusal') {
-    const reason = 'Claude가 이 요청 처리를 거부했습니다';
-    console.warn(`[${logPrefix}] ${reason}`);
-    return { order: null, failureReason: reason };
+    console.warn(`[${logPrefix}] Claude가 이 요청 처리를 거부했습니다`);
+    return null;
   }
 
   const textBlock = data.content.find((block) => block.type === 'text' && block.text);
   if (!textBlock?.text) {
-    const reason = `응답에 text 블록이 없습니다 (stop_reason: ${data.stop_reason})`;
-    console.error(`[${logPrefix}] ${reason}`);
-    return { order: null, failureReason: reason };
+    console.error(`[${logPrefix}] 응답에 text 블록이 없습니다 (stop_reason: ${data.stop_reason})`);
+    return null;
   }
 
   try {
-    return { order: JSON.parse(textBlock.text) as ExtractedOrder, failureReason: null };
+    return JSON.parse(textBlock.text) as ExtractedOrder;
   } catch (err) {
-    const reason = `JSON 파싱 실패: ${err}`;
-    console.error(`[${logPrefix}] ${reason}`, textBlock.text);
-    return { order: null, failureReason: reason };
+    console.error(`[${logPrefix}] JSON 파싱 실패: ${err}`, textBlock.text);
+    return null;
   }
 }

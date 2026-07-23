@@ -1,18 +1,5 @@
 import { apiClient } from './client';
-import type { PendingPurchase, Purchase, PurchaseInput } from '../types';
-
-/** File -> base64(data URL 접두사 제거) — 서버로 넘길 이미지 페이로드. */
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.slice(result.indexOf(',') + 1));
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
+import type { Purchase, PurchaseInput } from '../types';
 
 export async function fetchPurchases(options?: { archived?: boolean }) {
   const { data } = await apiClient.get<Purchase[]>('/purchases', {
@@ -47,16 +34,6 @@ export async function archivePurchase(id: number) {
 
 export async function unarchivePurchase(id: number) {
   const { data } = await apiClient.post<Purchase>(`/purchases/${id}/unarchive`);
-  return data;
-}
-
-/** 사진(영수증/결제내역 스크린샷)으로 등록 — 이메일 자동등록과 동일하게 결과는 확인 대기 목록에 추가된다. */
-export async function analyzeImage(file: File) {
-  const image = await fileToBase64(file);
-  const { data } = await apiClient.post<PendingPurchase>('/purchases/analyze-image', {
-    image,
-    mediaType: file.type,
-  });
   return data;
 }
 

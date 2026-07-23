@@ -95,12 +95,9 @@ Seven things are gated on `isPremium`, all checked at the call site (not inside
 4. **CSV/PDF export** — see `## Data export` below.
 5. **Family/member sharing** — see `## Sharing` below.
 6. **Archive (이력 보관)** — see `## Archive` below.
-7. **AI auto-registration (email forwarding + photo upload)** — `lib/email-intake.ts`
-   checks `user.is_premium` before calling Claude at all (free-plan forwarded mail is
-   silently dropped, no extraction attempted); `routes/purchases.ts`'s
-   `POST /analyze-image` 402s outright for free-plan users. Both funnel through the
-   same extraction core (`lib/order-extraction.ts`) and land in `pending_purchases`
-   via `lib/pending-purchase-intake.ts` — see `## AI auto-registration` below.
+7. **Email auto-registration** — `lib/email-intake.ts` checks `user.is_premium`
+   before calling Claude at all (free-plan forwarded mail is silently dropped, no
+   extraction attempted) — see `## AI auto-registration` below.
 
 (A "놓친 배송 감지" / missed-delivery-detection feature used to be premium
 benefit #2 — it compared computed delivery rounds against
@@ -283,16 +280,11 @@ Archived items are excluded from both digest crons (`lib/digest.ts`,
 `lib/weekly-digest.ts` both filter `archived_at IS NULL`) — archiving means
 "stop bothering me about this," not just "hide it from the main list."
 
-## AI auto-registration (email forwarding + photo upload)
+## AI auto-registration (email forwarding)
 
-Two intake channels feed the same `pending_purchases` review queue, sharing
-one extraction core so their classification behavior can never drift apart:
-
-- **`lib/order-extraction.ts`** — the shared schema (`ExtractedOrder`),
-  system prompt, and `callExtractionApi()` that calls the Claude Messages API
-  with `output_config.format: json_schema` (structured outputs). Both
-  channels pass the exact same schema/prompt; only the `content` blocks
-  differ (text-only for email, `image` + instruction text for photos).
+- **`lib/order-extraction.ts`** — the schema (`ExtractedOrder`), system
+  prompt, and `callExtractionApi()` that calls the Claude Messages API with
+  `output_config.format: json_schema` (structured outputs).
   **`integer` fields must not carry `minimum`/`maximum`** — Anthropic's
   structured-output schema validation rejects that (400
   `output_config.format.schema: ... properties maximum, minimum are not
@@ -304,31 +296,23 @@ one extraction core so their classification behavior can never drift apart:
   block, called from `lib/email-intake.ts` (the Cloudflare Email Routing
   handler). Premium-gated *before* calling Claude at all — free-plan mail is
   dropped with no extraction attempt.
-- **`lib/image-extract.ts`** — wraps an uploaded photo as a base64 `image`
-  content block, called from `routes/purchases.ts`'s
-  `POST /api/purchases/analyze-image`. Premium-gated with a 402. Accepts
-  JPEG/PNG/WEBP/GIF up to 8MB (`isAllowedImageMediaType` /
-  `isImageTooLarge`). Unlike email (silently dropped on no match), this is an
-  interactive request — a non-order-confirmation image 400s with a
-  user-facing message instead of silently doing nothing.
 - **`lib/pending-purchase-intake.ts`** — turns a raw `ExtractedOrder` into a
   `pending_purchases` row: `sanitizeEstimatedType`/`sanitizeReturnDeadlineDays`/
   `sanitizeFixedDayOfMonth` never trust the model's output at face value, and
   `buildPendingPurchaseFields()` resolves the FIXED_DAY→INTERVAL fallback (an
   invalid/missing `fixedDayOfMonth` demotes the item back to INTERVAL) before
   computing `scheduleEstimated`. `insertPendingPurchase(db, userId, source,
-  extracted)` is the single INSERT both channels call — `source` is `'email'`
-  or `'image'` (`pending_purchases.source`).
-- **`schedule_estimated`** (`migrations/0018`) — true when the source didn't
+  extracted)` does the INSERT — `source` is always `'email'` today
+  (`pending_purchases.source` also allows `'image'` for a possible future
+  photo-upload channel, but nothing populates that yet — a first attempt at
+  one hit an Anthropic-account-level 403 on any image-bearing request and was
+  pulled back out; see git history around `order-extraction.ts` if revisiting).
+- **`schedule_estimated`** (`migrations/0018`) — true when the email didn't
   state an exact interval/fixed-day and the AI (or the intake fallback) filled
   `intervalDays = DEFAULT_INTERVAL_DAYS` (30) as a guess. Mirrors the older
   `return_deadline_estimated` pattern. Drives the "정확한 주기를 확인해주세요"
   warning in `DashboardPage.tsx`'s pending-item cards, and flips the
   "바로 등록" vs "확인 후 등록" button label.
-
-If you touch the extraction schema, remember it's shared — a change meant
-for one channel (e.g. tightening the image prompt) silently changes email
-classification too, and vice versa.
 
 ## Account deletion (`DELETE /api/auth/account`)
 

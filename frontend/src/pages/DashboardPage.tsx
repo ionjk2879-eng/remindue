@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import {
@@ -10,7 +10,6 @@ import {
   archivePurchase,
   unarchivePurchase,
   downloadExport,
-  analyzeImage,
 } from '../api/purchases';
 import { fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
 import { completeOnboarding as apiCompleteOnboarding, regenerateForwardingAddress } from '../api/settings';
@@ -98,8 +97,6 @@ export default function DashboardPage() {
   const [forwardingEmail, setForwardingEmail] = useState('');
   const [pendingItems, setPendingItems] = useState<PendingPurchase[]>([]);
   const [pendingConfirmId, setPendingConfirmId] = useState<number | null>(null);
-  const [analyzingImage, setAnalyzingImage] = useState(false);
-  const [imageError, setImageError] = useState<string | null>(null);
   const [addressCopied, setAddressCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [filterType, setFilterType] = useState<FilterType>('ALL');
@@ -112,7 +109,6 @@ export default function DashboardPage() {
   const [purchasesLoaded, setPurchasesLoaded] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
   const itemNameInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     const data = await fetchPurchases();
@@ -224,29 +220,6 @@ export default function DashboardPage() {
     await loadPending();
   };
 
-  const handleImageButtonClick = () => imageInputRef.current?.click();
-
-  const handleImageSelected = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // 같은 파일을 다시 선택해도 onChange가 다시 뜨도록 초기화
-    if (!file) return;
-
-    setImageError(null);
-    setAnalyzingImage(true);
-    try {
-      await analyzeImage(file);
-      await loadPending();
-    } catch (err) {
-      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
-      // dev 환경에서만 서버가 debug 필드(AI의 원시 판단 결과)를 함께 내려준다 — 오분류 원인을
-      // 바로 화면에서 확인할 수 있게 메시지에 붙인다. production 응답에는 이 필드가 없다.
-      const debug = axios.isAxiosError(err) ? err.response?.data?.debug : undefined;
-      const debugSuffix = debug ? `\n\n[dev] ${JSON.stringify(debug)}` : '';
-      setImageError((message ?? '이미지를 분석하지 못했어요.') + debugSuffix);
-    } finally {
-      setAnalyzingImage(false);
-    }
-  };
 
   const handleRegenerateForwardingAddress = async () => {
     if (!window.confirm('주소를 재생성하면 기존 주소로는 더 이상 메일을 받을 수 없어요. 계속할까요?')) return;
@@ -411,7 +384,7 @@ export default function DashboardPage() {
 
       {forwardingEmail && (
         <div className="forwarding-banner">
-          <span className="forwarding-banner__label">🤖 AI 자동 등록</span>
+          <span className="forwarding-banner__label">📧 주문확인 메일 자동 등록 주소</span>
           <div className="forwarding-banner__row">
             <span className="mono forwarding-banner__address">{forwardingEmail}</span>
             <button type="button" className="btn-text" onClick={handleCopyForwardingEmail}>
@@ -424,37 +397,9 @@ export default function DashboardPage() {
           <p className="forwarding-banner__hint">
             쇼핑몰 주문확인 메일을 이 주소로 전달(포워딩)하면 자동으로 아래 "확인 대기" 목록에 올라와요.
           </p>
-
-          <div className="forwarding-banner__photo-row">
-            {isPremium ? (
-              <>
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelected}
-                  style={{ display: 'none' }}
-                />
-                <button type="button" className="btn btn-outline btn-sm" onClick={handleImageButtonClick} disabled={analyzingImage}>
-                  {analyzingImage ? '분석 중...' : '📷 영수증·결제내역 사진으로 등록'}
-                </button>
-              </>
-            ) : (
-              <span className="forwarding-banner__hint">
-                📷 영수증·결제내역 사진으로 등록도 가능해요 —{' '}
-                <Link to="/pricing">프리미엄 업그레이드하기 →</Link>
-              </span>
-            )}
-          </div>
-          {imageError && (
-            <p className="form-error" style={{ marginTop: 8, whiteSpace: 'pre-wrap' }}>
-              {imageError}
-            </p>
-          )}
-
           <p className="forwarding-banner__privacy">
-            🔒 전달하신 메일 또는 업로드한 사진은 상품명·날짜 추출을 위해 Claude API(Anthropic)로
-            처리되며, 처리 후 원본은 저장되지 않습니다.
+            🔒 전달하신 이메일은 상품명·날짜 추출을 위해 Claude API(Anthropic)로 처리되며, 처리 후
+            원본은 저장되지 않습니다.
           </p>
         </div>
       )}
