@@ -11,7 +11,7 @@ const FROM_ADDRESS = 'Remindue <onboarding@resend.dev>';
 const TYPE_SHORT_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '전자제품',
   ONLINE_ORDER: '온라인주문',
-  RECURRING_DELIVERY: '정기배송',
+  RECURRING_DELIVERY: '정기구독·배송',
 };
 
 export type { DigestItem };
@@ -179,14 +179,14 @@ export function buildWeeklyDigestEmailHtml(nickname: string, upcoming: WeeklyIte
             <tr>
               <td style="padding:16px 28px 4px;">
                 <h1 style="margin:0;font-size:19px;line-height:1.4;color:#1F2937;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
-                  ${escapeHtml(nickname)}님, 이번 주 정기배송 리포트예요
+                  ${escapeHtml(nickname)}님, 이번 주 정기구독·배송 리포트예요
                 </h1>
               </td>
             </tr>
             <tr>
               <td style="padding:4px 28px 20px;">
                 <p style="margin:0;font-size:13px;color:#6B7280;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;">
-                  D-day 알림과는 별개로, 정기배송 항목만 모아 매주 한 번 보내드려요.
+                  D-day 알림과는 별개로, 정기구독·배송 항목만 모아 매주 한 번 보내드려요.
                 </p>
               </td>
             </tr>

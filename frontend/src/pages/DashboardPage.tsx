@@ -24,19 +24,19 @@ import OnboardingOverlay from '../components/OnboardingOverlay';
 const TYPE_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '전자제품 (보증기간)',
   ONLINE_ORDER: '온라인 주문 (반품기한)',
-  RECURRING_DELIVERY: '정기배송',
+  RECURRING_DELIVERY: '정기구독·배송',
 };
 
 const DEADLINE_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '보증만료일',
   ONLINE_ORDER: '반품기한',
-  RECURRING_DELIVERY: '다음 배송일',
+  RECURRING_DELIVERY: '다음 일정',
 };
 
 const TYPE_SHORT_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '전자제품',
   ONLINE_ORDER: '온라인주문',
-  RECURRING_DELIVERY: '정기배송',
+  RECURRING_DELIVERY: '정기구독·배송',
 };
 
 const PURCHASE_TYPES: PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY'];
@@ -48,7 +48,7 @@ const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
   { key: 'ALL', label: '전체' },
   { key: 'ELECTRONICS', label: 'A/S보증' },
   { key: 'ONLINE_ORDER', label: '환불' },
-  { key: 'RECURRING_DELIVERY', label: '정기배송' },
+  { key: 'RECURRING_DELIVERY', label: '정기구독·배송' },
 ];
 
 /** "7일 이내" 배너와 동일한 기준 — 이 안으로 들어오면 다시 챙길 때가 된 것으로 본다. */
@@ -63,13 +63,13 @@ function formatShortDate(dateStr: string): string {
   return `${month}/${day}`;
 }
 
-/** date.ts의 backend todayDateOnly()와 동일한 기준(KST) — "이번 회차 수령 확인"을 오늘 이미 눌렀는지 비교에 쓴다. */
+/** date.ts의 backend todayDateOnly()와 동일한 기준(KST) — "이번 회차 확인"을 오늘 이미 눌렀는지 비교에 쓴다. */
 function todayDateOnly(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
 }
 
 /**
- * 정기배송이고 오늘 이미 "이번 회차 수령 확인"을 눌렀는지. (예전에는 계산상 회차 수와
+ * 정기구독·배송이고 오늘 이미 "이번 회차 확인"을 눌렀는지. (예전에는 계산상 회차 수와
  * delivery_confirm_count를 비교해서 "놓친 배송"까지 판단했지만, 실제 배송 지연 등으로 오탐이
  * 잦아 그 비교 로직 자체를 제거했다 — 지금은 "오늘 확인 버튼을 눌렀는가"만 본다.)
  */
@@ -495,7 +495,7 @@ export default function DashboardPage() {
               <select id="type" value={type} onChange={(e) => setType(e.target.value as PurchaseType)}>
                 <option value="ELECTRONICS">전자제품</option>
                 <option value="ONLINE_ORDER">온라인 주문</option>
-                <option value="RECURRING_DELIVERY">정기배송</option>
+                <option value="RECURRING_DELIVERY">정기구독·배송</option>
               </select>
             </div>
           </div>
@@ -514,7 +514,7 @@ export default function DashboardPage() {
 
           <div className="field field--date">
             <label htmlFor="baseDate">
-              {type === 'RECURRING_DELIVERY' ? '배송 시작일' : type === 'ONLINE_ORDER' ? '수령일' : '구매일'}
+              {type === 'RECURRING_DELIVERY' ? '시작일' : type === 'ONLINE_ORDER' ? '수령일' : '구매일'}
             </label>
             <input id="baseDate" type="date" value={baseDate} onChange={(e) => setBaseDate(e.target.value)} required />
           </div>
@@ -543,7 +543,7 @@ export default function DashboardPage() {
           )}
           {type === 'RECURRING_DELIVERY' && (
             <div className="field field--narrow">
-              <label htmlFor="intervalDays">배송주기(일)</label>
+              <label htmlFor="intervalDays">주기(일)</label>
               <input
                 id="intervalDays"
                 type="number"
@@ -551,6 +551,12 @@ export default function DashboardPage() {
                 onChange={(e) => setIntervalDays(e.target.value)}
               />
             </div>
+          )}
+          {type === 'RECURRING_DELIVERY' && editingId === null && (
+            <p className="register-form__hint">
+              생수·밀키트 같은 정기배송, 넷플릭스·도메인 갱신 같은 정기구독 등<br />
+              주기적으로 반복되는 모든 항목에 사용할 수 있어요.
+            </p>
           )}
 
           <button type="submit" className="btn">
@@ -632,7 +638,7 @@ export default function DashboardPage() {
                   <h3 className="ticket-card__title">{p.itemName}</h3>
                   {p.type === 'RECURRING_DELIVERY' && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
-                      다음 배송: <span className="mono">{p.deliveryRound}회차</span> ({formatShortDate(p.deadline)})
+                      다음 일정: <span className="mono">{p.deliveryRound}회차</span> ({formatShortDate(p.deadline)})
                     </p>
                   ) : (
                     <p className="ticket-card__deadline">
@@ -645,7 +651,7 @@ export default function DashboardPage() {
                         <span className="confirm-badge">✓ 확인완료</span>
                       ) : (
                         <button className="btn-text" onClick={() => handleMarkDelivered(p.id)}>
-                          이번 회차 수령 확인
+                          이번 회차 확인
                         </button>
                       ))}
                     <button className="btn-text" onClick={() => handleEditClick(p)}>
@@ -726,7 +732,7 @@ export default function DashboardPage() {
                   <h3 className="ticket-card__title">{p.itemName}</h3>
                   {p.type === 'RECURRING_DELIVERY' && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
-                      다음 배송: <span className="mono">{p.deliveryRound}회차</span> ({formatShortDate(p.deadline)})
+                      다음 일정: <span className="mono">{p.deliveryRound}회차</span> ({formatShortDate(p.deadline)})
                     </p>
                   ) : (
                     <p className="ticket-card__deadline">

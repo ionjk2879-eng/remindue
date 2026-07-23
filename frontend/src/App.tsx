@@ -9,10 +9,11 @@ import type { ReactNode } from 'react';
 // 프리렌더링된 페이지는 lazy()로 분리하지 않는다 — lazy()면 클라이언트가 그 청크를 다시
 // 비동기로 불러오는 찰나에 Suspense가 fallback("불러오는 중...")을 커밋하면서 프리렌더링된
 // 콘텐츠가 잠깐 사라졌다 재등장하는 깜빡임이 생긴다. 즉시 로드해서 첫 렌더가 프리렌더링
-// 결과와 한 번에 일치하게 만든다. (프리렌더 대상: /, /pricing, /privacy, /terms)
+// 결과와 한 번에 일치하게 만든다. (프리렌더 대상: /, /pricing, /privacy, /terms, /faq)
 import PricingPage from './pages/PricingPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsPage from './pages/TermsPage';
+import FaqPage from './pages/FaqPage';
 
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
@@ -113,6 +114,7 @@ export default function App() {
             />
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
             <Route path="/terms" element={<TermsPage />} />
+            <Route path="/faq" element={<FaqPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

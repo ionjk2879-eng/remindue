@@ -12,7 +12,7 @@ import type { PurchaseRow, PurchaseType } from '../types';
 const TYPE_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '전자제품',
   ONLINE_ORDER: '온라인주문',
-  RECURRING_DELIVERY: '정기배송',
+  RECURRING_DELIVERY: '정기구독·배송',
 };
 
 // Google Fonts가 서빙하는 안정적인 정적 URL(Noto Sans KR Regular, 전체 한글 음절 포함).

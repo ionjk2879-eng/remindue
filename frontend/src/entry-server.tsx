@@ -10,12 +10,14 @@ import LandingPage from './pages/LandingPage';
 import PricingPage from './pages/PricingPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsPage from './pages/TermsPage';
+import FaqPage from './pages/FaqPage';
 
 const PAGE_MAP = {
   '/': LandingPage,
   '/pricing': PricingPage,
   '/privacy': PrivacyPolicyPage,
   '/terms': TermsPage,
+  '/faq': FaqPage,
 } as const;
 
 export function render(url: keyof typeof PAGE_MAP) {

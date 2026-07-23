@@ -21,6 +21,9 @@ export default function Header() {
       <div className="site-header__right">
         {isAuthenticated ? (
           <div className="site-header__nav">
+            <Link to="/faq" className="site-header__link">
+              FAQ
+            </Link>
             <Link to="/feedback" className="site-header__link">
               문의/제안
             </Link>
@@ -37,9 +40,14 @@ export default function Header() {
             </button>
           </div>
         ) : (
-          <Link to="/login" className="btn btn-outline btn-sm">
-            로그인
-          </Link>
+          <>
+            <Link to="/faq" className="site-header__link">
+              FAQ
+            </Link>
+            <Link to="/login" className="btn btn-outline btn-sm">
+              로그인
+            </Link>
+          </>
         )}
         <ThemeToggle />
       </div>
