@@ -37,6 +37,8 @@ export interface ExtractedOrder {
   scheduleEstimated: boolean;
   /** 판매처/브랜드명(예: "쿠팡", "네이버", "Netflix"). 감지 불가하면 null. */
   brand: string | null;
+  /** brand의 공식 도메인(예: "coupang.com", "netflix.com"). 로고 표시용 — 확신 없으면 null. */
+  brandDomain: string | null;
 }
 
 const EXTRACTION_SCHEMA = {
@@ -139,9 +141,22 @@ const EXTRACTION_SCHEMA = {
     brand: {
       anyOf: [{ type: 'string' }, { type: 'null' }],
       description:
-        '이 주문/구독의 판매처 또는 서비스 브랜드명. 발신 도메인·발신자 이름·메일 본문에서 ' +
-        '판매처를 명확히 특정할 수 있을 때만 채운다(예: "쿠팡", "네이버", "Netflix", "카카오", "Apple", "Microsoft"). ' +
+        '판매처 또는 브랜드명. 아래 우선순위로 판단한다.\n' +
+        '1) 발신 도메인/발신자명이 마켓플레이스·서비스 자체(쿠팡, 네이버, 넷플릭스, 카카오 등)면 그 이름.\n' +
+        '2) 발신 도메인이 브랜드 자사 도메인이거나, 마켓플레이스 안에서도 "공식스토어"/"공식판매처"/' +
+        '"공식몰"/"official store" 등으로 명시된 셀러라면 그 원 브랜드명(예: "Nike", "삼성").\n' +
+        '3) "병행수입", "해외구매대행", "정품수입", "총판", "리셀러" 등 공식 여부가 불명확하거나 ' +
+        '제3자 판매·수입임이 드러나면, 원 브랜드명을 추측하지 말고 1)의 마켓플레이스명으로 채우거나' +
+        '(마켓플레이스 주문이면) 그마저 불명확하면 null. 상품명에 브랜드명이 보인다는 이유만으로 ' +
+        '2)를 적용하지 마라 — 반드시 "공식" 근거(자사 도메인 또는 명시적 공식스토어 표기)가 있어야 한다.\n' +
         '확신하기 어려우면 null. isOrderConfirmation=false이면 반드시 null.',
+    },
+    brandDomain: {
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+      description:
+        '위 brand의 공식 도메인(로고 표시용, 예: "coupang.com", "netflix.com", "nike.com"). ' +
+        'brand가 null이면 반드시 null. brand가 있어도 그 회사의 정확한 공식 도메인을 확신할 수 없으면 ' +
+        '반드시 null(틀린 도메인을 추측해서 채우지 마라). "www." 접두사·경로 없이 순수 도메인만.',
     },
   },
   required: [
@@ -159,6 +174,7 @@ const EXTRACTION_SCHEMA = {
     'fixedDayOfMonth',
     'scheduleEstimated',
     'brand',
+    'brandDomain',
   ],
   additionalProperties: false,
 } as const;
@@ -249,6 +265,29 @@ intervalDays 변환 기준:
 실제 결제/청구된 총액을 원(KRW) 단위 정수로 추출("12,900원"→12900). 여러 금액이 나오면
 할인 전 정가가 아니라 최종 결제금액을 우선. 통화 기호·콤마 없는 순수 정수만 담고, 원본에
 금액이 전혀 없으면 null.
+
+## 8단계: 판매처/브랜드 판단 (brand / brandDomain) — 오탐 방지가 최우선
+로고 표시에 쓰이는 필드라 "그럴듯하게 추측"하는 게 가장 위험하다. 아래 우선순위를 순서대로 적용해라.
+
+1. **마켓플레이스/서비스 자체 발신**: 쿠팡, 네이버, 지마켓, 무신사, 넷플릭스, 카카오처럼 발신 도메인·
+   발신자명이 마켓플레이스/서비스 그 자체면 brand=그 이름, brandDomain=그 서비스의 잘 알려진 공식
+   도메인(예: "쿠팡"→"coupang.com").
+2. **브랜드의 공식 채널로 확인되는 경우만** 원 브랜드명을 brand에 채운다:
+   - 발신 도메인이 그 브랜드 자사 도메인이거나 (예: nike.com에서 온 메일)
+   - 마켓플레이스 안이어도 "OO 공식스토어", "OO 공식판매처", "OO 공식몰", "official store" 등
+     판매자명 자체에 "공식"이 명시된 경우
+   이때만 brand=원 브랜드명, brandDomain=그 브랜드의 잘 알려진 공식 도메인.
+   예: "나이키 공식 온라인 스토어에서 발송되었습니다" → brand="Nike", brandDomain="nike.com"
+   예: 무신사 스토어의 판매자명이 "나이키 공식 스토어" → brand="Nike", brandDomain="nike.com"
+3. **공식 여부가 불명확하거나 제3자 판매/수입임이 드러나는 경우는 원 브랜드를 절대 추측하지 마라**:
+   "병행수입", "해외구매대행", "정품수입", "총판", "리셀러", 또는 그냥 개인/스토어명만 있고
+   "공식" 표기가 없는 경우 → 1)의 마켓플레이스명으로 대체하거나(마켓플레이스 주문이면),
+   마켓플레이스도 특정 안 되면 brand=null.
+   예: "쿠팡에서 [정품수입] 삼성 보조배터리 주문이 접수되었습니다" (셀러가 "공식"이라고 안 밝힘)
+   → brand="쿠팡" (O), brand="삼성" (X, 추측 금지)
+4. **brandDomain은 brand보다 더 보수적으로**: brand를 채웠더라도 그 회사의 정확한 도메인 철자를
+   확신할 수 없으면 brandDomain=null로 남겨라. 틀린 도메인보다 로고 없이 이름만 보여주는 게 낫다.
+5. isOrderConfirmation=false면 brand=null, brandDomain=null.
 
 ## 개인정보 보호
 상품명, 날짜, 주기, 종류, 카테고리, 금액만 추출. 수령인 이름, 전화번호, 배송지 주소, 카드번호·결제수단

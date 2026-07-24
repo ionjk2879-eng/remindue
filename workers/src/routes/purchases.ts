@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
 import { FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
+import { sanitizeBrandDomain } from '../lib/pending-purchase-intake';
 import { buildCsv, buildPdf } from '../lib/export';
 import { BadRequestError, ForbiddenError, PaymentRequiredError } from '../lib/errors';
 import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES } from '../types';
@@ -44,6 +45,7 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
   // 카테고리는 정기배송/구독에서만 의미가 있다 — 그 외 타입이면 클라이언트가 뭘 보내든 무시하고 null로 저장한다.
   const category =
     isRecurringType(body.type) && body.category && PURCHASE_CATEGORIES.includes(body.category) ? body.category : null;
+  const brand = typeof body.brand === 'string' && body.brand.trim() ? body.brand.trim() : null;
   return {
     type: body.type,
     itemName: body.itemName.trim(),
@@ -56,7 +58,8 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
     scheduleType: body.scheduleType ?? 'INTERVAL',
     fixedDayOfMonth: body.fixedDayOfMonth ?? null,
     category,
-    brand: typeof body.brand === 'string' && body.brand.trim() ? body.brand.trim() : null,
+    brand: brand,
+    brandDomain: sanitizeBrandDomain(brand, body.brandDomain ?? null),
   };
 }
 
@@ -137,8 +140,8 @@ purchases.post('/', async (c) => {
 
   const insert = await c.env.DB.prepare(
     `INSERT INTO purchases
-       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, last_delivered_date, category, brand)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, last_delivered_date, category, brand, brand_domain)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       user.id,
@@ -154,7 +157,8 @@ purchases.post('/', async (c) => {
       body.fixedDayOfMonth,
       lastDeliveredDate,
       body.category,
-      body.brand
+      body.brand,
+      body.brandDomain
     )
     .run();
 
@@ -175,7 +179,7 @@ purchases.put('/:id', async (c) => {
     `UPDATE purchases
         SET type = ?, item_name = ?, base_date = ?, amount = ?, memo = ?,
             warranty_months = ?, return_deadline_days = ?, interval_days = ?,
-            schedule_type = ?, fixed_day_of_month = ?, category = ?, brand = ?,
+            schedule_type = ?, fixed_day_of_month = ?, category = ?, brand = ?, brand_domain = ?,
             updated_at = datetime('now')
       WHERE id = ?`
   )
@@ -192,6 +196,7 @@ purchases.put('/:id', async (c) => {
       body.fixedDayOfMonth,
       body.category,
       body.brand,
+      body.brandDomain,
       id
     )
     .run();

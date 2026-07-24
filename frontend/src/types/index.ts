@@ -31,6 +31,8 @@ export interface Purchase {
   deliveryConfirmCount: number;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
   brand: string | null;
+  /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
+  brandDomain: string | null;
   createdAt: string;
 }
 
@@ -47,6 +49,7 @@ export interface PurchaseInput {
   fixedDayOfMonth?: number | null;
   category?: PurchaseCategory | null;
   brand?: string | null;
+  brandDomain?: string | null;
 }
 
 export interface AuthResponse {
@@ -82,6 +85,8 @@ export interface PendingPurchase {
   category: PurchaseCategory | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
   brand: string | null;
+  /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
+  brandDomain: string | null;
   /** 같은 상품명의 기존 활성 항목과 매칭됐고 금액이 달라졌을 때만 그 항목의 id — "가격 인상 감지". 그 외 null. */
   matchedPurchaseId: number | null;
   /** matchedPurchaseId가 있을 때 그 항목의 변경 전 금액. 그 외 null. */

@@ -35,6 +35,16 @@ export function sanitizeCategory(type: PurchaseType, category: string | null): P
   return PURCHASE_CATEGORIES.includes(category as PurchaseCategory) ? (category as PurchaseCategory) : 'OTHER';
 }
 
+const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+
+/** AI가 준 브랜드 도메인이 프로토콜/경로 없는 순수 도메인 형태가 아니면(모델 오류 등) null로
+ *  되돌린다. brand 자체가 null이면(로고를 붙일 이름이 없으므로) 도메인도 의미 없어 null 처리한다. */
+export function sanitizeBrandDomain(brand: string | null, domain: string | null): string | null {
+  if (!brand || typeof domain !== 'string') return null;
+  const trimmed = domain.trim().toLowerCase();
+  return DOMAIN_PATTERN.test(trimmed) ? trimmed : null;
+}
+
 export interface PendingPurchaseFields {
   type: PurchaseType;
   returnDeadlineDays: number;
@@ -46,6 +56,7 @@ export interface PendingPurchaseFields {
   amount: number | null;
   category: PurchaseCategory | null;
   brand: string | null;
+  brandDomain: string | null;
 }
 
 /** ExtractedOrder(AI 원시 응답)를 pending_purchases에 저장할 안전한 필드로 변환한다. */
@@ -80,6 +91,8 @@ export function buildPendingPurchaseFields(extracted: ExtractedOrder): PendingPu
       ? 1
       : 0;
 
+  const brand = typeof extracted.brand === 'string' && extracted.brand.trim() ? extracted.brand.trim() : null;
+
   return {
     type,
     returnDeadlineDays,
@@ -90,7 +103,8 @@ export function buildPendingPurchaseFields(extracted: ExtractedOrder): PendingPu
     scheduleEstimated,
     amount: sanitizeAmount(extracted.amount),
     category: sanitizeCategory(type, extracted.category),
-    brand: typeof extracted.brand === 'string' && extracted.brand.trim() ? extracted.brand.trim() : null,
+    brand,
+    brandDomain: sanitizeBrandDomain(brand, extracted.brandDomain),
   };
 }
 
@@ -142,8 +156,8 @@ export async function insertPendingPurchase(
   const result = await db
     .prepare(
       `INSERT INTO pending_purchases
-         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category, matched_purchase_id, previous_amount, brand)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category, matched_purchase_id, previous_amount, brand, brand_domain)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       userId,
@@ -162,7 +176,8 @@ export async function insertPendingPurchase(
       fields.category,
       matchedPurchaseId,
       previousAmount,
-      fields.brand
+      fields.brand,
+      fields.brandDomain
     )
     .run();
 

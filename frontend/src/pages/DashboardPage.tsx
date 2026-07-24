@@ -71,10 +71,15 @@ const BRAND_DOMAIN: Record<string, string> = {
   'ChatGPT': 'openai.com', 'OpenAI': 'openai.com',
   'Dropbox': 'dropbox.com', '드롭박스': 'dropbox.com',
   'Figma': 'figma.com',
+  'Patreon': 'patreon.com', '패트리온': 'patreon.com',
+  // 하드웨어·주변기기
+  'MCHOSE': 'mchose.store',
 };
 
-function BrandTag({ brand }: { brand: string }) {
-  const domain = BRAND_DOMAIN[brand] ?? null;
+function BrandTag({ brand, brandDomain }: { brand: string; brandDomain?: string | null }) {
+  // AI가 뽑아준 brandDomain을 우선 쓰고, 없으면(수동 등록 등) 큐레이션 맵으로 폴백한다 —
+  // 이러면 매번 새 브랜드가 나올 때마다 이 맵을 수동으로 갱신할 필요가 없다.
+  const domain = brandDomain ?? BRAND_DOMAIN[brand] ?? null;
   return (
     <span className="brand-tag">
       {domain && (
@@ -292,6 +297,7 @@ export default function DashboardPage() {
   const [aiBrief, setAiBrief] = useState<AiBriefData | null>(null);
   const [aiBriefTextLoading, setAiBriefTextLoading] = useState(false);
   const [brand, setBrand] = useState('');
+  const [brandDomain, setBrandDomain] = useState<string | null>(null);
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
@@ -489,6 +495,7 @@ export default function DashboardPage() {
     setFixedDayOfMonth('1');
     setCategory('OTHER');
     setBrand('');
+    setBrandDomain(null);
     setShowRegisterForm(false);
   };
 
@@ -507,6 +514,7 @@ export default function DashboardPage() {
     setFixedDayOfMonth(String(p.fixedDayOfMonth ?? 1));
     setCategory(p.category ?? 'OTHER');
     setBrand(p.brand ?? '');
+    setBrandDomain(p.brandDomain ?? null);
   };
 
   const handleCancelEdit = () => {
@@ -546,6 +554,7 @@ export default function DashboardPage() {
       if (item.returnDeadlineDays !== null) setReturnDeadlineDays(String(item.returnDeadlineDays));
     }
     setBrand(item.brand ?? '');
+    setBrandDomain(item.brandDomain ?? null);
     setPendingConfirmId(item.id);
   };
 
@@ -602,6 +611,7 @@ export default function DashboardPage() {
       fixedDayOfMonth: isRecurringType(type) && scheduleType === 'FIXED_DAY' ? Number(fixedDayOfMonth) : undefined,
       category: isRecurringType(type) ? category : undefined,
       brand: brand.trim() || null,
+      brandDomain: brand.trim() ? brandDomain : null,
     };
     const confirmingPendingId = pendingConfirmId;
     try {
@@ -1165,7 +1175,7 @@ export default function DashboardPage() {
                       {TYPE_SHORT_LABEL[item.type]}
                     </span>
                   </p>
-                  {item.brand && <BrandTag brand={item.brand} />}
+                  {item.brand && <BrandTag brand={item.brand} brandDomain={item.brandDomain} />}
                   {isPriceChange && (
                     <p className="pending-card__price-change">
                       ⚠ 가격 인상 감지 — <span className="mono">{item.previousAmount!.toLocaleString('ko-KR')}원</span>
@@ -1501,7 +1511,7 @@ export default function DashboardPage() {
                 <div className="ticket-card__body">
                   <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
                   <h3 className="ticket-card__title">{p.itemName}</h3>
-                  {p.brand && <BrandTag brand={p.brand} />}
+                  {p.brand && <BrandTag brand={p.brand} brandDomain={p.brandDomain} />}
                   {isRecurringType(p.type) && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
