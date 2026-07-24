@@ -33,6 +33,9 @@ import StampBadge from '../components/StampBadge';
 import PremiumBadge from '../components/PremiumBadge';
 import PushPermissionBanner from '../components/PushPermissionBanner';
 import OnboardingOverlay from '../components/OnboardingOverlay';
+import Pagination from '../components/Pagination';
+
+const PURCHASES_PAGE_SIZE = 5;
 
 const BRAND_DOMAIN: Record<string, string> = {
   // 한국 쇼핑·커머스
@@ -414,6 +417,7 @@ export default function DashboardPage() {
   const [filterType, setFilterType] = useState<FilterType>('ALL');
   /** 종류 필터가 'ALL'이 아닐 때만 노출되는 2차 필터 — 'UNCATEGORIZED'는 category가 null인 항목. */
   const [filterCategory, setFilterCategory] = useState<'ALL' | 'UNCATEGORIZED' | PurchaseCategory>('ALL');
+  const [purchasesPage, setPurchasesPage] = useState(1);
   const [view, setView] = useState<'ACTIVE' | 'ARCHIVED' | 'SHARED'>('ACTIVE');
   const [archivedPurchases, setArchivedPurchases] = useState<Purchase[]>([]);
   const [acceptedShares, setAcceptedShares] = useState<SharedAccess[]>([]);
@@ -1067,6 +1071,14 @@ export default function DashboardPage() {
     if (filterCategory === 'UNCATEGORIZED') return p.category === null;
     return p.category === filterCategory;
   });
+  const purchasesTotalPages = Math.max(1, Math.ceil(displayedPurchases.length / PURCHASES_PAGE_SIZE));
+  // 삭제 등으로 총 페이지 수가 줄어 현재 페이지가 범위를 벗어나면(마지막 페이지가 비는 경우)
+  // 렌더링에서만 안전하게 보정한다 — 상태 자체는 다음 페이지 이동 시 자연히 맞춰진다.
+  const safePurchasesPage = Math.min(purchasesPage, purchasesTotalPages);
+  const pagedPurchases = displayedPurchases.slice(
+    (safePurchasesPage - 1) * PURCHASES_PAGE_SIZE,
+    safePurchasesPage * PURCHASES_PAGE_SIZE
+  );
 
   // 신규 가입자 온보딩 — 아직 안 봤고(hasSeenOnboarding=false), 목록 조회가 끝난 뒤에도 등록된
   // 항목이 하나도 없을 때만 띄운다. purchasesLoaded 가드가 없으면 데이터 도착 전 순간적으로
@@ -2043,6 +2055,7 @@ export default function DashboardPage() {
                   onClick={() => {
                     setFilterType(opt.key);
                     setFilterCategory('ALL');
+                    setPurchasesPage(1);
                   }}
                 >
                   {opt.key !== 'ALL' && <span className={`type-dot type-dot--${opt.key}`} aria-hidden="true" />}
@@ -2060,7 +2073,10 @@ export default function DashboardPage() {
                 role="tab"
                 aria-selected={filterCategory === 'ALL'}
                 className={`type-filter__btn${filterCategory === 'ALL' ? ' type-filter__btn--active' : ''}`}
-                onClick={() => setFilterCategory('ALL')}
+                onClick={() => {
+                  setFilterCategory('ALL');
+                  setPurchasesPage(1);
+                }}
               >
                 전체
               </button>
@@ -2075,7 +2091,10 @@ export default function DashboardPage() {
                     key={c}
                     aria-selected={filterCategory === c}
                     className={`type-filter__btn type-filter__btn--${c}${filterCategory === c ? ' type-filter__btn--active' : ''}`}
-                    onClick={() => setFilterCategory(c)}
+                    onClick={() => {
+                      setFilterCategory(c);
+                      setPurchasesPage(1);
+                    }}
                   >
                     {c === 'UNCATEGORIZED' ? '🗂 미지정' : `${CATEGORY_ICON[c]} ${CATEGORY_LABEL[c]}`}
                     <span className="mono type-filter__count">{count}</span>
@@ -2086,7 +2105,7 @@ export default function DashboardPage() {
           )}
 
           <div className="ticket-list">
-            {displayedPurchases.map((p) => (
+            {pagedPurchases.map((p) => (
               <div className="ticket-card" key={p.id}>
                 <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
                 <div className="ticket-card__body">
@@ -2151,6 +2170,7 @@ export default function DashboardPage() {
           {purchases.length > 0 && displayedPurchases.length === 0 && (
             <p className="empty-state">해당 종류의 항목이 없습니다.</p>
           )}
+          <Pagination page={safePurchasesPage} totalPages={purchasesTotalPages} onPageChange={setPurchasesPage} />
         </>
       )}
 

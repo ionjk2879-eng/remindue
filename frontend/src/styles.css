@@ -2446,6 +2446,49 @@ button.summary-board__tile:hover {
   font-size: 0.92rem;
 }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 20px 0 4px;
+}
+
+.pagination__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--paper-card);
+  border: 1.5px solid var(--hairline-strong);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.pagination__btn:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+
+.pagination__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pagination__btn--active {
+  color: var(--ink);
+  background: var(--neutral-bg);
+  border-color: var(--ink);
+}
+
 /* --------------------------------------------------------------------------
    Pricing page
    -------------------------------------------------------------------------- */
