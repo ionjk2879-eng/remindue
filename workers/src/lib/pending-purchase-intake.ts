@@ -45,6 +45,7 @@ export interface PendingPurchaseFields {
   scheduleEstimated: 0 | 1;
   amount: number | null;
   category: PurchaseCategory | null;
+  brand: string | null;
 }
 
 /** ExtractedOrder(AI 원시 응답)를 pending_purchases에 저장할 안전한 필드로 변환한다. */
@@ -89,6 +90,7 @@ export function buildPendingPurchaseFields(extracted: ExtractedOrder): PendingPu
     scheduleEstimated,
     amount: sanitizeAmount(extracted.amount),
     category: sanitizeCategory(type, extracted.category),
+    brand: typeof extracted.brand === 'string' && extracted.brand.trim() ? extracted.brand.trim() : null,
   };
 }
 
@@ -140,8 +142,8 @@ export async function insertPendingPurchase(
   const result = await db
     .prepare(
       `INSERT INTO pending_purchases
-         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category, matched_purchase_id, previous_amount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category, matched_purchase_id, previous_amount, brand)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       userId,
@@ -159,7 +161,8 @@ export async function insertPendingPurchase(
       fields.amount,
       fields.category,
       matchedPurchaseId,
-      previousAmount
+      previousAmount,
+      fields.brand
     )
     .run();
 

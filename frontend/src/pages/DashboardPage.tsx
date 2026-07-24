@@ -32,6 +32,64 @@ import PremiumBadge from '../components/PremiumBadge';
 import PushPermissionBanner from '../components/PushPermissionBanner';
 import OnboardingOverlay from '../components/OnboardingOverlay';
 
+const BRAND_DOMAIN: Record<string, string> = {
+  // 한국 쇼핑·커머스
+  '네이버': 'naver.com', '네이버쇼핑': 'naver.com', '네이버플러스': 'naver.com',
+  '쿠팡': 'coupang.com', '쿠팡이츠': 'coupangeats.com',
+  '마켓컬리': 'kurly.com', '컬리': 'kurly.com',
+  'SSG': 'ssg.com', 'SSG.COM': 'ssg.com', 'SSG닷컴': 'ssg.com',
+  '지마켓': 'gmarket.co.kr', '옥션': 'auction.co.kr',
+  '11번가': '11st.co.kr', '위메프': 'wemakeprice.com', '티몬': 'tmon.co.kr',
+  '인터파크': 'interpark.com', '무신사': 'musinsa.com',
+  '올리브영': 'oliveyoung.co.kr', '오늘의집': 'ohou.se',
+  '당근': 'daangn.com', '당근마켓': 'daangn.com', '번개장터': 'bunjang.co.kr',
+  '롯데온': 'lotteon.com', '롯데마트': 'lottemart.com',
+  // 한국 음식·배달
+  '배달의민족': 'baemin.com', '배민': 'baemin.com', '요기요': 'yogiyo.co.kr',
+  // 한국 미디어·교육
+  '왓챠': 'watcha.com', '웨이브': 'wavve.com', '티빙': 'tving.com',
+  '밀리의서재': 'millie.co.kr', '리디': 'ridibooks.com', '리디북스': 'ridibooks.com',
+  '클래스101': 'class101.net', '인프런': 'inflearn.com',
+  '패스트캠퍼스': 'fastcampus.co.kr',
+  // 한국 금융·플랫폼
+  '카카오': 'kakao.com', '카카오페이': 'kakaopay.com',
+  // 글로벌 스트리밍
+  '넷플릭스': 'netflix.com', 'Netflix': 'netflix.com',
+  '유튜브': 'youtube.com', 'YouTube': 'youtube.com',
+  '유튜브프리미엄': 'youtube.com', 'YouTube Premium': 'youtube.com',
+  '스포티파이': 'spotify.com', 'Spotify': 'spotify.com',
+  '디즈니플러스': 'disneyplus.com', 'Disney+': 'disneyplus.com', '디즈니+': 'disneyplus.com',
+  // 글로벌 소프트웨어·클라우드
+  '애플': 'apple.com', 'Apple': 'apple.com',
+  '애플뮤직': 'apple.com', 'Apple Music': 'apple.com',
+  '아마존': 'amazon.com', 'Amazon': 'amazon.com',
+  '구글': 'google.com', 'Google': 'google.com',
+  '마이크로소프트': 'microsoft.com', 'Microsoft': 'microsoft.com',
+  'Adobe': 'adobe.com', '어도비': 'adobe.com',
+  'GitHub': 'github.com', 'Notion': 'notion.so',
+  'Slack': 'slack.com', 'Zoom': 'zoom.us',
+  'ChatGPT': 'openai.com', 'OpenAI': 'openai.com',
+  'Dropbox': 'dropbox.com', '드롭박스': 'dropbox.com',
+  'Figma': 'figma.com',
+};
+
+function BrandTag({ brand }: { brand: string }) {
+  const domain = BRAND_DOMAIN[brand] ?? null;
+  return (
+    <span className="brand-tag">
+      {domain && (
+        <img
+          className="brand-tag__logo"
+          src={`https://logo.clearbit.com/${domain}`}
+          alt=""
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        />
+      )}
+      <span className="brand-tag__name">{brand}</span>
+    </span>
+  );
+}
+
 interface AiBriefData extends AiBriefSections {
   month: number;
   monthlySpend: number;
@@ -233,6 +291,7 @@ export default function DashboardPage() {
   const [showSpendingDetail, setShowSpendingDetail] = useState(false);
   const [aiBrief, setAiBrief] = useState<AiBriefData | null>(null);
   const [aiBriefTextLoading, setAiBriefTextLoading] = useState(false);
+  const [brand, setBrand] = useState('');
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
@@ -429,6 +488,7 @@ export default function DashboardPage() {
     setScheduleType('INTERVAL');
     setFixedDayOfMonth('1');
     setCategory('OTHER');
+    setBrand('');
     setShowRegisterForm(false);
   };
 
@@ -446,6 +506,7 @@ export default function DashboardPage() {
     setScheduleType(p.scheduleType ?? 'INTERVAL');
     setFixedDayOfMonth(String(p.fixedDayOfMonth ?? 1));
     setCategory(p.category ?? 'OTHER');
+    setBrand(p.brand ?? '');
   };
 
   const handleCancelEdit = () => {
@@ -484,6 +545,7 @@ export default function DashboardPage() {
       setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
       if (item.returnDeadlineDays !== null) setReturnDeadlineDays(String(item.returnDeadlineDays));
     }
+    setBrand(item.brand ?? '');
     setPendingConfirmId(item.id);
   };
 
@@ -539,6 +601,7 @@ export default function DashboardPage() {
       scheduleType: isRecurringType(type) ? scheduleType : undefined,
       fixedDayOfMonth: isRecurringType(type) && scheduleType === 'FIXED_DAY' ? Number(fixedDayOfMonth) : undefined,
       category: isRecurringType(type) ? category : undefined,
+      brand: brand.trim() || null,
     };
     const confirmingPendingId = pendingConfirmId;
     try {
@@ -1102,6 +1165,7 @@ export default function DashboardPage() {
                       {TYPE_SHORT_LABEL[item.type]}
                     </span>
                   </p>
+                  {item.brand && <BrandTag brand={item.brand} />}
                   {isPriceChange && (
                     <p className="pending-card__price-change">
                       ⚠ 가격 인상 감지 — <span className="mono">{item.previousAmount!.toLocaleString('ko-KR')}원</span>
@@ -1437,6 +1501,7 @@ export default function DashboardPage() {
                 <div className="ticket-card__body">
                   <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
                   <h3 className="ticket-card__title">{p.itemName}</h3>
+                  {p.brand && <BrandTag brand={p.brand} />}
                   {isRecurringType(p.type) && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>

@@ -35,6 +35,8 @@ export interface ExtractedOrder {
    * 추정치)으로 채워지므로, 화면에서 "추정치 — 정확한 주기를 확인해주세요" 경고를 보여줘야 한다.
    */
   scheduleEstimated: boolean;
+  /** 판매처/브랜드명(예: "쿠팡", "네이버", "Netflix"). 감지 불가하면 null. */
+  brand: string | null;
 }
 
 const EXTRACTION_SCHEMA = {
@@ -134,6 +136,13 @@ const EXTRACTION_SCHEMA = {
         'estimatedType이 RECURRING_DELIVERY 또는 SUBSCRIPTION이고, 주기/고정일이 원본에 정확히 명시되지 않아 ' +
         'intervalDays를 30일 기본값으로 추정해 채웠을 때만 true. 정확한 주기·고정일이 명시되어 있었다면 false.',
     },
+    brand: {
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+      description:
+        '이 주문/구독의 판매처 또는 서비스 브랜드명. 발신 도메인·발신자 이름·메일 본문에서 ' +
+        '판매처를 명확히 특정할 수 있을 때만 채운다(예: "쿠팡", "네이버", "Netflix", "카카오", "Apple", "Microsoft"). ' +
+        '확신하기 어려우면 null. isOrderConfirmation=false이면 반드시 null.',
+    },
   },
   required: [
     'isOrderConfirmation',
@@ -149,6 +158,7 @@ const EXTRACTION_SCHEMA = {
     'scheduleType',
     'fixedDayOfMonth',
     'scheduleEstimated',
+    'brand',
   ],
   additionalProperties: false,
 } as const;
