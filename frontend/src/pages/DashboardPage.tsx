@@ -10,6 +10,8 @@ import {
   archivePurchase,
   unarchivePurchase,
   downloadExport,
+  fetchAiSummary,
+  type AiSummaryInput,
 } from '../api/purchases';
 import { applyPriceChange, fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
 import { completeOnboarding as apiCompleteOnboarding, regenerateForwardingAddress } from '../api/settings';
@@ -217,6 +219,9 @@ export default function DashboardPage() {
   const [exporting, setExporting] = useState(false);
   const [purchasesLoaded, setPurchasesLoaded] = useState(false);
   const [showSpendingDetail, setShowSpendingDetail] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [aiSummaryError, setAiSummaryError] = useState(false);
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
@@ -267,6 +272,76 @@ export default function DashboardPage() {
   useEffect(() => {
     if (view === 'ARCHIVED') loadArchived();
   }, [view]);
+
+  const handleAiSummary = async () => {
+    if (aiSummaryLoading) return;
+
+    const today = todayDateOnly();
+    const [yr, mo] = today.split('-').map(Number);
+    const rcCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
+    const subCount = purchases.filter((p) => p.type === 'SUBSCRIPTION').length;
+    const moSpend = purchases.reduce((sum, p) => {
+      if (p.amount === null || !isRecurringType(p.type)) return sum;
+      return sum + occurrencesInMonth(p, yr, mo) * p.amount;
+    }, 0);
+    const yrSpend = Array.from({ length: 12 }, (_, i) =>
+      totalSpendInMonth(purchases, yr, i + 1),
+    ).reduce((a, b) => a + b, 0);
+    const prevMoSpend = totalSpendInMonth(purchases, mo === 1 ? yr - 1 : yr, mo === 1 ? 12 : mo - 1);
+    const trendPct = prevMoSpend > 0 ? Math.round(((moSpend - prevMoSpend) / prevMoSpend) * 100) : null;
+
+    const catAmounts = PURCHASE_CATEGORIES.map((cat) => {
+      const total = purchases
+        .filter((p) => isRecurringType(p.type) && p.category === cat && p.amount !== null)
+        .reduce((sum, p) => sum + occurrencesInMonth(p, yr, mo) * p.amount!, 0);
+      return { cat, total: Math.round(total) };
+    }).filter((c) => c.total > 0);
+    const topCat = catAmounts.sort((a, b) => b.total - a.total)[0] ?? null;
+
+    const reviewCount = purchases.filter(
+      (p) =>
+        isRecurringType(p.type) &&
+        p.amount !== null &&
+        p.deliveryConfirmCount === 0 &&
+        daysSinceBaseDate(p.baseDate) >= UNUSED_SUBSCRIPTION_THRESHOLD_DAYS,
+    ).length;
+
+    const CATEGORY_LABEL_KO: Record<string, string> = {
+      STREAMING: '영상 스트리밍',
+      SHOPPING: '쇼핑',
+      FOOD: '식품',
+      SOFTWARE: '소프트웨어',
+      OTHER: '기타',
+    };
+
+    const input: AiSummaryInput = {
+      month: mo,
+      recurringDeliveryCount: rcCount,
+      subscriptionCount: subCount,
+      monthlySpend: Math.round(moSpend),
+      yearlySpend: Math.round(yrSpend),
+      monthTrendPercent: trendPct,
+      topCategory: topCat ? (CATEGORY_LABEL_KO[topCat.cat] ?? topCat.cat) : null,
+      topCategoryAmount: topCat?.total ?? null,
+      reviewCount,
+      totalItems: purchases.length,
+    };
+
+    setAiSummary(null);
+    setAiSummaryError(false);
+    setAiSummaryLoading(true);
+    fetchAiSummary(input)
+      .then((summary) => {
+        if (summary) setAiSummary(summary);
+        else setAiSummaryError(true);
+      })
+      .catch((err) => {
+        const detail = (err as { response?: { data?: unknown } })?.response?.data;
+        console.error('[AI summary] error:', err, 'response:', detail);
+        setAiSummaryError(true);
+      })
+      .finally(() => setAiSummaryLoading(false));
+  };
 
   useEffect(() => {
     if (view === 'SHARED' && selectedShareId !== null) {
@@ -741,6 +816,26 @@ export default function DashboardPage() {
               <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
             </button>
           )}
+          <button
+            type="button"
+            className="summary-board__tile summary-board__tile--ai-summary summary-board__tile--clickable"
+            onClick={handleAiSummary}
+            disabled={aiSummaryLoading}
+          >
+            <span className="summary-board__icon" aria-hidden="true">✨</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">AI 소비 요약</span>
+              {aiSummaryLoading ? (
+                <span className="summary-board__ai-loading">분석 중...</span>
+              ) : aiSummary ? (
+                <p className="summary-board__ai-text">{aiSummary}</p>
+              ) : aiSummaryError ? (
+                <span className="summary-board__ai-cta" style={{ color: 'var(--stamp-red)' }}>분석 실패 — 다시 눌러보세요</span>
+              ) : (
+                <span className="summary-board__ai-cta">눌러서 분석하기</span>
+              )}
+            </div>
+          </button>
         </div>
       )}
 

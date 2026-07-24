@@ -37,6 +37,24 @@ export async function unarchivePurchase(id: number) {
   return data;
 }
 
+export interface AiSummaryInput {
+  month: number;
+  recurringDeliveryCount: number;
+  subscriptionCount: number;
+  monthlySpend: number;
+  yearlySpend: number;
+  monthTrendPercent: number | null;
+  topCategory: string | null;
+  topCategoryAmount: number | null;
+  reviewCount: number;
+  totalItems: number;
+}
+
+export async function fetchAiSummary(input: AiSummaryInput): Promise<string | null> {
+  const { data } = await apiClient.post<{ summary: string | null }>('/ai/spending-summary', input);
+  return data.summary;
+}
+
 /** CSV/PDF는 인증 헤더가 필요해서 <a href>로 바로 열 수 없다 — blob으로 받아서 임시 링크를 만들어 다운로드를 트리거한다. */
 export async function downloadExport(format: 'csv' | 'pdf') {
   const { data } = await apiClient.get<Blob>('/purchases/export', {
