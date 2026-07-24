@@ -336,7 +336,8 @@ export default function DashboardPage() {
         else setAiSummaryError(true);
       })
       .catch((err) => {
-        console.error('[AI summary]', err);
+        const detail = (err as { response?: { data?: unknown } })?.response?.data;
+        console.error('[AI summary] error:', err, 'response:', detail);
         setAiSummaryError(true);
       })
       .finally(() => setAiSummaryLoading(false));
