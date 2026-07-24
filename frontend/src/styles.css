@@ -753,12 +753,14 @@ button.summary-board__tile:hover {
   align-items: flex-start;
 }
 
-/* 이제 summary-board 그리드 밖, 대시보드 목록 전체보다 아래에 독립 섹션으로 온다 —
-   그리드의 gap에 기대지 않고 위아래 여백을 직접 챙긴다. */
+/* summary-board 그리드 밖, 월/연 지출 상세 패널 바로 아래에 독립 섹션으로 온다 —
+   그리드의 gap에 기대지 않고 위아래 여백을 직접 챙긴다(뒤에 오는 배너들이 조건부라
+   없을 때도, 바로 다음에 오는 "새 항목 등록" 버튼과 딱 붙지 않도록 margin-bottom 필수). */
 .ai-summary-section {
   display: flex;
   width: 100%;
   margin-top: 24px;
+  margin-bottom: 22px;
 }
 
 .summary-board__ai-cta {

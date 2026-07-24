@@ -324,6 +324,8 @@ export default function DashboardPage() {
   const [originalCurrency, setOriginalCurrency] = useState<string | null>(null);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
+  const [showSavingsDetail, setShowSavingsDetail] = useState(false);
+  const [showPriceStatusDetail, setShowPriceStatusDetail] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
   const itemNameInputRef = useRef<HTMLInputElement>(null);
@@ -844,6 +846,25 @@ export default function DashboardPage() {
     .map((p) => ({ id: p.id, itemName: p.itemName, monthly: Math.round(monthlyEquivalent(p)) }));
   const savingsEstimate = reviewCandidates.reduce((sum, item) => sum + item.monthly, 0);
 
+  /**
+   * "가격 인상" 타일 상세용 구독/정기배송 3분류. 우선순위는 확인 대기 중인 가격 인상 >
+   * 절약 제안(미사용 의심) > 정상 — 둘 다 해당돼도 하나의 상태로만 표시한다.
+   * "사용 안 함"은 reviewCandidates(AI 절약 제안)와 완전히 같은 기준을 재사용한 것일 뿐,
+   * 실사용 데이터를 보는 게 아니라서 참고용이다 — 더 정교한 사용빈도 감지 로직은 아직 없음.
+   */
+  const priceChangePurchaseIds = new Set(
+    pendingItems.filter((item) => item.matchedPurchaseId !== null).map((item) => item.matchedPurchaseId!)
+  );
+  const reviewCandidateIds = new Set(reviewCandidates.map((item) => item.id));
+  const recurringPurchases = purchases.filter((p) => isRecurringType(p.type));
+  const priceUpItems = recurringPurchases.filter((p) => priceChangePurchaseIds.has(p.id));
+  const unusedItems = recurringPurchases.filter(
+    (p) => !priceChangePurchaseIds.has(p.id) && reviewCandidateIds.has(p.id)
+  );
+  const normalItems = recurringPurchases.filter(
+    (p) => !priceChangePurchaseIds.has(p.id) && !reviewCandidateIds.has(p.id)
+  );
+
   const displayedPurchases = filterType === 'ALL' ? purchases : purchases.filter((p) => p.type === filterType);
 
   // 신규 가입자 온보딩 — 아직 안 봤고(hasSeenOnboarding=false), 목록 조회가 끝난 뒤에도 등록된
@@ -954,7 +975,12 @@ export default function DashboardPage() {
           </div>
           {/* 인상 감지/절약 제안 둘 다 "평소엔 숨겨져 있다가 있을 때만 뜨는" 방식이면 사용자가 그런
               기능이 있는지조차 모르기 쉬워서, 값이 0이어도(비어있어도) 상시 표시한다. */}
-          <div className="summary-board__tile summary-board__tile--price-change">
+          <button
+            type="button"
+            className="summary-board__tile summary-board__tile--price-change summary-board__tile--clickable"
+            onClick={() => setShowPriceStatusDetail((v) => !v)}
+            aria-expanded={showPriceStatusDetail}
+          >
             <span className="summary-board__icon" aria-hidden="true">⚠</span>
             <div className="summary-board__text">
               <span className="summary-board__label">가격 인상</span>
@@ -963,12 +989,13 @@ export default function DashboardPage() {
                 <span className="summary-board__unit">건</span>
               </span>
             </div>
-          </div>
+            <span className="summary-board__chevron" aria-hidden="true">{showPriceStatusDetail ? '▲' : '▾'}</span>
+          </button>
           <button
             type="button"
             className="summary-board__tile summary-board__tile--savings summary-board__tile--clickable"
-            onClick={() => setShowSpendingDetail((v) => !v)}
-            aria-expanded={showSpendingDetail}
+            onClick={() => setShowSavingsDetail((v) => !v)}
+            aria-expanded={showSavingsDetail}
           >
             <span className="summary-board__icon" aria-hidden="true">💡</span>
             <div className="summary-board__text">
@@ -978,7 +1005,7 @@ export default function DashboardPage() {
                 <span className="summary-board__unit">원 절약 가능</span>
               </span>
             </div>
-            <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
+            <span className="summary-board__chevron" aria-hidden="true">{showSavingsDetail ? '▲' : '▾'}</span>
           </button>
         </div>
       )}
@@ -1049,26 +1076,88 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {reviewCandidates.length > 0 && (
+        </div>
+      )}
+
+      {showSavingsDetail && (
+        <div className="spending-detail">
+          <div className="spending-detail__section">
+            <p className="spending-detail__heading">💡 절약 제안</p>
+            {reviewCandidates.length === 0 ? (
+              <p className="spending-detail__empty">
+                180일 이상 확인 안 한 구독/정기배송이 없어요 — 절약 제안할 항목이 없습니다.
+              </p>
+            ) : (
+              <>
+                <ul className="spending-detail__save-list">
+                  {reviewCandidates.map((item) => (
+                    <li key={item.id}>
+                      <div className="spending-detail__save-item-info">
+                        <p className="spending-detail__save-item-name">{item.itemName}</p>
+                        <p className="spending-detail__save-item-reason">
+                          {Math.floor(UNUSED_SUBSCRIPTION_THRESHOLD_DAYS / 30)}개월째 등록만 되어있고 한 번도 확인하지
+                          않았어요 — 해지를 고려해보세요.
+                        </p>
+                      </div>
+                      <span className="mono spending-detail__save-item-amount">월 {item.monthly.toLocaleString('ko-KR')}원</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="spending-detail__total">
+                  {currentMonthNum}월 약 <span className="mono">{savingsEstimate.toLocaleString('ko-KR')}원</span>을 절약할 수 있어요
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showPriceStatusDetail && (
+        <div className="spending-detail">
+          <div className="spending-detail__section">
+            <p className="spending-detail__heading">
+              🟢 정상 <span className="mono">{normalItems.length}</span>건
+            </p>
+            <p className="spending-detail__hint">가격 변동 없음.</p>
+          </div>
+
+          {priceUpItems.length > 0 && (
             <div className="spending-detail__section">
-              <p className="spending-detail__heading">💡 절약 제안</p>
+              <p className="spending-detail__heading">
+                🟡 가격 인상 <span className="mono">{priceUpItems.length}</span>건
+              </p>
               <ul className="spending-detail__save-list">
-                {reviewCandidates.map((item) => (
-                  <li key={item.id}>
+                {priceUpItems.map((p) => (
+                  <li key={p.id}>
                     <div className="spending-detail__save-item-info">
-                      <p className="spending-detail__save-item-name">{item.itemName}</p>
+                      <p className="spending-detail__save-item-name">{p.itemName}</p>
                       <p className="spending-detail__save-item-reason">
-                        {Math.floor(UNUSED_SUBSCRIPTION_THRESHOLD_DAYS / 30)}개월째 등록만 되어있고 한 번도 확인하지
-                        않았어요 — 해지를 고려해보세요.
+                        확인 대기 목록에서 인상분을 확인해보세요.
                       </p>
                     </div>
-                    <span className="mono spending-detail__save-item-amount">월 {item.monthly.toLocaleString('ko-KR')}원</span>
                   </li>
                 ))}
               </ul>
-              <p className="spending-detail__total">
-                {currentMonthNum}월 약 <span className="mono">{savingsEstimate.toLocaleString('ko-KR')}원</span>을 절약할 수 있어요
+            </div>
+          )}
+
+          {unusedItems.length > 0 && (
+            <div className="spending-detail__section">
+              <p className="spending-detail__heading">
+                🔴 사용 안 함 <span className="mono">{unusedItems.length}</span>건
               </p>
+              <ul className="spending-detail__save-list">
+                {unusedItems.map((p) => (
+                  <li key={p.id}>
+                    <div className="spending-detail__save-item-info">
+                      <p className="spending-detail__save-item-name">{p.itemName}</p>
+                      <p className="spending-detail__save-item-reason">
+                        이 항목은 사용빈도가 낮을지도 모릅니다. 확인해보세요!
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
