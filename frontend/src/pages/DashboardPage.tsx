@@ -283,6 +283,16 @@ function primaryDeadlineLabel(p: Purchase): string {
   return '반품기한';
 }
 
+/** 종류 배지 옆에 붙는 서비스 카테고리 배지 — category가 없으면 아무것도 표시하지 않는다. */
+function renderCategoryBadge(p: Purchase) {
+  if (!p.category) return null;
+  return (
+    <span className={`ticket-card__category ticket-card__category--${p.category}`}>
+      {CATEGORY_ICON[p.category]} {CATEGORY_LABEL[p.category]}
+    </span>
+  );
+}
+
 /**
  * "정기배송"/"정기구독" 요약 타일 상세용 — 날짜순이 아니라 서비스 카테고리별로 묶어서
  * 한눈에 보여준다(같은 유형·같은 서비스끼리 정렬). 그룹 내부는 dDay 오름차순.
@@ -1078,6 +1088,8 @@ export default function DashboardPage() {
         )}
       </div>
 
+      <PushPermissionBanner />
+
       {forwardingEmail && (
         <div className="forwarding-banner">
           <span className="forwarding-banner__label">📧 주문확인 메일 자동 등록 주소</span>
@@ -1657,8 +1669,6 @@ export default function DashboardPage() {
       )}
       {confirmAllMessage && <p className="confirm-needed-section__success">✅ {confirmAllMessage}</p>}
 
-      <PushPermissionBanner />
-
       {pendingItems.length > 0 && (
         <div className="pending-section">
           <p className="pending-section__title">
@@ -2064,7 +2074,7 @@ export default function DashboardPage() {
                     role="tab"
                     key={c}
                     aria-selected={filterCategory === c}
-                    className={`type-filter__btn${filterCategory === c ? ' type-filter__btn--active' : ''}`}
+                    className={`type-filter__btn type-filter__btn--${c}${filterCategory === c ? ' type-filter__btn--active' : ''}`}
                     onClick={() => setFilterCategory(c)}
                   >
                     {c === 'UNCATEGORIZED' ? '🗂 미지정' : `${CATEGORY_ICON[c]} ${CATEGORY_LABEL[c]}`}
@@ -2081,6 +2091,7 @@ export default function DashboardPage() {
                 <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
                 <div className="ticket-card__body">
                   <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
+                  {renderCategoryBadge(p)}
                   <div className="ticket-card__heading">
                     {p.brand && <BrandAvatar brand={p.brand} brandDomain={p.brandDomain} />}
                     <div className="ticket-card__heading-text">
@@ -2149,6 +2160,7 @@ export default function DashboardPage() {
                 <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
                 <div className="ticket-card__body">
                   <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
+                  {renderCategoryBadge(p)}
                   <h3 className="ticket-card__title">{p.itemName}</h3>
                   {isRecurringType(p.type) ? (
                     <p className="ticket-card__deadline">
@@ -2192,6 +2204,7 @@ export default function DashboardPage() {
                 <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
                 <div className="ticket-card__body">
                   <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
+                  {renderCategoryBadge(p)}
                   <h3 className="ticket-card__title">{p.itemName}</h3>
                   {isRecurringType(p.type) && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
