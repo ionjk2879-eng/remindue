@@ -12,6 +12,7 @@ import {
   downloadExport,
   fetchAiSummary,
   type AiSummaryInput,
+  type AiBriefSections,
 } from '../api/purchases';
 import { applyPriceChange, fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
 import { completeOnboarding as apiCompleteOnboarding, regenerateForwardingAddress } from '../api/settings';
@@ -30,6 +31,17 @@ import StampBadge from '../components/StampBadge';
 import PremiumBadge from '../components/PremiumBadge';
 import PushPermissionBanner from '../components/PushPermissionBanner';
 import OnboardingOverlay from '../components/OnboardingOverlay';
+
+interface AiBriefData extends AiBriefSections {
+  month: number;
+  monthlySpend: number;
+  yearlySpend: number;
+  totalRecurring: number;
+  topCategory: string | null;
+  topCategoryAmount: number | null;
+  trendPct: number | null;
+  reviewCount: number;
+}
 
 const TYPE_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '전자제품 (보증기간)',
@@ -219,9 +231,8 @@ export default function DashboardPage() {
   const [exporting, setExporting] = useState(false);
   const [purchasesLoaded, setPurchasesLoaded] = useState(false);
   const [showSpendingDetail, setShowSpendingDetail] = useState(false);
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
-  const [aiSummaryError, setAiSummaryError] = useState(false);
+  const [aiBrief, setAiBrief] = useState<AiBriefData | null>(null);
+  const [aiBriefTextLoading, setAiBriefTextLoading] = useState(false);
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
@@ -273,13 +284,12 @@ export default function DashboardPage() {
     if (view === 'ARCHIVED') loadArchived();
   }, [view]);
 
-  const handleAiSummary = async () => {
-    if (aiSummaryLoading) return;
-
+  const handleAiSummary = () => {
     const today = todayDateOnly();
     const [yr, mo] = today.split('-').map(Number);
     const rcCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
     const subCount = purchases.filter((p) => p.type === 'SUBSCRIPTION').length;
+    const totalRecurring = rcCount + subCount;
     const moSpend = purchases.reduce((sum, p) => {
       if (p.amount === null || !isRecurringType(p.type)) return sum;
       return sum + occurrencesInMonth(p, yr, mo) * p.amount;
@@ -313,6 +323,57 @@ export default function DashboardPage() {
       SOFTWARE: '소프트웨어',
       OTHER: '기타',
     };
+    const topCatLabel = topCat ? (CATEGORY_LABEL_KO[topCat.cat] ?? topCat.cat) : null;
+
+    // Show card with metrics immediately, text sections loading
+    setAiBrief({
+      month: mo,
+      monthlySpend: Math.round(moSpend),
+      yearlySpend: Math.round(yrSpend),
+      totalRecurring,
+      topCategory: topCatLabel,
+      topCategoryAmount: topCat?.total ?? null,
+      trendPct,
+      reviewCount,
+      goodNews: null,
+      attention: null,
+      insight: null,
+    });
+    setAiBriefTextLoading(true);
+
+    const fmtWon = (n: number) => n.toLocaleString('ko-KR');
+
+    const buildFallback = (): AiBriefSections => {
+      let goodNews: string;
+      if (totalRecurring === 0) goodNews = '아직 정기 구독이 등록되어 있지 않습니다.';
+      else if (trendPct !== null && trendPct <= -10)
+        goodNews = `전월 대비 ${Math.abs(trendPct)}% 줄어 ${fmtWon(Math.round(moSpend))}원이 예상됩니다. 잘 관리하고 있어요!`;
+      else if (Math.round(moSpend) < 30000)
+        goodNews = `${mo}월 예상 지출은 ${fmtWon(Math.round(moSpend))}원으로 부담이 크지 않습니다.`;
+      else if (totalRecurring <= 3)
+        goodNews = `${totalRecurring}개의 구독을 관리 중으로 현재 관리하기 쉬운 상태입니다.`;
+      else goodNews = `${mo}월 예상 지출은 ${fmtWon(Math.round(moSpend))}원입니다.`;
+
+      let attention: string | null = null;
+      if (reviewCount > 0) {
+        const perItem = totalRecurring > 0 ? Math.round(moSpend / totalRecurring) : 0;
+        const savingEst = perItem * reviewCount * 12;
+        attention = `최근 수령 확인이 없는 구독이 ${reviewCount}개 있습니다. 해지하면 연간 약 ${fmtWon(savingEst)}원 절약 가능.`;
+      } else if (trendPct !== null && trendPct >= 20) {
+        attention = `이번 달 지출이 전월 대비 ${trendPct}% 늘었습니다. 새로 추가된 구독을 확인해보세요.`;
+      } else if (totalRecurring >= 10) {
+        attention = `현재 ${totalRecurring}개의 구독이 활성화되어 있습니다. 주기적으로 점검해보세요.`;
+      }
+
+      let insight: string;
+      if (totalRecurring === 0) insight = '구독을 추가하면 월별 지출 추이와 갱신일을 자동으로 추적해드릴게요.';
+      else if (reviewCount > 0) insight = '미사용 구독을 정리하면 연간 지출을 의미 있게 줄일 수 있어요.';
+      else if (trendPct !== null && trendPct > 10) insight = '지출이 늘고 있어요. 최근 추가한 구독이 있는지 확인해보세요.';
+      else if (trendPct !== null && trendPct < -10) insight = '지출이 줄고 있어요. 현재 소비 패턴을 유지하면 좋겠어요.';
+      else insight = '이번 달 지출 패턴은 안정적입니다.';
+
+      return { goodNews, attention, insight };
+    };
 
     const input: AiSummaryInput = {
       month: mo,
@@ -321,26 +382,24 @@ export default function DashboardPage() {
       monthlySpend: Math.round(moSpend),
       yearlySpend: Math.round(yrSpend),
       monthTrendPercent: trendPct,
-      topCategory: topCat ? (CATEGORY_LABEL_KO[topCat.cat] ?? topCat.cat) : null,
+      topCategory: topCatLabel,
       topCategoryAmount: topCat?.total ?? null,
       reviewCount,
       totalItems: purchases.length,
     };
 
-    setAiSummary(null);
-    setAiSummaryError(false);
-    setAiSummaryLoading(true);
     fetchAiSummary(input)
-      .then((summary) => {
-        if (summary) setAiSummary(summary);
-        else setAiSummaryError(true);
+      .then((sections) => {
+        const resolved: AiBriefSections =
+          sections.goodNews || sections.insight
+            ? sections
+            : buildFallback();
+        setAiBrief((prev) => (prev ? { ...prev, ...resolved } : prev));
       })
-      .catch((err) => {
-        const detail = (err as { response?: { data?: unknown } })?.response?.data;
-        console.error('[AI summary] error:', err, 'response:', detail);
-        setAiSummaryError(true);
+      .catch(() => {
+        setAiBrief((prev) => (prev ? { ...prev, ...buildFallback() } : prev));
       })
-      .finally(() => setAiSummaryLoading(false));
+      .finally(() => setAiBriefTextLoading(false));
   };
 
   useEffect(() => {
@@ -820,21 +879,67 @@ export default function DashboardPage() {
             type="button"
             className="summary-board__tile summary-board__tile--ai-summary summary-board__tile--clickable"
             onClick={handleAiSummary}
-            disabled={aiSummaryLoading}
           >
-            <span className="summary-board__icon" aria-hidden="true">✨</span>
-            <div className="summary-board__text">
-              <span className="summary-board__label">AI 소비 요약</span>
-              {aiSummaryLoading ? (
-                <span className="summary-board__ai-loading">분석 중...</span>
-              ) : aiSummary ? (
-                <p className="summary-board__ai-text">{aiSummary}</p>
-              ) : aiSummaryError ? (
-                <span className="summary-board__ai-cta" style={{ color: 'var(--stamp-red)' }}>분석 실패 — 다시 눌러보세요</span>
-              ) : (
-                <span className="summary-board__ai-cta">눌러서 분석하기</span>
-              )}
-            </div>
+            {aiBrief ? (
+              <div className="ai-brief">
+                <div className="ai-brief__header">
+                  <span>🤖 AI 소비 브리핑</span>
+                  <span className="ai-brief__refresh">↻ 다시 분석</span>
+                </div>
+                <div className="ai-brief__divider" />
+                <div className="ai-brief__metrics">
+                  <div className="ai-brief__metric">
+                    <span className="ai-brief__metric-label">💰 이번 달 예상</span>
+                    <strong className="ai-brief__metric-value">{aiBrief.monthlySpend.toLocaleString('ko-KR')}원</strong>
+                  </div>
+                  <div className="ai-brief__metric">
+                    <span className="ai-brief__metric-label">📦 구독 수</span>
+                    <strong className="ai-brief__metric-value">{aiBrief.totalRecurring}개</strong>
+                  </div>
+                  {aiBrief.trendPct !== null && (
+                    <div className="ai-brief__metric">
+                      <span className="ai-brief__metric-label">📈 전월 대비</span>
+                      <strong className={`ai-brief__metric-value${aiBrief.trendPct > 0 ? ' ai-brief__metric-value--up' : ' ai-brief__metric-value--down'}`}>
+                        {aiBrief.trendPct > 0 ? '+' : ''}{aiBrief.trendPct}%
+                      </strong>
+                    </div>
+                  )}
+                  {aiBrief.topCategory && (
+                    <div className="ai-brief__metric">
+                      <span className="ai-brief__metric-label">🏆 최다 지출</span>
+                      <strong className="ai-brief__metric-value ai-brief__metric-value--cat">{aiBrief.topCategory}</strong>
+                    </div>
+                  )}
+                </div>
+                {aiBriefTextLoading ? (
+                  <div className="ai-brief__text-loading">AI 분석 중...</div>
+                ) : (
+                  <>
+                    <div className="ai-brief__section">
+                      <span className="ai-brief__section-label">😊 좋은 소식</span>
+                      <p className="ai-brief__section-text">{aiBrief.goodNews ?? '—'}</p>
+                    </div>
+                    {(aiBrief.attention || aiBrief.reviewCount > 0) && (
+                      <div className="ai-brief__section">
+                        <span className="ai-brief__section-label">👀 눈여겨볼 점</span>
+                        <p className="ai-brief__section-text">{aiBrief.attention ?? '특별한 주의사항 없음'}</p>
+                      </div>
+                    )}
+                    {aiBrief.insight && (
+                      <div className="ai-brief__insight">💡 {aiBrief.insight}</div>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              <>
+                <span className="summary-board__icon" aria-hidden="true">🤖</span>
+                <div className="summary-board__text">
+                  <span className="summary-board__label">AI 소비 브리핑</span>
+                  <span className="summary-board__ai-cta">눌러서 소비 패턴 분석하기</span>
+                </div>
+              </>
+            )}
           </button>
         </div>
       )}

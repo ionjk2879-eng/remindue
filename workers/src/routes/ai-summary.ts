@@ -15,6 +15,17 @@ interface SpendingSummaryInput {
   totalItems: number;
 }
 
+function parseTag(text: string, tag: string): string | null {
+  for (const line of text.split('\n')) {
+    const prefix = `${tag}:`;
+    if (line.startsWith(prefix)) {
+      const v = line.slice(prefix.length).trim();
+      return v && v !== '없음' ? v : null;
+    }
+  }
+  return null;
+}
+
 const aiSummary = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 aiSummary.use('*', authMiddleware);
 
@@ -44,7 +55,7 @@ aiSummary.post('/spending-summary', async (c) => {
             : '전월과 지출 동일'
         : null;
 
-    const lines = [
+    const dataLines = [
       `- 정기배송: ${recurringDeliveryCount}건`,
       `- 정기구독: ${subscriptionCount}건`,
       `- ${month}월 예상 지출: ${fmt(monthlySpend)}원${trendText ? ` (${trendText})` : ''}`,
@@ -52,7 +63,7 @@ aiSummary.post('/spending-summary', async (c) => {
       topCategory && topCategoryAmount !== null
         ? `- 이번 달 최다 지출 카테고리: ${topCategory} (${fmt(topCategoryAmount)}원)`
         : null,
-      reviewCount > 0 ? `- 6개월 이상 미확인 구독: ${reviewCount}건` : null,
+      reviewCount > 0 ? `- 6개월 이상 수령 미확인 구독: ${reviewCount}건` : null,
     ]
       .filter(Boolean)
       .join('\n');
@@ -61,24 +72,32 @@ aiSummary.post('/spending-summary', async (c) => {
       messages: [
         {
           role: 'system',
-          content:
-            '당신은 가계부 소비 패턴을 분석하는 도우미입니다. 제공된 데이터를 바탕으로 2~3문장의 자연스러운 한국어 소비 요약을 작성하세요. 숫자를 단순 나열하지 말고 주목할 만한 패턴·인사이트를 담아 친근한 말투로 써주세요. 마크다운이나 추가 설명 없이 요약 텍스트만 출력하세요.',
+          content: `당신은 가계부 소비 패턴 분석 AI입니다.
+아래 소비 데이터를 분석하여 정확히 이 형식으로만 답하세요 (마크다운, 추가 설명, 라벨 번역 없이):
+
+좋은소식: (긍정적인 관찰 1~2문장, 한국어)
+주의사항: (주의할 점 1~2문장, 한국어. 특별히 없으면 "없음")
+인사이트: (핵심 제안 1문장, 한국어)`,
         },
-        { role: 'user', content: lines },
+        { role: 'user', content: dataLines },
       ],
     });
 
-    const summary =
+    const raw =
       typeof result === 'object' && result !== null && 'response' in result
-        ? String((result as { response: unknown }).response).trim() || null
-        : null;
+        ? String((result as { response: unknown }).response).trim()
+        : '';
 
-    console.log('[ai-summary] ok, length:', summary?.length ?? 0);
-    return c.json({ summary });
+    const goodNews = parseTag(raw, '좋은소식');
+    const attention = parseTag(raw, '주의사항');
+    const insight = parseTag(raw, '인사이트');
+
+    console.log('[ai-summary] ok — good:', !!goodNews, 'attention:', !!attention, 'insight:', !!insight);
+    return c.json({ goodNews, attention, insight });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[ai-summary] unexpected error:', msg);
-    return c.json({ summary: null, error: msg }, 500);
+    return c.json({ goodNews: null, attention: null, insight: null, error: msg }, 500);
   }
 });
 
