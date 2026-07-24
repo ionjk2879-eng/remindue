@@ -33,6 +33,12 @@ export interface Purchase {
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
   brandDomain: string | null;
+  /** 외화 결제 원본 금액(소수점 유지). 원화 결제/수동 등록이면 null. */
+  originalAmount: number | null;
+  /** 외화 결제 원본 통화 코드(ISO 4217). 원화 결제/수동 등록이면 null. */
+  originalCurrency: string | null;
+  /** 결제일 기준 적용 환율(1 originalCurrency = N KRW). 원화 결제면 null. */
+  exchangeRate: number | null;
   createdAt: string;
 }
 
@@ -50,6 +56,9 @@ export interface PurchaseInput {
   category?: PurchaseCategory | null;
   brand?: string | null;
   brandDomain?: string | null;
+  originalAmount?: number | null;
+  originalCurrency?: string | null;
+  exchangeRate?: number | null;
 }
 
 export interface AuthResponse {
@@ -87,6 +96,12 @@ export interface PendingPurchase {
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
   brandDomain: string | null;
+  /** 외화 결제 원본 금액(소수점 유지). 원화 결제면 null. */
+  originalAmount: number | null;
+  /** 외화 결제 원본 통화 코드(ISO 4217). 원화 결제면 null. */
+  originalCurrency: string | null;
+  /** 결제일 기준 적용 환율(1 originalCurrency = N KRW). 원화 결제면 null. */
+  exchangeRate: number | null;
   /** 같은 상품명의 기존 활성 항목과 매칭됐고 금액이 달라졌을 때만 그 항목의 id — "가격 인상 감지". 그 외 null. */
   matchedPurchaseId: number | null;
   /** matchedPurchaseId가 있을 때 그 항목의 변경 전 금액. 그 외 null. */

@@ -45,6 +45,47 @@ export function sanitizeBrandDomain(brand: string | null, domain: string | null)
   return DOMAIN_PATTERN.test(trimmed) ? trimmed : null;
 }
 
+const CURRENCY_PATTERN = /^[A-Z]{3}$/;
+
+/** AI가 준 통화 코드가 유효한 ISO 4217 3자리 형식이 아니거나 KRW(원화 표기 케이스는 이 필드
+ *  자체가 null이어야 함)면 null로 되돌린다. */
+export function sanitizeCurrency(currency: string | null): string | null {
+  if (typeof currency !== 'string') return null;
+  const trimmed = currency.trim().toUpperCase();
+  return CURRENCY_PATTERN.test(trimmed) && trimmed !== 'KRW' ? trimmed : null;
+}
+
+/** currency가 없거나 금액이 비정상(0 이하·NaN 등)이면 null로 되돌린다. */
+export function sanitizeOriginalAmount(currency: string | null, amount: number | null): number | null {
+  if (!currency || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) return null;
+  return amount;
+}
+
+/**
+ * Frankfurter(ECB 공시환율 기반, 무료·API 키 불필요)로 결제일 기준 원화 환산 금액을 구한다.
+ * "7달러=7원"처럼 잘못 저장하는 걸 막기 위한 핵심 로직 — 네트워크 실패·미지원 통화 등 어떤
+ * 이유로든 실패하면 null을 돌려주고, 호출부가 amount=null(미확인)로 안전하게 폴백한다.
+ */
+export async function convertToKrw(
+  currency: string,
+  originalAmount: number,
+  orderDate: string | null
+): Promise<{ amountKrw: number; rate: number } | null> {
+  const datePart = orderDate && /^\d{4}-\d{2}-\d{2}$/.test(orderDate) ? orderDate : 'latest';
+  try {
+    const res = await fetch(
+      `https://api.frankfurter.dev/v2/rates?date=${datePart}&base=${currency}&quotes=KRW`
+    );
+    if (!res.ok) return null;
+    const data = await res.json<Array<{ rate?: number }>>();
+    const rate = data[0]?.rate;
+    if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) return null;
+    return { amountKrw: Math.round(originalAmount * rate), rate };
+  } catch {
+    return null;
+  }
+}
+
 export interface PendingPurchaseFields {
   type: PurchaseType;
   returnDeadlineDays: number;
@@ -57,10 +98,15 @@ export interface PendingPurchaseFields {
   category: PurchaseCategory | null;
   brand: string | null;
   brandDomain: string | null;
+  originalAmount: number | null;
+  originalCurrency: string | null;
+  exchangeRate: number | null;
 }
 
-/** ExtractedOrder(AI 원시 응답)를 pending_purchases에 저장할 안전한 필드로 변환한다. */
-export function buildPendingPurchaseFields(extracted: ExtractedOrder): PendingPurchaseFields {
+/** ExtractedOrder(AI 원시 응답)를 pending_purchases에 저장할 안전한 필드로 변환한다.
+ *  외화 결제(currency non-null)면 Frankfurter로 결제일 기준 환율을 조회하는 네트워크 호출이
+ *  섞여 있어 async다. */
+export async function buildPendingPurchaseFields(extracted: ExtractedOrder): Promise<PendingPurchaseFields> {
   const type = sanitizeEstimatedType(extracted.estimatedType);
 
   // 반품기한이 원본에 구체적으로 명시되지 않았으면 전자상거래법 최소 기준(7일)으로 채우고
@@ -93,6 +139,19 @@ export function buildPendingPurchaseFields(extracted: ExtractedOrder): PendingPu
 
   const brand = typeof extracted.brand === 'string' && extracted.brand.trim() ? extracted.brand.trim() : null;
 
+  // 외화 결제면 AI가 준 amount는 무시(스키마상 이미 null이어야 하지만 모델 오류 방어 차원에서도)
+  // 하고, 결제일(orderDate) 기준 환율로 서버가 직접 환산한다. 변환에 실패하면(네트워크 오류,
+  // 미지원 통화 등) "7달러=7원"처럼 틀리게 넣느니 amount=null(미확인)로 남긴다.
+  const originalCurrency = sanitizeCurrency(extracted.currency);
+  const originalAmount = sanitizeOriginalAmount(originalCurrency, extracted.originalAmount);
+  let amount = sanitizeAmount(extracted.amount);
+  let exchangeRate: number | null = null;
+  if (originalCurrency && originalAmount !== null) {
+    const converted = await convertToKrw(originalCurrency, originalAmount, extracted.orderDate);
+    amount = converted?.amountKrw ?? null;
+    exchangeRate = converted?.rate ?? null;
+  }
+
   return {
     type,
     returnDeadlineDays,
@@ -101,10 +160,13 @@ export function buildPendingPurchaseFields(extracted: ExtractedOrder): PendingPu
     scheduleType,
     fixedDayOfMonth,
     scheduleEstimated,
-    amount: sanitizeAmount(extracted.amount),
+    amount,
     category: sanitizeCategory(type, extracted.category),
     brand,
     brandDomain: sanitizeBrandDomain(brand, extracted.brandDomain),
+    originalAmount,
+    originalCurrency,
+    exchangeRate,
   };
 }
 
@@ -138,7 +200,7 @@ export async function insertPendingPurchase(
   source: 'email' | 'image',
   extracted: ExtractedOrder
 ): Promise<number> {
-  const fields = buildPendingPurchaseFields(extracted);
+  const fields = await buildPendingPurchaseFields(extracted);
 
   // 가격 인상 감지: 같은 이름의 활성 정기배송/구독이 이미 있고, 이번에 추출한 금액이 그때와
   // 다르면 matched_purchase_id/previous_amount를 채운다 — 신규 항목이거나 금액이 그대로면 둘 다
@@ -156,8 +218,8 @@ export async function insertPendingPurchase(
   const result = await db
     .prepare(
       `INSERT INTO pending_purchases
-         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category, matched_purchase_id, previous_amount, brand, brand_domain)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category, matched_purchase_id, previous_amount, brand, brand_domain, original_amount, original_currency, exchange_rate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       userId,
@@ -177,7 +239,10 @@ export async function insertPendingPurchase(
       matchedPurchaseId,
       previousAmount,
       fields.brand,
-      fields.brandDomain
+      fields.brandDomain,
+      fields.originalAmount,
+      fields.originalCurrency,
+      fields.exchangeRate
     )
     .run();
 

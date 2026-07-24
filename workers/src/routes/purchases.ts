@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
 import { FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
-import { sanitizeBrandDomain } from '../lib/pending-purchase-intake';
+import { sanitizeBrandDomain, sanitizeCurrency, sanitizeOriginalAmount } from '../lib/pending-purchase-intake';
 import { buildCsv, buildPdf } from '../lib/export';
 import { BadRequestError, ForbiddenError, PaymentRequiredError } from '../lib/errors';
 import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES } from '../types';
@@ -46,6 +46,12 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
   const category =
     isRecurringType(body.type) && body.category && PURCHASE_CATEGORIES.includes(body.category) ? body.category : null;
   const brand = typeof body.brand === 'string' && body.brand.trim() ? body.brand.trim() : null;
+  const originalCurrency = sanitizeCurrency(body.originalCurrency ?? null);
+  const originalAmount = sanitizeOriginalAmount(originalCurrency, body.originalAmount ?? null);
+  const exchangeRate =
+    originalCurrency && originalAmount !== null && typeof body.exchangeRate === 'number' && Number.isFinite(body.exchangeRate) && body.exchangeRate > 0
+      ? body.exchangeRate
+      : null;
   return {
     type: body.type,
     itemName: body.itemName.trim(),
@@ -60,6 +66,9 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
     category,
     brand: brand,
     brandDomain: sanitizeBrandDomain(brand, body.brandDomain ?? null),
+    originalAmount,
+    originalCurrency,
+    exchangeRate,
   };
 }
 
@@ -140,8 +149,8 @@ purchases.post('/', async (c) => {
 
   const insert = await c.env.DB.prepare(
     `INSERT INTO purchases
-       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, last_delivered_date, category, brand, brand_domain)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, last_delivered_date, category, brand, brand_domain, original_amount, original_currency, exchange_rate)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       user.id,
@@ -158,7 +167,10 @@ purchases.post('/', async (c) => {
       lastDeliveredDate,
       body.category,
       body.brand,
-      body.brandDomain
+      body.brandDomain,
+      body.originalAmount,
+      body.originalCurrency,
+      body.exchangeRate
     )
     .run();
 
@@ -180,6 +192,7 @@ purchases.put('/:id', async (c) => {
         SET type = ?, item_name = ?, base_date = ?, amount = ?, memo = ?,
             warranty_months = ?, return_deadline_days = ?, interval_days = ?,
             schedule_type = ?, fixed_day_of_month = ?, category = ?, brand = ?, brand_domain = ?,
+            original_amount = ?, original_currency = ?, exchange_rate = ?,
             updated_at = datetime('now')
       WHERE id = ?`
   )
@@ -197,6 +210,9 @@ purchases.put('/:id', async (c) => {
       body.category,
       body.brand,
       body.brandDomain,
+      body.originalAmount,
+      body.originalCurrency,
+      body.exchangeRate,
       id
     )
     .run();
