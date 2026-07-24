@@ -25,6 +25,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     category: row.category,
     deliveryConfirmCount: row.delivery_confirm_count,
     brand: row.brand,
+    brandDomain: row.brand_domain,
     createdAt: row.created_at,
   };
 }
@@ -48,6 +49,7 @@ export function toPendingPurchaseResponse(row: PendingPurchaseRow): PendingPurch
     matchedPurchaseId: row.matched_purchase_id,
     previousAmount: row.previous_amount,
     brand: row.brand,
+    brandDomain: row.brand_domain,
     status: row.status,
     createdAt: row.created_at,
   };

@@ -37,6 +37,8 @@ export interface PurchaseRow {
   category: PurchaseCategory | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. 수동 등록이면 NULL. */
   brand: string | null;
+  /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
+  brand_domain: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -107,6 +109,8 @@ export interface PendingPurchaseRow {
   previous_amount: number | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. NULL이면 미감지. */
   brand: string | null;
+  /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
+  brand_domain: string | null;
   status: PendingPurchaseStatus;
   created_at: string;
 }
@@ -135,6 +139,8 @@ export interface PendingPurchaseResponse {
   previousAmount: number | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
   brand: string | null;
+  /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
+  brandDomain: string | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }
@@ -165,6 +171,8 @@ export interface PurchaseResponse {
   deliveryConfirmCount: number;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
   brand: string | null;
+  /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
+  brandDomain: string | null;
   createdAt: string;
 }
 
@@ -205,6 +213,7 @@ export interface PurchaseRequestBody {
   fixedDayOfMonth?: number | null;
   category?: PurchaseCategory | null;
   brand?: string | null;
+  brandDomain?: string | null;
 }
 
 export type BillingPlan = 'ONE_TIME' | 'MONTHLY' | 'ANNUAL';
