@@ -753,6 +753,14 @@ button.summary-board__tile:hover {
   align-items: flex-start;
 }
 
+/* 이제 summary-board 그리드 밖, 대시보드 목록 전체보다 아래에 독립 섹션으로 온다 —
+   그리드의 gap에 기대지 않고 위아래 여백을 직접 챙긴다. */
+.ai-summary-section {
+  display: flex;
+  width: 100%;
+  margin-top: 24px;
+}
+
 .summary-board__ai-cta {
   font-size: 0.82rem;
   color: #8b7cf6;

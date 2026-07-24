@@ -980,72 +980,6 @@ export default function DashboardPage() {
             </div>
             <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
           </button>
-          <button
-            type="button"
-            className="summary-board__tile summary-board__tile--ai-summary summary-board__tile--clickable"
-            onClick={handleAiSummary}
-          >
-            {aiBrief ? (
-              <div className="ai-brief">
-                <div className="ai-brief__header">
-                  <span>🤖 AI 소비 브리핑</span>
-                  <span className="ai-brief__refresh">↻ 다시 분석</span>
-                </div>
-                <div className="ai-brief__divider" />
-                <div className="ai-brief__metrics">
-                  <div className="ai-brief__metric">
-                    <span className="ai-brief__metric-label">💰 이번 달 예상</span>
-                    <strong className="ai-brief__metric-value">{aiBrief.monthlySpend.toLocaleString('ko-KR')}원</strong>
-                  </div>
-                  <div className="ai-brief__metric">
-                    <span className="ai-brief__metric-label">📦 구독 수</span>
-                    <strong className="ai-brief__metric-value">{aiBrief.totalRecurring}개</strong>
-                  </div>
-                  {aiBrief.trendPct !== null && (
-                    <div className="ai-brief__metric">
-                      <span className="ai-brief__metric-label">📈 전월 대비</span>
-                      <strong className={`ai-brief__metric-value${aiBrief.trendPct > 0 ? ' ai-brief__metric-value--up' : ' ai-brief__metric-value--down'}`}>
-                        {aiBrief.trendPct > 0 ? '+' : ''}{aiBrief.trendPct}%
-                      </strong>
-                    </div>
-                  )}
-                  {aiBrief.topCategory && (
-                    <div className="ai-brief__metric">
-                      <span className="ai-brief__metric-label">🏆 최다 지출</span>
-                      <strong className="ai-brief__metric-value ai-brief__metric-value--cat">{aiBrief.topCategory}</strong>
-                    </div>
-                  )}
-                </div>
-                {aiBriefTextLoading ? (
-                  <div className="ai-brief__text-loading">AI 분석 중...</div>
-                ) : (
-                  <>
-                    <div className="ai-brief__section">
-                      <span className="ai-brief__section-label">😊 좋은 소식</span>
-                      <p className="ai-brief__section-text">{aiBrief.goodNews ?? '—'}</p>
-                    </div>
-                    {(aiBrief.attention || aiBrief.reviewCount > 0) && (
-                      <div className="ai-brief__section">
-                        <span className="ai-brief__section-label">👀 눈여겨볼 점</span>
-                        <p className="ai-brief__section-text">{aiBrief.attention ?? '특별한 주의사항 없음'}</p>
-                      </div>
-                    )}
-                    {aiBrief.insight && (
-                      <div className="ai-brief__insight">💡 {aiBrief.insight}</div>
-                    )}
-                  </>
-                )}
-              </div>
-            ) : (
-              <>
-                <span className="summary-board__icon" aria-hidden="true">🤖</span>
-                <div className="summary-board__text">
-                  <span className="summary-board__label">AI 소비 브리핑</span>
-                  <span className="summary-board__ai-cta">눌러서 소비 패턴 분석하기</span>
-                </div>
-              </>
-            )}
-          </button>
         </div>
       )}
 
@@ -1695,6 +1629,77 @@ export default function DashboardPage() {
           </div>
           {sharedPurchases.length === 0 && <p className="empty-state">공유받은 항목이 없습니다.</p>}
         </>
+      )}
+
+      {/* 대시보드(목록) 전체보다 아래에 오는 게 기본 위치 — 예전엔 소비요약 타일 줄 맨 끝에
+          있어서, 월/연 지출 상세를 펼치면 그 위에 걸쳐 있는 게 어색했다. */}
+      {purchasesLoaded && purchases.length > 0 && (
+        <button
+          type="button"
+          className="ai-summary-section summary-board__tile summary-board__tile--ai-summary summary-board__tile--clickable"
+          onClick={handleAiSummary}
+        >
+          {aiBrief ? (
+            <div className="ai-brief">
+              <div className="ai-brief__header">
+                <span>🤖 AI 소비 브리핑</span>
+                <span className="ai-brief__refresh">↻ 다시 분석</span>
+              </div>
+              <div className="ai-brief__divider" />
+              <div className="ai-brief__metrics">
+                <div className="ai-brief__metric">
+                  <span className="ai-brief__metric-label">💰 이번 달 예상</span>
+                  <strong className="ai-brief__metric-value">{aiBrief.monthlySpend.toLocaleString('ko-KR')}원</strong>
+                </div>
+                <div className="ai-brief__metric">
+                  <span className="ai-brief__metric-label">📦 구독 수</span>
+                  <strong className="ai-brief__metric-value">{aiBrief.totalRecurring}개</strong>
+                </div>
+                {aiBrief.trendPct !== null && (
+                  <div className="ai-brief__metric">
+                    <span className="ai-brief__metric-label">📈 전월 대비</span>
+                    <strong className={`ai-brief__metric-value${aiBrief.trendPct > 0 ? ' ai-brief__metric-value--up' : ' ai-brief__metric-value--down'}`}>
+                      {aiBrief.trendPct > 0 ? '+' : ''}{aiBrief.trendPct}%
+                    </strong>
+                  </div>
+                )}
+                {aiBrief.topCategory && (
+                  <div className="ai-brief__metric">
+                    <span className="ai-brief__metric-label">🏆 최다 지출</span>
+                    <strong className="ai-brief__metric-value ai-brief__metric-value--cat">{aiBrief.topCategory}</strong>
+                  </div>
+                )}
+              </div>
+              {aiBriefTextLoading ? (
+                <div className="ai-brief__text-loading">AI 분석 중...</div>
+              ) : (
+                <>
+                  <div className="ai-brief__section">
+                    <span className="ai-brief__section-label">😊 좋은 소식</span>
+                    <p className="ai-brief__section-text">{aiBrief.goodNews ?? '—'}</p>
+                  </div>
+                  {(aiBrief.attention || aiBrief.reviewCount > 0) && (
+                    <div className="ai-brief__section">
+                      <span className="ai-brief__section-label">👀 눈여겨볼 점</span>
+                      <p className="ai-brief__section-text">{aiBrief.attention ?? '특별한 주의사항 없음'}</p>
+                    </div>
+                  )}
+                  {aiBrief.insight && (
+                    <div className="ai-brief__insight">💡 {aiBrief.insight}</div>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            <>
+              <span className="summary-board__icon" aria-hidden="true">🤖</span>
+              <div className="summary-board__text">
+                <span className="summary-board__label">AI 소비 브리핑</span>
+                <span className="summary-board__ai-cta">눌러서 소비 패턴 분석하기</span>
+              </div>
+            </>
+          )}
+        </button>
       )}
     </div>
   );
