@@ -2090,8 +2090,10 @@ export default function DashboardPage() {
               <div className="ticket-card" key={p.id}>
                 <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
                 <div className="ticket-card__body">
-                  <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
-                  {renderCategoryBadge(p)}
+                  <div className="ticket-card__type-row">
+                    <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
+                    {renderCategoryBadge(p)}
+                  </div>
                   <div className="ticket-card__heading">
                     {p.brand && <BrandAvatar brand={p.brand} brandDomain={p.brandDomain} />}
                     <div className="ticket-card__heading-text">
@@ -2159,8 +2161,10 @@ export default function DashboardPage() {
               <div className="ticket-card ticket-card--archived" key={p.id}>
                 <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
                 <div className="ticket-card__body">
-                  <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
-                  {renderCategoryBadge(p)}
+                  <div className="ticket-card__type-row">
+                    <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
+                    {renderCategoryBadge(p)}
+                  </div>
                   <h3 className="ticket-card__title">{p.itemName}</h3>
                   {isRecurringType(p.type) ? (
                     <p className="ticket-card__deadline">
@@ -2203,8 +2207,10 @@ export default function DashboardPage() {
               <div className="ticket-card" key={p.id}>
                 <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
                 <div className="ticket-card__body">
-                  <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
-                  {renderCategoryBadge(p)}
+                  <div className="ticket-card__type-row">
+                    <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
+                    {renderCategoryBadge(p)}
+                  </div>
                   <h3 className="ticket-card__title">{p.itemName}</h3>
                   {isRecurringType(p.type) && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
