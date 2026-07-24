@@ -33,6 +33,40 @@
   --type-subscription-bg: #fbf0e0;
   --type-subscription-border: #edc98e;
 
+  /* 서비스 카테고리 8종 색상 — dataviz 스킬의 검증된 카테고리컬 팔레트(순서 고정, CVD 세이프)를
+     그대로 쓴다. 색만으로 구분하지 않도록 배지에는 항상 아이콘+라벨 텍스트를 같이 둔다. */
+  --category-software: #2a78d6;
+  --category-software-bg: #eef4fc;
+  --category-software-border: #bfd6f3;
+
+  --category-ai: #eb6834;
+  --category-ai-bg: #fdf1ec;
+  --category-ai-border: #f8cbb9;
+
+  --category-entertainment: #1baf7a;
+  --category-entertainment-bg: #edfcf7;
+  --category-entertainment-border: #bdf5e1;
+
+  --category-shopping: #eda100;
+  --category-shopping-bg: #fff8eb;
+  --category-shopping-border: #ffe6b3;
+
+  --category-food: #e87ba4;
+  --category-food-bg: #fceef3;
+  --category-food-border: #f4bed2;
+
+  --category-creator-support: #008300;
+  --category-creator-support-bg: #ebffeb;
+  --category-creator-support-border: #b3ffb3;
+
+  --category-cloud: #4a3aa7;
+  --category-cloud-bg: #f1f0fa;
+  --category-cloud-border: #ccc6eb;
+
+  --category-other: #e34948;
+  --category-other-bg: #fceded;
+  --category-other-border: #f5bdbd;
+
   /* 상태 배경 3종(위험/안전/주의) — 배너/배지 여러 곳에서 재사용하는 옅은 틴트 배경 + 테두리.
      밝기만 바뀌는 게 아니라 다크모드에서는 채도 낮춘 어두운 틴트로 따로 정의한다(아래 dark 블록). */
   --danger-bg: #fbeaea;
@@ -108,6 +142,38 @@
     --type-subscription-bg: #332715;
     --type-subscription-border: #5c4526;
 
+    --category-software: #3987e5;
+    --category-software-bg: #1b2a3c;
+    --category-software-border: #2f4a6a;
+
+    --category-ai: #d95926;
+    --category-ai-bg: #3b251c;
+    --category-ai-border: #674132;
+
+    --category-entertainment: #199e70;
+    --category-entertainment-bg: #1c3b30;
+    --category-entertainment-border: #316855;
+
+    --category-shopping: #c98500;
+    --category-shopping-bg: #413216;
+    --category-shopping-border: #735926;
+
+    --category-food: #d55181;
+    --category-food-bg: #391e28;
+    --category-food-border: #643546;
+
+    --category-creator-support: #008300;
+    --category-creator-support-bg: #164116;
+    --category-creator-support-border: #267326;
+
+    --category-cloud: #9085e9;
+    --category-cloud-bg: #201c3a;
+    --category-cloud-border: #383267;
+
+    --category-other: #e66767;
+    --category-other-bg: #3b1c1c;
+    --category-other-border: #683131;
+
     --danger-bg: #3a2020;
     --danger-border: #5c2f2f;
     --safe-bg: #16302a;
@@ -154,6 +220,38 @@
   --type-subscription: #e0a94f;
   --type-subscription-bg: #332715;
   --type-subscription-border: #5c4526;
+
+  --category-software: #3987e5;
+  --category-software-bg: #1b2a3c;
+  --category-software-border: #2f4a6a;
+
+  --category-ai: #d95926;
+  --category-ai-bg: #3b251c;
+  --category-ai-border: #674132;
+
+  --category-entertainment: #199e70;
+  --category-entertainment-bg: #1c3b30;
+  --category-entertainment-border: #316855;
+
+  --category-shopping: #c98500;
+  --category-shopping-bg: #413216;
+  --category-shopping-border: #735926;
+
+  --category-food: #d55181;
+  --category-food-bg: #391e28;
+  --category-food-border: #643546;
+
+  --category-creator-support: #008300;
+  --category-creator-support-bg: #164116;
+  --category-creator-support-border: #267326;
+
+  --category-cloud: #9085e9;
+  --category-cloud-bg: #201c3a;
+  --category-cloud-border: #383267;
+
+  --category-other: #e66767;
+  --category-other-bg: #3b1c1c;
+  --category-other-border: #683131;
 
   --danger-bg: #3a2020;
   --danger-border: #5c2f2f;
@@ -1425,6 +1523,7 @@ button.summary-board__tile:hover {
 
 .type-filter__btn--active {
   color: var(--ink);
+  background: var(--neutral-bg);
   border-color: var(--ink);
   box-shadow: var(--shadow-rest);
 }
@@ -1445,6 +1544,61 @@ button.summary-board__tile:hover {
   color: var(--type-subscription);
   background: var(--type-subscription-bg);
   border-color: var(--type-subscription);
+}
+
+/* 2차 카테고리 필터 칩 — 눌렀을 때 해당 카테고리 색으로 배경이 채워져서 선택 상태가 잘 보이게 한다. */
+.type-filter__btn--SOFTWARE.type-filter__btn--active {
+  color: var(--category-software);
+  background: var(--category-software-bg);
+  border-color: var(--category-software);
+}
+
+.type-filter__btn--AI.type-filter__btn--active {
+  color: var(--category-ai);
+  background: var(--category-ai-bg);
+  border-color: var(--category-ai);
+}
+
+.type-filter__btn--ENTERTAINMENT.type-filter__btn--active {
+  color: var(--category-entertainment);
+  background: var(--category-entertainment-bg);
+  border-color: var(--category-entertainment);
+}
+
+.type-filter__btn--SHOPPING.type-filter__btn--active {
+  color: var(--category-shopping);
+  background: var(--category-shopping-bg);
+  border-color: var(--category-shopping);
+}
+
+.type-filter__btn--FOOD.type-filter__btn--active {
+  color: var(--category-food);
+  background: var(--category-food-bg);
+  border-color: var(--category-food);
+}
+
+.type-filter__btn--CREATOR_SUPPORT.type-filter__btn--active {
+  color: var(--category-creator-support);
+  background: var(--category-creator-support-bg);
+  border-color: var(--category-creator-support);
+}
+
+.type-filter__btn--CLOUD.type-filter__btn--active {
+  color: var(--category-cloud);
+  background: var(--category-cloud-bg);
+  border-color: var(--category-cloud);
+}
+
+.type-filter__btn--OTHER.type-filter__btn--active {
+  color: var(--category-other);
+  background: var(--category-other-bg);
+  border-color: var(--category-other);
+}
+
+.type-filter__btn--UNCATEGORIZED.type-filter__btn--active {
+  color: var(--overdue-grey);
+  background: var(--neutral-bg);
+  border-color: var(--overdue-grey);
 }
 
 .type-select-row {
@@ -1995,6 +2149,70 @@ button.summary-board__tile:hover {
   color: var(--type-subscription);
   background: var(--type-subscription-bg);
   border-color: var(--type-subscription-border);
+}
+
+/* 종류 배지 옆에 붙는 서비스 카테고리 배지 — 색만으로 구분하지 않도록 항상 아이콘+라벨과 함께 쓴다. */
+.ticket-card__category {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink-soft);
+  background: var(--paper);
+  margin-left: 6px;
+}
+
+.ticket-card__category--SOFTWARE {
+  color: var(--category-software);
+  background: var(--category-software-bg);
+  border-color: var(--category-software-border);
+}
+
+.ticket-card__category--AI {
+  color: var(--category-ai);
+  background: var(--category-ai-bg);
+  border-color: var(--category-ai-border);
+}
+
+.ticket-card__category--ENTERTAINMENT {
+  color: var(--category-entertainment);
+  background: var(--category-entertainment-bg);
+  border-color: var(--category-entertainment-border);
+}
+
+.ticket-card__category--SHOPPING {
+  color: var(--category-shopping);
+  background: var(--category-shopping-bg);
+  border-color: var(--category-shopping-border);
+}
+
+.ticket-card__category--FOOD {
+  color: var(--category-food);
+  background: var(--category-food-bg);
+  border-color: var(--category-food-border);
+}
+
+.ticket-card__category--CREATOR_SUPPORT {
+  color: var(--category-creator-support);
+  background: var(--category-creator-support-bg);
+  border-color: var(--category-creator-support-border);
+}
+
+.ticket-card__category--CLOUD {
+  color: var(--category-cloud);
+  background: var(--category-cloud-bg);
+  border-color: var(--category-cloud-border);
+}
+
+.ticket-card__category--OTHER {
+  color: var(--category-other);
+  background: var(--category-other-bg);
+  border-color: var(--category-other-border);
 }
 
 .ticket-card__title {
