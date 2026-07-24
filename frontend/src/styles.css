@@ -2120,6 +2120,13 @@ button.summary-board__tile:hover {
   gap: 5px;
 }
 
+.ticket-card__type-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .ticket-card__type {
   display: inline-flex;
   align-self: flex-start;
@@ -2164,7 +2171,6 @@ button.summary-board__tile:hover {
   border: 1px solid var(--hairline-strong);
   color: var(--ink-soft);
   background: var(--paper);
-  margin-left: 6px;
 }
 
 .ticket-card__category--SOFTWARE {
