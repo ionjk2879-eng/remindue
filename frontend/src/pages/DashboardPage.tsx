@@ -76,21 +76,47 @@ const BRAND_DOMAIN: Record<string, string> = {
   'MCHOSE': 'mchose.store',
 };
 
+// Clearbit의 무료 로고 API(logo.clearbit.com)가 2025-12-08부로 완전히 종료돼 logo.dev로 교체했다
+// — 이 토큰(비밀 아님, publishable key)이 없으면 요청해봐야 항상 실패하므로 아예 시도하지 않는다.
+const LOGO_DEV_TOKEN = import.meta.env.VITE_LOGO_DEV_TOKEN as string | undefined;
+
 function BrandTag({ brand, brandDomain }: { brand: string; brandDomain?: string | null }) {
   // AI가 뽑아준 brandDomain을 우선 쓰고, 없으면(수동 등록 등) 큐레이션 맵으로 폴백한다 —
   // 이러면 매번 새 브랜드가 나올 때마다 이 맵을 수동으로 갱신할 필요가 없다.
   const domain = brandDomain ?? BRAND_DOMAIN[brand] ?? null;
   return (
     <span className="brand-tag">
-      {domain && (
+      {domain && LOGO_DEV_TOKEN && (
         <img
           className="brand-tag__logo"
-          src={`https://logo.clearbit.com/${domain}`}
+          src={`https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}`}
           alt=""
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
         />
       )}
       <span className="brand-tag__name">{brand}</span>
+    </span>
+  );
+}
+
+/** 외화 결제 항목의 원본 금액·적용 환율을 원화 금액 옆에 작게 덧붙인다 — "$7.99 · 1,301.5원/USD"
+ *  처럼, 환율 변동으로 원화 금액이 달라졌을 때 그 이유를 바로 알 수 있게. 원화 결제면 아무것도
+ *  렌더링하지 않는다. */
+function FxHint({
+  originalAmount,
+  originalCurrency,
+  exchangeRate,
+}: {
+  originalAmount: number | null;
+  originalCurrency: string | null;
+  exchangeRate: number | null;
+}) {
+  if (!originalCurrency || originalAmount === null) return null;
+  return (
+    <span className="fx-hint mono">
+      {' '}
+      ({originalCurrency} {originalAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+      {exchangeRate !== null && ` · ${exchangeRate.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원`})
     </span>
   );
 }
@@ -298,6 +324,9 @@ export default function DashboardPage() {
   const [aiBriefTextLoading, setAiBriefTextLoading] = useState(false);
   const [brand, setBrand] = useState('');
   const [brandDomain, setBrandDomain] = useState<string | null>(null);
+  const [originalAmount, setOriginalAmount] = useState<number | null>(null);
+  const [originalCurrency, setOriginalCurrency] = useState<string | null>(null);
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
@@ -496,6 +525,9 @@ export default function DashboardPage() {
     setCategory('OTHER');
     setBrand('');
     setBrandDomain(null);
+    setOriginalAmount(null);
+    setOriginalCurrency(null);
+    setExchangeRate(null);
     setShowRegisterForm(false);
   };
 
@@ -515,6 +547,9 @@ export default function DashboardPage() {
     setCategory(p.category ?? 'OTHER');
     setBrand(p.brand ?? '');
     setBrandDomain(p.brandDomain ?? null);
+    setOriginalAmount(p.originalAmount ?? null);
+    setOriginalCurrency(p.originalCurrency ?? null);
+    setExchangeRate(p.exchangeRate ?? null);
   };
 
   const handleCancelEdit = () => {
@@ -555,6 +590,9 @@ export default function DashboardPage() {
     }
     setBrand(item.brand ?? '');
     setBrandDomain(item.brandDomain ?? null);
+    setOriginalAmount(item.originalAmount ?? null);
+    setOriginalCurrency(item.originalCurrency ?? null);
+    setExchangeRate(item.exchangeRate ?? null);
     setPendingConfirmId(item.id);
   };
 
@@ -918,36 +956,34 @@ export default function DashboardPage() {
               </span>
             </div>
           </div>
-          {priceChangeCount > 0 && (
-            <div className="summary-board__tile summary-board__tile--price-change">
-              <span className="summary-board__icon" aria-hidden="true">⚠</span>
-              <div className="summary-board__text">
-                <span className="summary-board__label">가격 인상</span>
-                <span className="summary-board__value mono">
-                  {priceChangeCount}
-                  <span className="summary-board__unit">건</span>
-                </span>
-              </div>
+          {/* 인상 감지/절약 제안 둘 다 "평소엔 숨겨져 있다가 있을 때만 뜨는" 방식이면 사용자가 그런
+              기능이 있는지조차 모르기 쉬워서, 값이 0이어도(비어있어도) 상시 표시한다. */}
+          <div className="summary-board__tile summary-board__tile--price-change">
+            <span className="summary-board__icon" aria-hidden="true">⚠</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">가격 인상</span>
+              <span className="summary-board__value mono">
+                {priceChangeCount}
+                <span className="summary-board__unit">건</span>
+              </span>
             </div>
-          )}
-          {reviewCandidates.length > 0 && (
-            <button
-              type="button"
-              className="summary-board__tile summary-board__tile--savings summary-board__tile--clickable"
-              onClick={() => setShowSpendingDetail((v) => !v)}
-              aria-expanded={showSpendingDetail}
-            >
-              <span className="summary-board__icon" aria-hidden="true">💡</span>
-              <div className="summary-board__text">
-                <span className="summary-board__label">AI 절약 제안</span>
-                <span className="summary-board__value mono">
-                  {savingsEstimate.toLocaleString('ko-KR')}
-                  <span className="summary-board__unit">원 절약 가능</span>
-                </span>
-              </div>
-              <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
-            </button>
-          )}
+          </div>
+          <button
+            type="button"
+            className="summary-board__tile summary-board__tile--savings summary-board__tile--clickable"
+            onClick={() => setShowSpendingDetail((v) => !v)}
+            aria-expanded={showSpendingDetail}
+          >
+            <span className="summary-board__icon" aria-hidden="true">💡</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">AI 절약 제안</span>
+              <span className="summary-board__value mono">
+                {savingsEstimate.toLocaleString('ko-KR')}
+                <span className="summary-board__unit">원 절약 가능</span>
+              </span>
+            </div>
+            <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
+          </button>
           <button
             type="button"
             className="summary-board__tile summary-board__tile--ai-summary summary-board__tile--clickable"
@@ -1184,6 +1220,17 @@ export default function DashboardPage() {
                       <span className="pending-card__price-change-delta">
                         (+{(item.amount! - item.previousAmount!).toLocaleString('ko-KR')}원)
                       </span>
+                      <FxHint
+                        originalAmount={item.originalAmount}
+                        originalCurrency={item.originalCurrency}
+                        exchangeRate={item.exchangeRate}
+                      />
+                      {item.originalCurrency && (
+                        <span className="pending-card__price-change-hint">
+                          {' '}
+                          — 실제 정가가 아니라 환율 변동 때문일 수도 있어요.
+                        </span>
+                      )}
                     </p>
                   )}
                   <p className="pending-card__meta">
@@ -1232,6 +1279,11 @@ export default function DashboardPage() {
                       {!isPriceChange && item.amount !== null && (
                         <>
                           금액 <span className="mono">{item.amount.toLocaleString('ko-KR')}원</span>
+                          <FxHint
+                            originalAmount={item.originalAmount}
+                            originalCurrency={item.originalCurrency}
+                            exchangeRate={item.exchangeRate}
+                          />
                           {item.category && ' · '}
                         </>
                       )}
@@ -1525,7 +1577,10 @@ export default function DashboardPage() {
                     </p>
                   )}
                   {p.amount !== null && (
-                    <p className="ticket-card__amount mono">{p.amount.toLocaleString('ko-KR')}원</p>
+                    <p className="ticket-card__amount mono">
+                      {p.amount.toLocaleString('ko-KR')}원
+                      <FxHint originalAmount={p.originalAmount} originalCurrency={p.originalCurrency} exchangeRate={p.exchangeRate} />
+                    </p>
                   )}
                   <div className="ticket-card__actions">
                     {isRecurringType(p.type) && p.dDay <= 0 &&

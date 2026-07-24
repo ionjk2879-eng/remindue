@@ -15,8 +15,16 @@ export interface ExtractedOrder {
   expectedDeliveryDate: string | null;
   /** 상품 종류 추정 */
   estimatedType: 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION' | null;
-  /** 결제/주문 금액(원). 통화 기호·콤마 없는 정수. 원본에 금액이 없으면 null. */
+  /**
+   * 결제/주문 금액(원). 통화 기호·콤마 없는 정수. 원본이 원화면 이 필드를 채운다.
+   * 원본이 외화(달러 등)면 이 필드는 null로 두고 대신 originalAmount/currency를 채운다 —
+   * 서버가 결제일 기준 환율로 직접 환산하므로 여기서 잘못 변환하려 하지 마라.
+   */
   amount: number | null;
+  /** 원본에 명시된 통화 코드(ISO 4217, 예: "USD", "EUR", "JPY"). 원화(원/₩/KRW)면 null. */
+  currency: string | null;
+  /** currency가 non-null일 때만 채운다: 원본 외화 결제 금액(소수점 유지, 예: 7.99). currency가 null이면 반드시 null. */
+  originalAmount: number | null;
   /** estimatedType이 RECURRING_DELIVERY/SUBSCRIPTION일 때만 채운다: 지출 카테고리 추정. 그 외 null. */
   category: 'STREAMING' | 'SHOPPING' | 'FOOD' | 'SOFTWARE' | 'OTHER' | null;
   /** 반품/교환 기한이 원본에 구체적으로 명시되어 있었는지. */
@@ -81,8 +89,22 @@ const EXTRACTION_SCHEMA = {
     amount: {
       anyOf: [{ type: 'integer' }, { type: 'null' }],
       description:
-        '결제/주문 금액을 원(KRW) 단위 정수로 추출. "12,900원"→12900, "\\u20a91,900"→1900. ' +
-        '여러 상품/금액이 섞여 있으면 실제 결제된 총액(최종 결제금액)을 우선. 원본에 금액이 전혀 없으면 null.',
+        '원본이 원화(원, ₩, KRW)로 명시된 경우에만 채운다: 결제/주문 금액을 원 단위 정수로 추출. ' +
+        '"12,900원"→12900. 여러 상품/금액이 섞여 있으면 실제 결제된 총액(최종 결제금액)을 우선. ' +
+        '원본이 외화(달러 등)로 명시됐거나 금액이 전혀 없으면 반드시 null(외화면 originalAmount/currency로).',
+    },
+    currency: {
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+      description:
+        '결제 금액의 통화가 원화가 아니라 외화($, €, ¥, £ 등)로 명시된 경우에만 그 ISO 4217 코드' +
+        '(예: "USD", "EUR", "JPY"). 원화(원/₩/KRW) 표기면 반드시 null — 해외 서비스(넷플릭스 등)라도 ' +
+        '한국 카드로 원화 청구된 것으로 보이면(원/₩ 표기) null. isOrderConfirmation=false면 null.',
+    },
+    originalAmount: {
+      anyOf: [{ type: 'number' }, { type: 'null' }],
+      description:
+        'currency가 non-null일 때만 채운다: 원본에 명시된 외화 결제 금액, 통화 기호·콤마 없이 ' +
+        '소수점은 그대로 유지(예: "$7.99"→7.99, "€12"→12). currency가 null이면 반드시 null.',
     },
     category: {
       anyOf: [{ type: 'string', enum: ['STREAMING', 'SHOPPING', 'FOOD', 'SOFTWARE', 'OTHER'] }, { type: 'null' }],
@@ -166,6 +188,8 @@ const EXTRACTION_SCHEMA = {
     'expectedDeliveryDate',
     'estimatedType',
     'amount',
+    'currency',
+    'originalAmount',
     'category',
     'foundExplicitDeadline',
     'returnDeadlineDays',
@@ -261,10 +285,17 @@ intervalDays 변환 기준:
 반품/교환 가능 기한이 구체적인 숫자 또는 날짜로 명시된 경우에만 foundExplicitDeadline=true.
 없으면 false, returnDeadlineDays=null (서버가 법정 최소 기준으로 대체).
 
-## 7단계: 금액 추출 (amount)
-실제 결제/청구된 총액을 원(KRW) 단위 정수로 추출("12,900원"→12900). 여러 금액이 나오면
-할인 전 정가가 아니라 최종 결제금액을 우선. 통화 기호·콤마 없는 순수 정수만 담고, 원본에
-금액이 전혀 없으면 null.
+## 7단계: 금액·통화 추출 (amount / currency / originalAmount)
+실제 결제/청구된 총액을 추출한다. 여러 금액이 나오면 할인 전 정가가 아니라 최종 결제금액을 우선.
+
+**원화(원, ₩, KRW) 표기면**: amount=그 금액(정수), currency=null, originalAmount=null.
+넷플릭스·GitHub처럼 해외 서비스라도 한국 카드로 원화 결제되어 "원"/"₩"으로 찍히면 이 경우다.
+
+**외화($, €, ¥, £ 등) 표기면**: amount=null(서버가 결제일 기준 환율로 직접 환산하므로 여기서
+임의로 원화 변환하지 마라 — "$7.99"를 "7"이나 "799"로 넣는 것도 금지), currency=ISO 4217 코드
+(예: "USD"), originalAmount=원본 금액을 소수점까지 그대로(예: "$7.99"→7.99).
+
+금액이 전혀 없으면 amount=null, currency=null, originalAmount=null.
 
 ## 8단계: 판매처/브랜드 판단 (brand / brandDomain) — 오탐 방지가 최우선
 로고 표시에 쓰이는 필드라 "그럴듯하게 추측"하는 게 가장 위험하다. 아래 우선순위를 순서대로 적용해라.

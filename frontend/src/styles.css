@@ -1548,6 +1548,18 @@ button.summary-board__tile:hover {
   font-weight: 800;
 }
 
+.pending-card__price-change-hint {
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.fx-hint {
+  font-weight: 400;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
 .pending-card__hint {
   font-size: 0.76rem;
   color: var(--stamp-amber);

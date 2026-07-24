@@ -39,6 +39,12 @@ export interface PurchaseRow {
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
   brand_domain: string | null;
+  /** 외화 결제 원본 금액(소수점 유지). 원화 결제/수동 등록이면 NULL. */
+  original_amount: number | null;
+  /** 외화 결제 원본 통화 코드(ISO 4217). 원화 결제/수동 등록이면 NULL. */
+  original_currency: string | null;
+  /** 결제일(order_date) 기준 적용 환율(1 original_currency = N KRW). 원화 결제면 NULL. */
+  exchange_rate: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -111,6 +117,12 @@ export interface PendingPurchaseRow {
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
   brand_domain: string | null;
+  /** 외화 결제 원본 금액(소수점 유지). 원화 결제면 NULL. */
+  original_amount: number | null;
+  /** 외화 결제 원본 통화 코드(ISO 4217). 원화 결제면 NULL. */
+  original_currency: string | null;
+  /** 결제일(order_date) 기준 적용 환율(1 original_currency = N KRW). 원화 결제면 NULL. */
+  exchange_rate: number | null;
   status: PendingPurchaseStatus;
   created_at: string;
 }
@@ -141,6 +153,12 @@ export interface PendingPurchaseResponse {
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
   brandDomain: string | null;
+  /** 외화 결제 원본 금액(소수점 유지). 원화 결제면 null. */
+  originalAmount: number | null;
+  /** 외화 결제 원본 통화 코드(ISO 4217). 원화 결제면 null. */
+  originalCurrency: string | null;
+  /** 결제일 기준 적용 환율(1 originalCurrency = N KRW). 원화 결제면 null. */
+  exchangeRate: number | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }
@@ -173,6 +191,12 @@ export interface PurchaseResponse {
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
   brandDomain: string | null;
+  /** 외화 결제 원본 금액(소수점 유지). 원화 결제/수동 등록이면 null. */
+  originalAmount: number | null;
+  /** 외화 결제 원본 통화 코드(ISO 4217). 원화 결제/수동 등록이면 null. */
+  originalCurrency: string | null;
+  /** 결제일 기준 적용 환율(1 originalCurrency = N KRW). 원화 결제면 null. */
+  exchangeRate: number | null;
   createdAt: string;
 }
 
@@ -214,6 +238,9 @@ export interface PurchaseRequestBody {
   category?: PurchaseCategory | null;
   brand?: string | null;
   brandDomain?: string | null;
+  originalAmount?: number | null;
+  originalCurrency?: string | null;
+  exchangeRate?: number | null;
 }
 
 export type BillingPlan = 'ONE_TIME' | 'MONTHLY' | 'ANNUAL';

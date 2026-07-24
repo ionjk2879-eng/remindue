@@ -90,8 +90,14 @@ pendingPurchases.post('/:id/apply-price-change', async (c) => {
     throw new ForbiddenError('본인 소유의 항목만 처리할 수 있습니다');
   }
 
-  await c.env.DB.prepare(`UPDATE purchases SET amount = ?, updated_at = datetime('now') WHERE id = ?`)
-    .bind(pending.amount, pending.matched_purchase_id)
+  // 외화 구독이면 이번에 새로 감지된 환율/원본 금액으로도 같이 갱신한다 — 안 하면 최초 등록 때의
+  // 옛 환율이 남아서 "적용 환율" 표시가 이번 인상분과 안 맞게 된다.
+  await c.env.DB.prepare(
+    `UPDATE purchases
+        SET amount = ?, original_amount = ?, original_currency = ?, exchange_rate = ?, updated_at = datetime('now')
+      WHERE id = ?`
+  )
+    .bind(pending.amount, pending.original_amount, pending.original_currency, pending.exchange_rate, pending.matched_purchase_id)
     .run();
   await setStatus(c.env.DB, id, 'confirmed');
 
