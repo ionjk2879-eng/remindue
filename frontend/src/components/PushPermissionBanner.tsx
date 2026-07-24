@@ -2,14 +2,21 @@ import { useEffect, useState } from 'react';
 import { fetchVapidPublicKey, subscribePush } from '../api/push';
 import { isPushSupported, urlBase64ToUint8Array } from '../lib/push';
 
-/** 이미 허용(또는 거부)했거나 구독이 이미 있으면 조용히 숨는다 — 매번 다시 묻지 않는다. */
+/**
+ * 이미 거부했거나(denied) 실제 구독이 이미 있으면 조용히 숨는다 — 매번 다시 묻지 않는다.
+ * 권한이 'default'인지는 안 본다 — 안드로이드에서 PWA를 홈 화면에 설치할 때 Chrome/OS가
+ * 설치 흐름 중에 알림 권한을 자체적으로 먼저 'granted'로 넘겨버리는 경우가 있는데, 그때도
+ * 실제 pushManager 구독은 아직 안 만들어진 상태일 수 있다 — 그 경우 이 배너가 유일하게
+ * subscribePush()를 호출해서 서버에 등록해줄 수 있는 통로라, 권한이 이미 허용돼 있어도
+ * 구독이 없으면 반드시 보여줘야 한다.
+ */
 export default function PushPermissionBanner() {
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isPushSupported() || Notification.permission !== 'default') return;
+    if (!isPushSupported() || Notification.permission === 'denied') return;
 
     navigator.serviceWorker.ready
       .then((registration) => registration.pushManager.getSubscription())
