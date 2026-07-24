@@ -699,12 +699,19 @@ button.summary-board__tile:hover {
   font-style: italic;
 }
 
+.summary-board__ai-cta {
+  font-size: 0.82rem;
+  color: #8b7cf6;
+  font-weight: 500;
+}
+
 .summary-board__ai-text {
   margin: 0;
   font-size: 0.85rem;
   line-height: 1.6;
   color: var(--ink);
   white-space: pre-wrap;
+  text-align: left;
 }
 
 .summary-board__icon {

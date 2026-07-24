@@ -272,21 +272,8 @@ export default function DashboardPage() {
     if (view === 'ARCHIVED') loadArchived();
   }, [view]);
 
-  // purchases가 처음 로드된 뒤 AI 소비 요약을 한 번 fetch — sessionStorage로 30분 캐싱.
-  useEffect(() => {
-    if (!purchasesLoaded || purchases.length === 0) return;
-
-    const summaryKey = `ai_summary_${nickname}`;
-    try {
-      const raw = sessionStorage.getItem(summaryKey);
-      if (raw) {
-        const { summary, ts } = JSON.parse(raw) as { summary: string; ts: number };
-        if (Date.now() - ts < 30 * 60 * 1000) {
-          setAiSummary(summary);
-          return;
-        }
-      }
-    } catch {}
+  const handleAiSummary = async () => {
+    if (aiSummaryLoading) return;
 
     const today = todayDateOnly();
     const [yr, mo] = today.split('-').map(Number);
@@ -296,7 +283,9 @@ export default function DashboardPage() {
       if (p.amount === null || !isRecurringType(p.type)) return sum;
       return sum + occurrencesInMonth(p, yr, mo) * p.amount;
     }, 0);
-    const yrSpend = Array.from({ length: 12 }, (_, i) => totalSpendInMonth(purchases, yr, i + 1)).reduce((a, b) => a + b, 0);
+    const yrSpend = Array.from({ length: 12 }, (_, i) =>
+      totalSpendInMonth(purchases, yr, i + 1),
+    ).reduce((a, b) => a + b, 0);
     const prevMoSpend = totalSpendInMonth(purchases, mo === 1 ? yr - 1 : yr, mo === 1 ? 12 : mo - 1);
     const trendPct = prevMoSpend > 0 ? Math.round(((moSpend - prevMoSpend) / prevMoSpend) * 100) : null;
 
@@ -337,18 +326,13 @@ export default function DashboardPage() {
       totalItems: purchases.length,
     };
 
+    setAiSummary(null);
     setAiSummaryLoading(true);
     fetchAiSummary(input)
-      .then((summary) => {
-        if (summary) {
-          setAiSummary(summary);
-          sessionStorage.setItem(summaryKey, JSON.stringify({ summary, ts: Date.now() }));
-        }
-      })
+      .then((summary) => { if (summary) setAiSummary(summary); })
       .catch(() => {})
       .finally(() => setAiSummaryLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [purchasesLoaded]);
+  };
 
   useEffect(() => {
     if (view === 'SHARED' && selectedShareId !== null) {
@@ -823,19 +807,24 @@ export default function DashboardPage() {
               <span className="summary-board__chevron" aria-hidden="true">{showSpendingDetail ? '▲' : '▾'}</span>
             </button>
           )}
-          {(aiSummaryLoading || aiSummary) && (
-            <div className="summary-board__tile summary-board__tile--ai-summary">
-              <span className="summary-board__icon" aria-hidden="true">✨</span>
-              <div className="summary-board__text">
-                <span className="summary-board__label">AI 소비 요약</span>
-                {aiSummaryLoading ? (
-                  <span className="summary-board__ai-loading">분석 중...</span>
-                ) : (
-                  <p className="summary-board__ai-text">{aiSummary}</p>
-                )}
-              </div>
+          <button
+            type="button"
+            className="summary-board__tile summary-board__tile--ai-summary summary-board__tile--clickable"
+            onClick={handleAiSummary}
+            disabled={aiSummaryLoading}
+          >
+            <span className="summary-board__icon" aria-hidden="true">✨</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">AI 소비 요약</span>
+              {aiSummaryLoading ? (
+                <span className="summary-board__ai-loading">분석 중...</span>
+              ) : aiSummary ? (
+                <p className="summary-board__ai-text">{aiSummary}</p>
+              ) : (
+                <span className="summary-board__ai-cta">눌러서 분석하기</span>
+              )}
             </div>
-          )}
+          </button>
         </div>
       )}
 
