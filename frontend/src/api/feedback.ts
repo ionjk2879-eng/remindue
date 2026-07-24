@@ -30,3 +30,13 @@ export async function replyToFeedback(id: number, content: string, status?: Feed
   const { data } = await apiClient.post<FeedbackDetail>(`/feedback/${id}/replies`, { content, status });
   return data;
 }
+
+export async function updateFeedbackReply(id: number, replyId: number, content: string) {
+  const { data } = await apiClient.put<FeedbackDetail>(`/feedback/${id}/replies/${replyId}`, { content });
+  return data;
+}
+
+export async function deleteFeedbackReply(id: number, replyId: number) {
+  const { data } = await apiClient.delete<FeedbackDetail>(`/feedback/${id}/replies/${replyId}`);
+  return data;
+}

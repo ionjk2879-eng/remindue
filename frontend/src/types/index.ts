@@ -159,10 +159,12 @@ export type FeedbackStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export interface FeedbackListItem {
   id: number;
   category: FeedbackCategory;
+  /** 비밀글이고 내가 작성자/운영자가 아니면 "🔒 비밀글입니다"로 마스킹돼서 온다. */
   title: string;
   status: FeedbackStatus;
   authorNickname: string;
   replyCount: number;
+  isPrivate: boolean;
   createdAt: string;
 }
 
@@ -184,6 +186,7 @@ export interface FeedbackDetail {
   isMine: boolean;
   /** 조회자가 운영자인지 — 상태 변경 UI 노출 여부에 쓴다. */
   viewerIsAdmin: boolean;
+  isPrivate: boolean;
   createdAt: string;
   replies: FeedbackReply[];
 }
@@ -192,4 +195,5 @@ export interface FeedbackInput {
   category: FeedbackCategory;
   title: string;
   content: string;
+  isPrivate?: boolean;
 }

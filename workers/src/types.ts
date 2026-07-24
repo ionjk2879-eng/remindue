@@ -343,7 +343,8 @@ export type FeedbackStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 
 export const FEEDBACK_STATUSES: readonly FeedbackStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED'];
 
-// D1 row shape (snake_case columns from migrations/0014_add_feedback.sql)
+// D1 row shape (snake_case columns from migrations/0014_add_feedback.sql,
+// is_private added in 0029_add_feedback_private.sql)
 export interface FeedbackRow {
   id: number;
   user_id: number;
@@ -351,6 +352,8 @@ export interface FeedbackRow {
   title: string;
   content: string;
   status: FeedbackStatus;
+  /** SQLite boolean(0/1) — 1이면 작성자 본인과 운영자만 상세를 볼 수 있다(목록엔 제목 마스킹돼서 계속 노출). */
+  is_private: number;
   created_at: string;
 }
 
@@ -366,10 +369,12 @@ export interface FeedbackReplyRow {
 export interface FeedbackListItemResponse {
   id: number;
   category: FeedbackCategory;
+  /** 비밀글이고 조회자가 작성자/운영자가 아니면 "🔒 비밀글입니다"로 마스킹된다. */
   title: string;
   status: FeedbackStatus;
   authorNickname: string;
   replyCount: number;
+  isPrivate: boolean;
   createdAt: string;
 }
 
@@ -391,6 +396,7 @@ export interface FeedbackDetailResponse {
   isMine: boolean;
   /** 조회자가 운영자(Env.ADMIN_EMAIL)인지 — 상태 변경 UI 노출 여부에 쓴다. */
   viewerIsAdmin: boolean;
+  isPrivate: boolean;
   createdAt: string;
   replies: FeedbackReplyResponse[];
 }

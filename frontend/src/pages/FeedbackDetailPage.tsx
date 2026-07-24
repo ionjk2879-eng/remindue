@@ -1,9 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { deleteFeedback, fetchFeedbackDetail, replyToFeedback, updateFeedback } from '../api/feedback';
+import {
+  deleteFeedback,
+  deleteFeedbackReply,
+  fetchFeedbackDetail,
+  replyToFeedback,
+  updateFeedback,
+  updateFeedbackReply,
+} from '../api/feedback';
 import { CATEGORY_LABEL, CategoryBadge, STATUS_LABEL, StatusBadge } from '../components/FeedbackBadges';
-import type { FeedbackCategory, FeedbackDetail, FeedbackStatus } from '../types';
+import type { FeedbackCategory, FeedbackDetail, FeedbackReply, FeedbackStatus } from '../types';
 
 const CATEGORY_OPTIONS: FeedbackCategory[] = ['BUG', 'FEATURE_REQUEST', 'QUESTION', 'OTHER'];
 const STATUS_OPTIONS: FeedbackStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED'];
@@ -18,6 +25,7 @@ export default function FeedbackDetailPage() {
   const navigate = useNavigate();
 
   const [detail, setDetail] = useState<FeedbackDetail | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [replyStatus, setReplyStatus] = useState<FeedbackStatus | ''>('');
   const [submitting, setSubmitting] = useState(false);
@@ -27,13 +35,25 @@ export default function FeedbackDetailPage() {
   const [editCategory, setEditCategory] = useState<FeedbackCategory>('QUESTION');
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
+  const [editIsPrivate, setEditIsPrivate] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const [editingReplyId, setEditingReplyId] = useState<number | null>(null);
+  const [editReplyContent, setEditReplyContent] = useState('');
+  const [savingReply, setSavingReply] = useState(false);
+  const [replyActionError, setReplyActionError] = useState<string | null>(null);
+
   const load = async () => {
-    const data = await fetchFeedbackDetail(feedbackId);
-    setDetail(data);
+    try {
+      const data = await fetchFeedbackDetail(feedbackId);
+      setDetail(data);
+      setLoadError(null);
+    } catch (err) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setLoadError(message ?? '문의를 불러오지 못했어요.');
+    }
   };
 
   useEffect(() => {
@@ -63,6 +83,7 @@ export default function FeedbackDetailPage() {
     setEditCategory(detail.category);
     setEditTitle(detail.title);
     setEditContent(detail.content);
+    setEditIsPrivate(detail.isPrivate);
     setEditError(null);
     setEditing(true);
   };
@@ -72,7 +93,12 @@ export default function FeedbackDetailPage() {
     setEditError(null);
     setSavingEdit(true);
     try {
-      const updated = await updateFeedback(feedbackId, { category: editCategory, title: editTitle, content: editContent });
+      const updated = await updateFeedback(feedbackId, {
+        category: editCategory,
+        title: editTitle,
+        content: editContent,
+        isPrivate: editIsPrivate,
+      });
       setDetail(updated);
       setEditing(false);
     } catch (err) {
@@ -95,6 +121,57 @@ export default function FeedbackDetailPage() {
     }
   };
 
+  const canEditReply = (reply: FeedbackReply): boolean =>
+    !!detail && (reply.isAdmin ? detail.viewerIsAdmin : detail.isMine);
+
+  const handleReplyEditClick = (reply: FeedbackReply) => {
+    setReplyActionError(null);
+    setEditingReplyId(reply.id);
+    setEditReplyContent(reply.content);
+  };
+
+  const handleReplyEditCancel = () => {
+    setEditingReplyId(null);
+    setEditReplyContent('');
+  };
+
+  const handleReplyEditSave = async (replyId: number) => {
+    setReplyActionError(null);
+    setSavingReply(true);
+    try {
+      const updated = await updateFeedbackReply(feedbackId, replyId, editReplyContent);
+      setDetail(updated);
+      setEditingReplyId(null);
+      setEditReplyContent('');
+    } catch (err) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setReplyActionError(message ?? '답글을 수정하지 못했어요.');
+    } finally {
+      setSavingReply(false);
+    }
+  };
+
+  const handleReplyDelete = async (replyId: number) => {
+    if (!window.confirm('이 답글을 삭제할까요?')) return;
+    try {
+      const updated = await deleteFeedbackReply(feedbackId, replyId);
+      setDetail(updated);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (loadError) {
+    return (
+      <div className="feedback-detail">
+        <Link to="/feedback" className="btn-text">
+          ← 목록으로
+        </Link>
+        <p className="empty-state">🔒 {loadError}</p>
+      </div>
+    );
+  }
+
   if (!detail) return null;
 
   const canReply = detail.isMine || detail.viewerIsAdmin;
@@ -111,6 +188,7 @@ export default function FeedbackDetailPage() {
           <div className="feedback-list-item__top">
             <CategoryBadge category={detail.category} />
             <StatusBadge status={detail.status} />
+            {detail.isPrivate && <span className="feedback-private-badge">🔒 비밀글</span>}
           </div>
           {!editing && canDelete && (
             <div className="feedback-detail__owner-actions">
@@ -148,6 +226,10 @@ export default function FeedbackDetailPage() {
               <label>내용</label>
               <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={5} required />
             </div>
+            <label className="feedback-form__private-toggle">
+              <input type="checkbox" checked={editIsPrivate} onChange={(e) => setEditIsPrivate(e.target.checked)} />
+              🔒 비밀글로 전환 (작성자 본인과 운영자만 볼 수 있어요)
+            </label>
             {editError && <p className="form-error">{editError}</p>}
             <div className="feedback-detail__owner-actions">
               <button type="button" className="btn-text" onClick={() => setEditing(false)} disabled={savingEdit}>
@@ -171,14 +253,54 @@ export default function FeedbackDetailPage() {
 
       {detail.replies.length > 0 && (
         <div className="feedback-thread">
-          {detail.replies.map((reply) => (
-            <div key={reply.id} className={`feedback-reply ${reply.isAdmin ? 'feedback-reply--admin' : ''}`}>
-              <div className="feedback-reply__meta">
-                {reply.isAdmin ? '운영자' : detail.authorNickname} · {formatDateTime(reply.createdAt)}
+          {detail.replies.map((reply) => {
+            const isEditingThis = editingReplyId === reply.id;
+            return (
+              <div key={reply.id} className={`feedback-reply ${reply.isAdmin ? 'feedback-reply--admin' : ''}`}>
+                <div className="feedback-reply__meta">
+                  <span>
+                    {reply.isAdmin ? '운영자' : detail.authorNickname} · {formatDateTime(reply.createdAt)}
+                  </span>
+                  {canEditReply(reply) && !isEditingThis && (
+                    <span className="feedback-reply__actions">
+                      <button type="button" className="btn-text" onClick={() => handleReplyEditClick(reply)}>
+                        수정
+                      </button>
+                      <button type="button" className="btn-text" onClick={() => handleReplyDelete(reply.id)}>
+                        삭제
+                      </button>
+                    </span>
+                  )}
+                </div>
+                {isEditingThis ? (
+                  <div className="feedback-reply__edit">
+                    <textarea
+                      value={editReplyContent}
+                      onChange={(e) => setEditReplyContent(e.target.value)}
+                      rows={3}
+                      required
+                    />
+                    {replyActionError && <p className="form-error">{replyActionError}</p>}
+                    <div className="feedback-detail__owner-actions">
+                      <button type="button" className="btn-text" onClick={handleReplyEditCancel} disabled={savingReply}>
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => handleReplyEditSave(reply.id)}
+                        disabled={savingReply}
+                      >
+                        {savingReply ? '저장 중...' : '저장'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p>{reply.content}</p>
+                )}
               </div>
-              <p>{reply.content}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -17,6 +17,7 @@ export default function FeedbackPage() {
   const [category, setCategory] = useState<FeedbackCategory>('QUESTION');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,10 +35,11 @@ export default function FeedbackPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await createFeedback({ category, title, content });
+      await createFeedback({ category, title, content, isPrivate });
       setTitle('');
       setContent('');
       setCategory('QUESTION');
+      setIsPrivate(false);
       setShowForm(false);
       await load();
     } catch (err) {
@@ -77,6 +79,10 @@ export default function FeedbackPage() {
             <label>내용</label>
             <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} required />
           </div>
+          <label className="feedback-form__private-toggle">
+            <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
+            🔒 비밀글로 작성 (작성자 본인과 운영자만 볼 수 있어요)
+          </label>
           {error && <p className="form-error">{error}</p>}
           <button type="submit" className="btn" disabled={submitting}>
             {submitting ? '등록 중...' : '등록하기'}
@@ -95,7 +101,10 @@ export default function FeedbackPage() {
                   <CategoryBadge category={item.category} />
                   <StatusBadge status={item.status} />
                 </div>
-                <div className="feedback-list-item__title">{item.title}</div>
+                <div className="feedback-list-item__title">
+                  {item.isPrivate && <span aria-hidden="true">🔒 </span>}
+                  {item.title}
+                </div>
                 <div className="feedback-list-item__meta">
                   <span>{item.authorNickname}</span>
                   <span>{formatDate(item.createdAt)}</span>
