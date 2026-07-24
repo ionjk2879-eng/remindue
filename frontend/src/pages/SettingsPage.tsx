@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { fetchNotificationDays, updateNotificationDays, updateNickname as apiUpdateNickname } from '../api/settings';
+import {
+  fetchNotificationDays,
+  updateNotificationDays,
+  fetchConfirmationAdvanceDays,
+  updateConfirmationAdvanceDays,
+  updateNickname as apiUpdateNickname,
+} from '../api/settings';
 import { acceptInvite, fetchReceivedInvites, fetchSentInvites, inviteMember, revokeShare } from '../api/sharing';
 import { cancelSubscription } from '../api/billing';
 import { deleteAccount } from '../api/auth';
@@ -23,6 +29,10 @@ function formatDateOnly(dateStr: string): string {
 const NOTIFICATION_DAY_OPTIONS = [10, 7, 5, 3, 2, 1, 0];
 const FREE_PLAN_FIXED_DAYS = [7, 3, 1, 0];
 
+/** 백엔드 lib/notification-prefs.ts의 MIN/MAX_CONFIRMATION_ADVANCE_DAYS(1~14) 범위 안에서
+ *  고를 만한 값만 골라둔 드롭다운 후보 — "확인이 필요한 항목" 예고 알림이 며칠 전에 올지. */
+const CONFIRMATION_ADVANCE_DAY_OPTIONS = [1, 2, 3, 5, 7, 10, 14];
+
 function formatDayLabel(day: number): string {
   return day === 0 ? '당일' : `${day}일 전`;
 }
@@ -39,6 +49,10 @@ export default function SettingsPage() {
   const [selectedDays, setSelectedDays] = useState<number[] | null>(null);
   const [savingDays, setSavingDays] = useState(false);
   const [daysMessage, setDaysMessage] = useState<string | null>(null);
+
+  const [advanceDays, setAdvanceDays] = useState<number | null>(null);
+  const [savingAdvanceDays, setSavingAdvanceDays] = useState(false);
+  const [advanceDaysMessage, setAdvanceDaysMessage] = useState<string | null>(null);
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -60,6 +74,11 @@ export default function SettingsPage() {
     setSelectedDays(data.notificationDays);
   };
 
+  const loadConfirmationAdvanceDays = async () => {
+    const data = await fetchConfirmationAdvanceDays();
+    setAdvanceDays(data.confirmationAdvanceDays);
+  };
+
   const loadSharing = async () => {
     const [sent, received] = await Promise.all([fetchSentInvites(), fetchReceivedInvites()]);
     setSentInvites(sent);
@@ -72,6 +91,7 @@ export default function SettingsPage() {
   // refreshPremium()으로 context를 갱신한다.
   useEffect(() => {
     loadNotificationDays();
+    loadConfirmationAdvanceDays();
     loadSharing();
   }, []);
 
@@ -115,6 +135,21 @@ export default function SettingsPage() {
       setDaysMessage(message ?? '저장하지 못했어요.');
     } finally {
       setSavingDays(false);
+    }
+  };
+
+  const handleSaveAdvanceDays = async (days: number) => {
+    setAdvanceDaysMessage(null);
+    setSavingAdvanceDays(true);
+    try {
+      const result = await updateConfirmationAdvanceDays(days);
+      setAdvanceDays(result.confirmationAdvanceDays);
+      setAdvanceDaysMessage('저장했어요.');
+    } catch (err) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setAdvanceDaysMessage(message ?? '저장하지 못했어요.');
+    } finally {
+      setSavingAdvanceDays(false);
     }
   };
 
@@ -288,6 +323,41 @@ export default function SettingsPage() {
         ) : (
           <p className="settings-section__hint">
             무료 플랜은 7일/3일/1일/당일 전 알림으로 고정돼요.{' '}
+            <Link to="/pricing">프리미엄으로 업그레이드하면 원하는 시점을 고를 수 있어요 →</Link>
+          </p>
+        )}
+      </section>
+
+      <section className="settings-section">
+        <h2>확인이 필요한 항목 — 예고 알림 시점</h2>
+        <p className="settings-section__hint">
+          정기구독·배송 결제/배송 며칠 전에 "곧 결제/배송돼요" 예고 알림을 받을지예요. (당일 유지
+          확인, 1일 후·1주일 후 재확인 알림은 시점이 고정이고 이 예고 알림만 바꿀 수 있어요.)
+        </p>
+        {isPremium ? (
+          advanceDays === null ? (
+            <div className="skeleton-block">
+              <Skeleton width="50%" />
+            </div>
+          ) : (
+            <>
+              <select
+                value={advanceDays}
+                disabled={savingAdvanceDays}
+                onChange={(e) => handleSaveAdvanceDays(Number(e.target.value))}
+              >
+                {CONFIRMATION_ADVANCE_DAY_OPTIONS.map((day) => (
+                  <option key={day} value={day}>
+                    {day}일 전
+                  </option>
+                ))}
+              </select>
+              {advanceDaysMessage && <p className="settings-section__message">{advanceDaysMessage}</p>}
+            </>
+          )
+        ) : (
+          <p className="settings-section__hint">
+            무료 플랜은 3일 전 고정이에요.{' '}
             <Link to="/pricing">프리미엄으로 업그레이드하면 원하는 시점을 고를 수 있어요 →</Link>
           </p>
         )}

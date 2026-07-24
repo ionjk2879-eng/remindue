@@ -27,6 +27,18 @@ export async function markDelivered(id: number) {
   return data;
 }
 
+/** "유지하기"를 여러 건 한 번에 — 확인이 필요한 항목을 하나씩 누르는 불편을 줄이기 위한 일괄 처리. */
+export async function confirmAllDelivered(ids: number[]) {
+  const { data } = await apiClient.post<Purchase[]>('/purchases/confirm-all', { ids });
+  return data;
+}
+
+/** "유지 안 함" — 더 이상 안 쓴다고 명시적으로 표시(discontinuedAt 채움). 미확인(침묵)과는 다르다. */
+export async function discontinuePurchase(id: number) {
+  const { data } = await apiClient.post<Purchase>(`/purchases/${id}/discontinue`);
+  return data;
+}
+
 export async function archivePurchase(id: number) {
   const { data } = await apiClient.post<Purchase>(`/purchases/${id}/archive`);
   return data;
@@ -46,6 +58,9 @@ export interface AiSummaryInput {
   monthTrendPercent: number | null;
   topCategory: string | null;
   topCategoryAmount: number | null;
+  /** 최다 카테고리가 이번 달 정기 지출에서 차지하는 비중(%). 소비가 한쪽에 쏠렸는지 AI가
+   *  판단할 수 있게 넘겨준다 — 없으면(카테고리 자체가 없으면) null. */
+  topCategoryShare: number | null;
   reviewCount: number;
   totalItems: number;
   /** 가장 가까운 다음 결제/배송 예정일·항목명. AI가 코멘트에서 언급할 수 있게 넘겨준다 — 있는

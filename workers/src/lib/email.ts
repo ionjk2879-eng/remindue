@@ -298,6 +298,57 @@ export function buildSubscriptionCanceledEmailHtml(nickname: string, planLabel: 
   });
 }
 
+/**
+ * "확인 필요" 알림 메일 — 여러 단계를 한 메일에 같이 담을 수 있다(confirmation-nudge.ts):
+ * advance(다음 결제·배송이 N일 후 예정, 예고 — N은 무료 3일 고정/프리미엄 커스텀) /
+ * followUp(예정일이 하루 지났는데도 미확인) / reviewFlagged(일주일 지났는데도 여전히 미확인,
+ * 확정 톤). 전부 비어있지 않을 수도, 일부만 있을 수도 있다. followUp은 확인 안 했다고
+ * "사용 안 함"이라 단정하지 않고, 계속 쓰는 중이면 그냥 눌러달라는 요청으로 문구를 둔다
+ * (reviewFlagged만 AI가 이미 검토 대상으로 표시했다는 확정 톤 — DashboardPage.tsx의 절약 후보
+ * 판정과 같은 기준이라서).
+ */
+export function buildConfirmationNudgeEmailHtml(
+  nickname: string,
+  advance: Array<{ itemName: string; type: PurchaseType; advanceDays: number }>,
+  followUp: string[],
+  reviewFlagged: string[],
+  dashboardUrl: string
+): string {
+  const messages: string[] = [];
+
+  for (const { itemName, type, advanceDays } of advance) {
+    const verb = type === 'RECURRING_DELIVERY' ? '배송' : '자동 결제';
+    messages.push(
+      `🔔 ${advanceDays}일 후 ${escapeHtml(itemName)}가 ${verb}됩니다.<br/>${verb} 후 "유지하기"를 눌러 이번 회차를 확인해 주세요.`
+    );
+  }
+
+  for (const itemName of followUp) {
+    messages.push(
+      `🤖 ${escapeHtml(itemName)} — 지난 결제/배송 이후 아직 이용 여부를 확인하지 못했습니다.<br/>` +
+        `계속 이용 중이라면 "유지하기"를 눌러주세요.<br/>` +
+        `일정 기간 확인이 없으면 AI가 절약 검토 대상으로 표시할 수 있습니다.`
+    );
+  }
+
+  for (const itemName of reviewFlagged) {
+    messages.push(
+      `🤖 AI가 ${escapeHtml(itemName)}을(를) 절약 검토 대상으로 표시했습니다.<br/>` +
+        `최근 여러 회차 동안 이용 여부가 확인되지 않았습니다.<br/>` +
+        `계속 이용 중이라면 "유지하기"를 눌러주세요.`
+    );
+  }
+
+  return buildSimpleEmailHtml({
+    nickname,
+    headingPlain: '아직 이용 중인지 ',
+    headingHighlight: '확인이 필요해요',
+    message: messages.join('<br/><br/>'),
+    ctaLabel: '대시보드에서 확인하기',
+    ctaUrl: dashboardUrl,
+  });
+}
+
 /** 가족/구성원 공유 초대 메일 — 받는 사람은 아직 계정이 없을 수도 있으니, "가입/로그인하면 보인다"는 걸 명시한다. */
 export function buildShareInviteEmailHtml(inviteeEmail: string, ownerNickname: string, dashboardUrl: string): string {
   return buildSimpleEmailHtml({

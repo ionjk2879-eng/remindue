@@ -7,6 +7,8 @@ import {
   updatePurchase,
   deletePurchase,
   markDelivered,
+  confirmAllDelivered,
+  discontinuePurchase,
   archivePurchase,
   unarchivePurchase,
   downloadExport,
@@ -134,6 +136,19 @@ interface AiBriefData extends AiBriefSections {
   nextPaymentItem: string | null;
   /** 확인 대기 목록에서 가격 인상이 감지된 항목명 목록. 마찬가지로 결정론적 계산값. */
   priceIncreaseItems: string[];
+  /** "유지 안 함" 표시했거나 3회차 이상 미확인인 구독/정기배송 항목명 목록(절약 후보). */
+  unusedServiceItems: string[];
+  /** 다음 결제까지 남은 일수(오늘 기준 D-day). 없으면 null. */
+  nextPaymentDDay: number | null;
+  /** 사용 안 함 의심 항목들의 월 환산 절약 가능 금액 합계. */
+  savingsEstimate: number;
+  /**
+   * 위 신호들(가격 인상·미사용 의심·지출 추이·과다구독)을 점수화한 결정론적 지수(0~100) —
+   * AI가 매기는 게 아니라 규칙 기반 계산이다. "AI 소비 건강도"라는 이름으로 보여주지만
+   * 실제로는 이미 계산해둔 값들을 하나의 지표로 압축한 것뿐이라 매번 똑같은 입력엔 항상
+   * 같은 점수가 나온다(모델 호출 없이 재현 가능).
+   */
+  healthScore: number;
 }
 
 const TYPE_LABEL: Record<PurchaseType, string> = {
@@ -193,11 +208,18 @@ const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
 const URGENT_WINDOW_DAYS = 7;
 
 /**
- * "AI 절약 제안"(미사용 구독 추천) 기준일 — 정기배송/구독 이메일이 실제로 몇 통 왔는지는 추적하지
- * 않으므로(원본 메일을 저장하지 않아서), 대신 "시작한 지 오래됐고 그동안 '이번 회차 확인'을 한
- * 번도 안 눌렀는지"로 대체한다. 완벽한 신호는 아니라 라벨에도 "확인 안 함"을 명시해 과장하지 않는다.
+ * "확인 필요"/"AI 절약 제안" 판정에 쓰는 연속 미확인 회차 임계값 — 이만큼 "유지하기"를 안 누르고
+ * 회차가 지나면 절약 후보(빨간 신호)로 취급한다. 1~2회차 미확인은 "확인 필요"(노란 신호)로만
+ * 다루고 아직 절약 후보로 올리지 않는다.
+ *
+ * 주의: purchase-logic.ts에는 예전에 "회차 수 vs delivery_confirm_count" 비교로 "놓친 배송"을
+ * 판정하던 computeMissedConfirmations가 있었는데, 실제 배송 지연/버튼을 늦게 누르는 경우가 흔해
+ * 오탐이 잦아서 완전히 제거됐다(CLAUDE.md 참고). 여기서 하는 건 그것과 계산식은 비슷하지만
+ * 목적이 다르다 — "배송이 안 됐다"를 단정하는 게 아니라 "혹시 안 쓰고 있을 수도 있으니 확인해
+ * 달라"는 참고용 추천일 뿐이고, 미확인을 절대 "사용 안 함"으로 단정하지 않는다(discontinuedAt이
+ * 명시적으로 찍힌 경우만 확정). 그 교훈을 반영해 라벨도 항상 "확인이 필요합니다"류로 순화한다.
  */
-const UNUSED_SUBSCRIPTION_THRESHOLD_DAYS = 180;
+const MISSED_ROUNDS_REVIEW_THRESHOLD = 3;
 
 /** 무료 플랜(isPremium=false) 최대 등록 개수 — 백엔드 purchase-logic.ts의 FREE_PLAN_MAX_PURCHASES와 값을 맞춘다. */
 const FREE_PLAN_MAX_PURCHASES = 5;
@@ -214,13 +236,13 @@ function formatKoreanMonthDay(dateStr: string): string {
   return `${month}월 ${day}일`;
 }
 
-/** date.ts의 backend todayDateOnly()와 동일한 기준(KST) — "이번 회차 확인"을 오늘 이미 눌렀는지 비교에 쓴다. */
+/** date.ts의 backend todayDateOnly()와 동일한 기준(KST) — "유지하기"를 오늘 이미 눌렀는지 비교에 쓴다. */
 function todayDateOnly(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
 }
 
 /**
- * 정기구독·배송이고 오늘 이미 "이번 회차 확인"을 눌렀는지. (예전에는 계산상 회차 수와
+ * 정기구독·배송이고 오늘 이미 "유지하기"를 눌렀는지. (예전에는 계산상 회차 수와
  * delivery_confirm_count를 비교해서 "놓친 배송"까지 판단했지만, 실제 배송 지연 등으로 오탐이
  * 잦아 그 비교 로직 자체를 제거했다 — 지금은 "오늘 확인 버튼을 눌렀는가"만 본다.)
  */
@@ -228,8 +250,19 @@ function isFullyConfirmed(p: Purchase): boolean {
   return isRecurringType(p.type) && p.lastDeliveredDate === todayDateOnly();
 }
 
-/** yyyy-MM-dd 문자열 기준으로 오늘까지 며칠 지났는지. 시각 정밀도는 필요 없어(임계값이 180일
- *  단위) 자정 기준으로만 비교해도 충분하다. */
+/**
+ * 이 항목이 연속 몇 회차째 "유지하기"가 안 눌린 채로 지나갔는지 — 정확한 회차별 이력을 저장하진
+ * 않지만(deliveryConfirmCount는 누적 총합일 뿐), "지금까지 확인 기회가 있었던 회차 수 - 실제
+ * 확인한 횟수"로 근사한다. dDay>0(아직 이번 회차 기한 전)이면 이번 회차는 아직 확인 기회가
+ * 안 왔다고 보고 이전 회차까지만 센다.
+ */
+function missedRoundsFor(p: Purchase): number {
+  if (!isRecurringType(p.type) || p.deliveryRound === null) return 0;
+  const confirmableRounds = p.dDay <= 0 ? p.deliveryRound : p.deliveryRound - 1;
+  return Math.max(0, confirmableRounds - p.deliveryConfirmCount);
+}
+
+/** yyyy-MM-dd 문자열 기준으로 오늘까지 며칠 지났는지 — "몇 개월째 이용 중"류 표시에 쓴다. */
 function daysSinceBaseDate(baseDate: string): number {
   const start = new Date(`${baseDate}T00:00:00`).getTime();
   const now = new Date(`${todayDateOnly()}T00:00:00`).getTime();
@@ -314,6 +347,7 @@ export default function DashboardPage() {
   const [pendingItems, setPendingItems] = useState<PendingPurchase[]>([]);
   const [pendingConfirmId, setPendingConfirmId] = useState<number | null>(null);
   const [addressCopied, setAddressCopied] = useState(false);
+  const [confirmAllMessage, setConfirmAllMessage] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [filterType, setFilterType] = useState<FilterType>('ALL');
   const [view, setView] = useState<'ACTIVE' | 'ARCHIVED' | 'SHARED'>('ACTIVE');
@@ -408,13 +442,8 @@ export default function DashboardPage() {
     }).filter((c) => c.total > 0);
     const topCat = catAmounts.sort((a, b) => b.total - a.total)[0] ?? null;
 
-    const reviewCount = purchases.filter(
-      (p) =>
-        isRecurringType(p.type) &&
-        p.amount !== null &&
-        p.deliveryConfirmCount === 0 &&
-        daysSinceBaseDate(p.baseDate) >= UNUSED_SUBSCRIPTION_THRESHOLD_DAYS,
-    ).length;
+    // reviewCandidates(컴포넌트 상단, 절약 후보 확정 기준)를 그대로 재사용 — 기준이 어긋나지 않게.
+    const reviewCount = reviewCandidates.length;
 
     const CATEGORY_LABEL_KO: Record<string, string> = {
       STREAMING: '영상 스트리밍',
@@ -425,17 +454,25 @@ export default function DashboardPage() {
     };
     const topCatLabel = topCat ? (CATEGORY_LABEL_KO[topCat.cat] ?? topCat.cat) : null;
 
-    // 다음 결제/배송(가장 가까운 dDay의 정기배송·구독)과 가격 인상 감지 항목 — AI가 아니라 실제
-    // 데이터로 직접 계산한다(날짜·이름은 모델이 지어내면 안 되는 값이라서).
+    // 다음 결제/배송(가장 가까운 dDay의 정기배송·구독) — AI가 아니라 실제 데이터로 직접 계산한다
+    // (날짜·이름은 모델이 지어내면 안 되는 값이라서). 가격 인상/사용 안 함 항목은 "가격 인상" 타일의
+    // 3분류 계산(priceUpItems/unusedItems, 컴포넌트 상단에서 이미 계산됨)을 그대로 재사용한다.
     const upcoming = purchases
       .filter((p) => isRecurringType(p.type))
       .sort((a, b) => a.dDay - b.dDay)[0] ?? null;
-    const priceIncreasePurchaseIds = new Set(
-      pendingItems.filter((item) => item.matchedPurchaseId !== null).map((item) => item.matchedPurchaseId!)
-    );
-    const priceIncreaseItems = purchases
-      .filter((p) => priceIncreasePurchaseIds.has(p.id))
-      .map((p) => p.itemName);
+    const priceIncreaseItems = priceUpItems.map((p) => p.itemName);
+    const unusedServiceItems = unusedItems.map((p) => p.itemName);
+
+    // "AI 소비 건강도" — 실제로는 AI가 아니라 위 신호들을 규칙 기반으로 점수화한 결정론적 지수.
+    // 100점에서 시작해 가격 인상·미사용 의심·급격한 지출 증가·과다구독일 때 깎는다.
+    let healthScore = 100;
+    healthScore -= Math.min(priceUpItems.length * 15, 30);
+    healthScore -= Math.min(unusedItems.length * 15, 30);
+    if (trendPct !== null && trendPct >= 50) healthScore -= 20;
+    else if (trendPct !== null && trendPct >= 20) healthScore -= 10;
+    if (totalRecurring >= 15) healthScore -= 10;
+    else if (totalRecurring >= 10) healthScore -= 5;
+    healthScore = Math.max(0, Math.min(100, healthScore));
 
     // Show card with metrics immediately, text sections loading
     setAiBrief({
@@ -447,7 +484,11 @@ export default function DashboardPage() {
       topCategoryAmount: topCat?.total ?? null,
       nextPaymentDate: upcoming?.deadline ?? null,
       nextPaymentItem: upcoming?.itemName ?? null,
+      nextPaymentDDay: upcoming?.dDay ?? null,
       priceIncreaseItems,
+      unusedServiceItems,
+      savingsEstimate,
+      healthScore,
       trendPct,
       reviewCount,
       goodNews: null,
@@ -503,6 +544,7 @@ export default function DashboardPage() {
       monthTrendPercent: trendPct,
       topCategory: topCatLabel,
       topCategoryAmount: topCat?.total ?? null,
+      topCategoryShare: topCat && moSpend > 0 ? Math.round((topCat.total / moSpend) * 100) : null,
       reviewCount,
       totalItems: purchases.length,
       nextPaymentDate: upcoming?.deadline ?? null,
@@ -717,6 +759,34 @@ export default function DashboardPage() {
     await load();
   };
 
+  /** "유지 안 함" — 확인 필요 목록에서 이 항목만 제외하고, 절약 후보 쪽으로 확정 이동시킨다. */
+  const handleDiscontinue = async (id: number) => {
+    await discontinuePurchase(id);
+    await load();
+  };
+
+  /**
+   * "전체 확인" — 확인이 필요한(연속 미확인) 정기배송/구독을 한 번에 "유지하기" 처리한다.
+   * 하나씩 누르기 번거롭다는 피드백으로 추가. 처리 후 몇 개월째 이용 중인지 한 줄로 알려준다.
+   */
+  const handleConfirmAll = async () => {
+    const targets = needsConfirmationItems;
+    if (targets.length === 0) return;
+    await confirmAllDelivered(targets.map((p) => p.id));
+
+    const detail = targets
+      .map((p) => {
+        const months = Math.max(1, Math.round(daysSinceBaseDate(p.baseDate) / 30));
+        const kind = p.type === 'RECURRING_DELIVERY' ? '정기배송 신청' : '구독';
+        return `${p.itemName} ${months}개월째 ${kind} 중`;
+      })
+      .join(' · ');
+    setConfirmAllMessage(`이번 달도 ${targets.length}개 항목을 이용 중으로 표시했습니다. (${detail})`);
+    window.setTimeout(() => setConfirmAllMessage(null), 8000);
+
+    await load();
+  };
+
   const handleArchive = async (id: number) => {
     await archivePurchase(id);
     await load();
@@ -861,20 +931,36 @@ export default function DashboardPage() {
   const priceChangeCount = pendingItems.filter((item) => item.matchedPurchaseId !== null).length;
 
   /**
-   * "AI 절약 제안" — 시작한 지 UNUSED_SUBSCRIPTION_THRESHOLD_DAYS(180일) 이상 지났는데
-   * "이번 회차 확인"을 한 번도 안 누른(deliveryConfirmCount===0) 정기배송/구독. 실제 사용 여부를
-   * 직접 아는 건 아니라 참고용 추천이다 — 라벨에도 "확인 안 함"을 그대로 드러낸다.
+   * "AI 절약 제안"/절약 후보 — 사용자가 "유지 안 함"으로 명시했거나(discontinuedAt), 연속
+   * MISSED_ROUNDS_REVIEW_THRESHOLD(3)회차 이상 "유지하기"를 안 누른 정기배송/구독. 실제 사용
+   * 여부를 직접 아는 건 아니라 참고용 추천이다 — isExplicit=false(미확인 추정)면 화면에서
+   * "사용 안 함"이라 단정하지 말고 "최근 이용 상태가 확인되지 않았습니다"로 표현해야 한다.
    */
   const reviewCandidates = purchases
     .filter(
       (p) =>
         isRecurringType(p.type) &&
         p.amount !== null &&
-        p.deliveryConfirmCount === 0 &&
-        daysSinceBaseDate(p.baseDate) >= UNUSED_SUBSCRIPTION_THRESHOLD_DAYS
+        (p.discontinuedAt !== null || missedRoundsFor(p) >= MISSED_ROUNDS_REVIEW_THRESHOLD)
     )
-    .map((p) => ({ id: p.id, itemName: p.itemName, monthly: Math.round(monthlyEquivalent(p)) }));
+    .map((p) => ({
+      id: p.id,
+      itemName: p.itemName,
+      monthly: Math.round(monthlyEquivalent(p)),
+      /** true면 사용자가 "유지 안 함"으로 직접 표시(확정). false면 미확인 회차 누적으로 추정(참고용). */
+      isExplicit: p.discontinuedAt !== null,
+      missedRounds: missedRoundsFor(p),
+    }));
   const savingsEstimate = reviewCandidates.reduce((sum, item) => sum + item.monthly, 0);
+
+  /**
+   * "확인 필요" 패널의 대상 — 1회차 이상 "유지하기"가 안 눌렸고 아직 "유지 안 함"으로도 표시되지
+   * 않은 정기배송/구독. reviewCandidates(3회차 이상, 절약 후보 확정)보다 범위가 넓다 — 1~2회차
+   * 미확인은 여기엔 포함되지만 아직 절약 후보로 올리진 않는다(전체확인/유지 안 함 버튼의 대상).
+   */
+  const needsConfirmationItems = purchases.filter(
+    (p) => isRecurringType(p.type) && p.discontinuedAt === null && missedRoundsFor(p) >= 1
+  );
 
   /**
    * "가격 인상" 타일 상세용 구독/정기배송 3분류. 우선순위는 확인 대기 중인 가격 인상 >
@@ -1115,7 +1201,8 @@ export default function DashboardPage() {
             <p className="spending-detail__heading">💡 절약 제안</p>
             {reviewCandidates.length === 0 ? (
               <p className="spending-detail__empty">
-                180일 이상 확인 안 한 구독/정기배송이 없어요 — 절약 제안할 항목이 없습니다.
+                절약 제안할 항목이 없어요 — 유지 안 함으로 표시했거나 3회차 이상 확인이 안 된
+                구독/정기배송이 없습니다.
               </p>
             ) : (
               <>
@@ -1125,8 +1212,9 @@ export default function DashboardPage() {
                       <div className="spending-detail__save-item-info">
                         <p className="spending-detail__save-item-name">{item.itemName}</p>
                         <p className="spending-detail__save-item-reason">
-                          {Math.floor(UNUSED_SUBSCRIPTION_THRESHOLD_DAYS / 30)}개월째 등록만 되어있고 한 번도 확인하지
-                          않았어요 — 해지를 고려해보세요.
+                          {item.isExplicit
+                            ? '유지 안 함으로 표시했어요 — 해지를 진행해보세요.'
+                            : `${item.missedRounds}회차 연속 확인이 안 됐어요 — 최근 이용 상태가 확인되지 않았습니다. 계속 쓰고 계신다면 "유지하기"를 눌러주세요.`}
                         </p>
                       </div>
                       <span className="mono spending-detail__save-item-amount">월 {item.monthly.toLocaleString('ko-KR')}원</span>
@@ -1182,7 +1270,9 @@ export default function DashboardPage() {
                     <div className="spending-detail__save-item-info">
                       <p className="spending-detail__save-item-name">{p.itemName}</p>
                       <p className="spending-detail__save-item-reason">
-                        이 항목은 사용빈도가 낮을지도 모릅니다. 확인해보세요!
+                        {p.discontinuedAt !== null
+                          ? '유지 안 함으로 표시했어요.'
+                          : '최근 이용 상태가 확인되지 않았습니다. 계속 쓰고 계신다면 "유지하기"를 눌러주세요.'}
                       </p>
                     </div>
                   </li>
@@ -1236,10 +1326,27 @@ export default function DashboardPage() {
           {aiBrief ? (
             <div className="ai-brief">
               <div className="ai-brief__header">
-                <span>🤖 AI 소비 브리핑</span>
+                <span>🤖 AI 소비 매니저 <span className="ai-brief__header-sub">· 오늘의 브리핑</span></span>
                 <span className="ai-brief__refresh">↻ 다시 분석</span>
               </div>
               <div className="ai-brief__divider" />
+              {/* "AI가 매기는 점수"처럼 보이지만 실제로는 가격 인상/미사용 의심/지출 급증/과다구독
+                  신호를 규칙으로 점수화한 결정론적 지수 — computeHealthScore 참고. */}
+              <div className="ai-brief__health">
+                <span
+                  className={`ai-brief__health-badge${
+                    aiBrief.healthScore >= 80
+                      ? ' ai-brief__health-badge--good'
+                      : aiBrief.healthScore >= 50
+                        ? ' ai-brief__health-badge--warn'
+                        : ' ai-brief__health-badge--bad'
+                  }`}
+                >
+                  {aiBrief.healthScore >= 80 ? '🟢 매우 양호' : aiBrief.healthScore >= 50 ? '🟡 보통' : '🔴 점검 필요'}
+                </span>
+                <span className="ai-brief__health-label">소비 건강도</span>
+                <strong className="ai-brief__health-score">{aiBrief.healthScore}점</strong>
+              </div>
               <div className="ai-brief__metrics">
                 <div className="ai-brief__metric">
                   <span className="ai-brief__metric-label">💰 이번 달 예상</span>
@@ -1264,30 +1371,55 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
-              {/* AI가 지어낸 문장이 아니라 실제 데이터로 계산한 사실 그대로 — 날짜·서비스명이라
-                  틀리면 안 되는 값들은 여기서 결정론적으로 채운다. */}
-              <div className="ai-brief__facts">
-                <p>
-                  {aiBrief.month}월 예상 지출은 <strong className="mono">{aiBrief.monthlySpend.toLocaleString('ko-KR')}원</strong>입니다.
-                </p>
-                <p>
-                  {aiBrief.nextPaymentItem && aiBrief.nextPaymentDate ? (
-                    <>
-                      다음 결제는 <strong>{formatKoreanMonthDay(aiBrief.nextPaymentDate)} {aiBrief.nextPaymentItem}</strong>입니다.
-                    </>
-                  ) : (
-                    '예정된 정기결제·정기배송이 없습니다.'
-                  )}
-                </p>
-                <p>
-                  {aiBrief.priceIncreaseItems.length > 0 ? (
-                    <>
-                      최근 가격이 오른 서비스는 <strong>{aiBrief.priceIncreaseItems.join(', ')}</strong>입니다.
-                    </>
-                  ) : (
-                    '최근 가격이 오른 서비스는 없습니다.'
-                  )}
-                </p>
+              {/* AI가 지어낸 문장이 아니라 실제 데이터로 계산한 사실 그대로(결정론적) — 날짜·
+                  서비스명·건수처럼 틀리면 안 되는 값은 여기서 직접 채운다. */}
+              <div className="ai-brief__checklist">
+                <div className="ai-brief__check">
+                  <span className={`ai-brief__check-mark${aiBrief.priceIncreaseItems.length > 0 ? ' ai-brief__check-mark--warn' : ''}`}>
+                    {aiBrief.priceIncreaseItems.length > 0 ? '⚠' : '✔'}
+                  </span>
+                  <span className="ai-brief__check-label">가격 인상</span>
+                  <span className="ai-brief__check-detail">
+                    {aiBrief.priceIncreaseItems.length > 0 ? aiBrief.priceIncreaseItems.join(', ') : '없음'}
+                  </span>
+                </div>
+                <div className="ai-brief__check">
+                  <span className={`ai-brief__check-mark${aiBrief.unusedServiceItems.length > 0 ? ' ai-brief__check-mark--warn' : ''}`}>
+                    {aiBrief.unusedServiceItems.length > 0 ? '⚠' : '✔'}
+                  </span>
+                  <span className="ai-brief__check-label">이용 상태 확인 필요</span>
+                  <span className="ai-brief__check-detail">
+                    {aiBrief.unusedServiceItems.length > 0 ? aiBrief.unusedServiceItems.join(', ') : '없음'}
+                  </span>
+                </div>
+                <div className="ai-brief__check">
+                  <span className="ai-brief__check-mark">🎯</span>
+                  <span className="ai-brief__check-label">다음 확인 서비스</span>
+                  <span className="ai-brief__check-detail">
+                    {aiBrief.nextPaymentItem && aiBrief.nextPaymentDDay !== null ? (
+                      <>
+                        {aiBrief.nextPaymentItem} (
+                        {aiBrief.nextPaymentDDay <= 0 ? '오늘' : aiBrief.nextPaymentDDay === 1 ? '내일' : `${aiBrief.nextPaymentDDay}일 후`} 결제)
+                      </>
+                    ) : (
+                      '예정된 결제 없음'
+                    )}
+                  </span>
+                </div>
+                <div className="ai-brief__check">
+                  <span className={`ai-brief__check-mark${aiBrief.savingsEstimate > 0 ? ' ai-brief__check-mark--warn' : ''}`}>
+                    {aiBrief.savingsEstimate > 0 ? '💡' : '✔'}
+                  </span>
+                  <span className="ai-brief__check-label">이번 달 절약 가능성</span>
+                  <span className="ai-brief__check-detail">
+                    {aiBrief.savingsEstimate > 0 ? `약 ${aiBrief.savingsEstimate.toLocaleString('ko-KR')}원` : '없음'}
+                  </span>
+                </div>
+                {aiBrief.nextPaymentItem && (
+                  <p className="ai-brief__checklist-hint">
+                    자동 결제를 유지할지 확인해보세요 — 가격 변동이 있었다면 확인 대기 목록에서 함께 볼 수 있어요.
+                  </p>
+                )}
               </div>
               {aiBriefTextLoading ? (
                 <div className="ai-brief__text-loading">AI 분석 중...</div>
@@ -1311,7 +1443,7 @@ export default function DashboardPage() {
             <>
               <span className="summary-board__icon" aria-hidden="true">🤖</span>
               <div className="summary-board__text">
-                <span className="summary-board__label">AI 소비 브리핑</span>
+                <span className="summary-board__label">AI 소비 매니저</span>
                 <span className="summary-board__ai-cta">눌러서 소비 패턴 분석하기</span>
               </div>
             </>
@@ -1333,6 +1465,46 @@ export default function DashboardPage() {
           </ul>
         </div>
       )}
+
+      {/* 하나씩 누르는 게 불편하다는 피드백으로 추가한 일괄 확인 패널 — 확인이 안 됐다고 바로
+          "사용 안 함"으로 단정하지 않고 순화된 문구("확인이 필요합니다")로, 색도 빨간색이 아니라
+          노란색으로 둔다. 진짜 절약 후보(3회차 이상 미확인/유지 안 함)로 넘어가는 건 다른 곳에서
+          별도로(🔴) 표시한다. */}
+      {needsConfirmationItems.length > 0 && (
+        <div className="confirm-needed-section">
+          <div className="confirm-needed-section__header">
+            <span className="confirm-needed-section__title">
+              🟡 확인이 필요한 항목이 있습니다 <span className="mono">{needsConfirmationItems.length}</span>건
+            </span>
+            <button type="button" className="btn btn-sm" onClick={handleConfirmAll}>
+              전체 확인
+            </button>
+          </div>
+          <ul className="confirm-needed-section__list">
+            {needsConfirmationItems.map((p) => (
+              <li key={p.id}>
+                <span className="confirm-needed-section__name">
+                  {p.itemName}
+                  <span className="confirm-needed-section__rounds">{missedRoundsFor(p)}회차 미확인</span>
+                </span>
+                <span className="confirm-needed-section__actions">
+                  <button type="button" className="btn-text" onClick={() => handleMarkDelivered(p.id)}>
+                    유지하기
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-text confirm-needed-section__discontinue"
+                    onClick={() => handleDiscontinue(p.id)}
+                  >
+                    유지 안 함
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {confirmAllMessage && <p className="confirm-needed-section__success">✅ {confirmAllMessage}</p>}
 
       <PushPermissionBanner />
 
@@ -1741,7 +1913,7 @@ export default function DashboardPage() {
                         <span className="confirm-badge">✓ 확인완료</span>
                       ) : (
                         <button className="btn-text" onClick={() => handleMarkDelivered(p.id)}>
-                          이번 회차 확인
+                          유지하기
                         </button>
                       ))}
                     <button className="btn-text" onClick={() => handleEditClick(p)}>

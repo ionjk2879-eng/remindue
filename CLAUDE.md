@@ -90,19 +90,20 @@ backend/     Spring Boot — logic reference only, not deployed (Phase 0 origin)
 ## Premium plan (`users.is_premium`)
 
 Signup creates new users with `is_premium = 0` (free plan) — see `routes/auth.ts`.
-Seven things are gated on `isPremium`, all checked at the call site (not inside
+These are gated on `isPremium`, all checked at the call site (not inside
 `purchase-logic.ts`):
 1. **Unlimited registration** — free is capped at `FREE_PLAN_MAX_PURCHASES` (5,
    in `lib/purchase-logic.ts`); `routes/purchases.ts`'s `POST /` 402s past that.
+   Note: email auto-registration (below) is *not* gated — free users can forward
+   unlimited mail into `pending_purchases`, they just can't confirm past 5 actual
+   registered items.
 2. **Weekly recurring-delivery summary** — email/push + in-app banner, gated in
    `lib/weekly-digest.ts` and `DashboardPage.tsx`.
 3. **Custom notification days** — see `## Notification preferences` below.
 4. **CSV/PDF export** — see `## Data export` below.
 5. **Family/member sharing** — see `## Sharing` below.
 6. **Archive (이력 보관)** — see `## Archive` below.
-7. **Email auto-registration** — `lib/email-intake.ts` checks `user.is_premium`
-   before calling Claude at all (free-plan forwarded mail is silently dropped, no
-   extraction attempted) — see `## AI auto-registration` below.
+7. **Custom confirmation-nudge advance days** — see `## Confirmation nudges` below.
 
 (A "놓친 배송 감지" / missed-delivery-detection feature used to be premium
 benefit #2 — it compared computed delivery rounds against
@@ -231,6 +232,61 @@ frontend/backend). Downgrading to free doesn't clear the stored value — it's
 just ignored until premium comes back, so a lapsed subscriber's custom
 schedule reappears automatically on renewal instead of needing to be re-entered.
 
+## Confirmation nudges (`purchases.discontinued_at`, "유지하기"/"유지 안 함")
+
+Separate from the D-day digest above — this is about *usage confirmation*
+for recurring subscriptions/deliveries, not deadline reminders.
+
+- **`missedRoundsFor(deliveryRound, deliveryConfirmCount, dDay)`** — how many
+  consecutive rounds have gone unconfirmed. Duplicated in both
+  `frontend/src/pages/DashboardPage.tsx` and `workers/src/lib/
+  confirmation-nudge.ts` (no shared package). **Do not reintroduce a "missed
+  delivery" framing around this number** — an earlier feature
+  (`computeMissedConfirmations`, compared round count vs confirm count the
+  same way) was deliberately removed from `purchase-logic.ts` after
+  false-positiving constantly on late/early real deliveries. This one only
+  ever suggests "please check in," never asserts non-use, and silence is
+  never treated as "사용 안 함" in any copy — only `discontinued_at` being set
+  (an explicit "유지 안 함" click) is.
+- **`purchases.discontinued_at`** (`migrations/0025`) — user-declared "I don't
+  use this anymore." Set via `POST /purchases/:id/discontinue`; cleared back
+  to `NULL` by `mark-delivered`/`confirm-all` (clicking "유지하기" always means
+  "resuming/still using," regardless of prior state).
+- **`POST /purchases/confirm-all`** (`{ ids: number[] }`) — bulk "유지하기" so
+  users don't have to click every recurring item individually; batches via
+  `db.batch()`.
+- **`workers/src/lib/confirmation-nudge.ts`** (`runConfirmationNudge`, called
+  from the same daily cron as `runDailyDigest` — **must** run daily, not
+  weekly, or dDay-exact triggers on non-matching weekdays get silently
+  skipped forever) — four stages per recurring item, all in KRW-agnostic
+  dDay terms:
+  1. **Advance** (dDay === `effectiveConfirmationAdvanceDays(isPremium, user.confirmation_advance_days)`,
+     default/free-locked 3, premium-customizable via `GET`/`PUT
+     /api/settings/confirmation-advance-days` — same free-lock pattern as
+     `notification_days`) — fires unconditionally every cycle, batched per
+     user into one email/push alongside the other stages below.
+  2. **Same-day** (dDay === 0) — fires unconditionally every cycle, but
+     *individually* per item (not batched) because it carries a Web Push
+     `actions` array (`유지하기`/`나중에`) that must map to exactly one
+     purchase. Deliberately avoids "오늘 배송/결제됩니다" factual framing
+     (couriers/card issuers already send that) — copy is "계속
+     유지하시겠어요?" instead.
+  3. **Follow-up** (dDay === -1) — only if still unconfirmed
+     (`missedRoundsFor >= 1`).
+  4. **Review-flagged** (dDay === -7) — only if *still* unconfirmed a week
+     later; confirmed-tone "AI가 절약 검토 대상으로 표시했습니다" copy.
+- **Push action buttons without a login session**: a service worker can't
+  reach the page's JWT (see `sw.ts`'s `pushsubscriptionchange` comment for
+  the same limitation elsewhere). `workers/src/lib/action-tokens.ts` issues a
+  single-use, 24-hour `push_action_tokens` row (`migrations/0026`) per
+  same-day notification; tapping "유지하기" hits `POST
+  /api/push/confirm-action` (deliberately unauthenticated — same
+  "possession of the token proves the right to act" pattern as `POST
+  /api/push/unsubscribe`) with just that token.
+- Platforms without Notification `actions` support (iOS Safari) silently
+  ignore the field — tapping the notification body falls back to opening the
+  dashboard, same as any other push.
+
 ## Data export (CSV/PDF)
 
 `GET /api/purchases/export?format=csv|pdf` (premium-gated, 402 for free) in
@@ -299,8 +355,10 @@ Archived items are excluded from both digest crons (`lib/digest.ts`,
   after the fact by `pending-purchase-intake.ts`'s sanitize functions instead.
 - **`lib/email-extract.ts`** — wraps the email subject+body as a text content
   block, called from `lib/email-intake.ts` (the Cloudflare Email Routing
-  handler). Premium-gated *before* calling Claude at all — free-plan mail is
-  dropped with no extraction attempt.
+  handler). Available to free and premium alike (used to be premium-gated
+  before calling Claude at all; the gate was removed so free users can use
+  email auto-registration too — the free registration cap still applies at
+  confirm time, see `## Premium plan` above).
 - **`lib/pending-purchase-intake.ts`** — turns a raw `ExtractedOrder` into a
   `pending_purchases` row: `sanitizeEstimatedType`/`sanitizeReturnDeadlineDays`/
   `sanitizeFixedDayOfMonth` never trust the model's output at face value, and

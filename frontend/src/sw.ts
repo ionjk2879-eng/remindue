@@ -13,7 +13,14 @@ interface PushPayload {
   title?: string;
   body?: string;
   url?: string;
+  /** "유지하기"/"나중에" 같은 액션 버튼 — 지원 안 하는 플랫폼(iOS Safari 등)에서는 그냥
+   *  무시되고 본문 탭 시 기본 동작(앱 열기)만 동작한다. */
+  actions?: { action: string; title: string }[];
+  /** actions와 짝을 이루는 1회성 토큰 — "유지하기" 눌렀을 때 인증 없이 확인 처리하는 데 쓴다. */
+  actionToken?: string;
 }
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787/api';
 
 self.addEventListener('push', (event: PushEvent) => {
   const data: PushPayload = event.data ? event.data.json() : {};
@@ -22,7 +29,8 @@ self.addEventListener('push', (event: PushEvent) => {
     body: data.body ?? '',
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
-    data: { url: data.url ?? '/' },
+    data: { url: data.url ?? '/', actionToken: data.actionToken },
+    ...(data.actions ? { actions: data.actions } : {}),
   };
 
   event.waitUntil(
@@ -37,11 +45,28 @@ self.addEventListener('push', (event: PushEvent) => {
 
 self.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close();
-  const url = (event.notification.data as { url?: string } | undefined)?.url ?? '/';
+  const notifData = event.notification.data as { url?: string; actionToken?: string } | undefined;
+
+  // "나중에" — 그냥 닫기만 하고 앱은 열지 않는다.
+  if (event.action === 'later') return;
+
+  // "유지하기" — 로그인 세션 없이(pushsubscriptionchange와 같은 이유) 토큰만으로 바로 확인
+  // 처리한다. 앱을 열 필요가 없어서 openWindow도 생략한다.
+  if (event.action === 'confirm' && notifData?.actionToken) {
+    event.waitUntil(
+      fetch(`${API_BASE}/push/confirm-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: notifData.actionToken }),
+      }).catch(() => {})
+    );
+    return;
+  }
+
+  // 액션 버튼 없이 알림 본문을 탭한 기본 동작 — 대시보드를 연다.
+  const url = notifData?.url ?? '/';
   event.waitUntil(self.clients.openWindow(url));
 });
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787/api';
 
 /**
  * 브라우저가 구독을 스스로 무효화/회전시켰을 때(예: 사용자가 알림 권한을 껐을 때) 발생.
