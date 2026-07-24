@@ -15,6 +15,9 @@
   // Email Routing으로 받는 메일을 처리하는 email() 핸들러(src/index.ts)는 wrangler.jsonc에 별도
   // 설정이 필요 없다 — Cloudflare 대시보드에서 라우팅 규칙의 액션을 "Send to a Worker"로 잡고
   // 이 Worker(remindue)를 선택하면 끝. 대시보드 설정 절차는 README.md 참고.
+  "ai": {
+    "binding": "AI"
+  },
   "d1_databases": [
     {
       "binding": "DB",
