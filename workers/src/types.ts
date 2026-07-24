@@ -323,6 +323,7 @@ export interface FeedbackDetailResponse {
 
 export interface Env {
   DB: D1Database;
+  AI: Ai;
   JWT_SECRET: string;
   /** 콤마로 구분된 허용 출처 목록(예: "https://remindue.kr,https://remindue-frontend.ionjk2879.workers.dev"). index.ts의 allowedOrigins()가 파싱한다. */
   CORS_ORIGIN: string;
