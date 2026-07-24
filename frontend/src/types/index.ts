@@ -1,7 +1,7 @@
-export type PurchaseType = 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION';
+export type PurchaseType = 'GENERAL' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION';
 export type ScheduleType = 'INTERVAL' | 'FIXED_DAY';
-/** 정기배송/구독 전용 지출 카테고리 — 대시보드 "카테고리별 분석"에 쓴다. 그 외 타입은 항상 null. */
-export type PurchaseCategory = 'STREAMING' | 'SHOPPING' | 'FOOD' | 'SOFTWARE' | 'OTHER';
+/** 서비스 카테고리 — 모든 구매 유형에 적용된다(GENERAL 포함). */
+export type PurchaseCategory = 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER';
 
 /** RECURRING_DELIVERY(실물 정기배송)와 SUBSCRIPTION(디지털 정기구독)은 라벨/색상만 다르고
  *  스케줄(다음 일정, 회차, 확인 버튼 등)은 완전히 동일하게 동작한다. */
@@ -22,11 +22,18 @@ export interface Purchase {
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
   lastDeliveredDate: string | null;
+  /** "가장 급한" 기한 — GENERAL이고 반품기한/A·S보증 둘 다 있으면 더 급한 쪽. */
   deadline: string;
   dDay: number;
   deliveryRound: number | null;
   archivedAt: string | null;
   category: PurchaseCategory | null;
+  /** GENERAL이고 returnDeadlineDays가 있을 때만: baseDate + returnDeadlineDays. 그 외 null. */
+  returnDeadlineDate: string | null;
+  returnDeadlineDDay: number | null;
+  /** GENERAL이고 warrantyMonths가 있을 때만: baseDate + warrantyMonths. 그 외 null. */
+  warrantyDeadlineDate: string | null;
+  warrantyDeadlineDDay: number | null;
   /** "유지하기"(이번 회차 확인)를 누른 누적 횟수 — 연속 미확인 회차 수 계산에 쓴다. */
   deliveryConfirmCount: number;
   /** 사용자가 "유지 안 함"을 누른 시각. null이면 미확인일 뿐(사용 안 함으로 해석 금지). */
@@ -84,6 +91,8 @@ export interface PendingPurchase {
   returnDeadlineDays: number | null;
   /** true면 메일에 명시된 값이 아니라 법정 최소 기준(7일)으로 추정한 값. */
   returnDeadlineEstimated: boolean;
+  /** AI가 GENERAL 항목을 전자제품으로 판단했을 때만 기본값(12)이 채워짐. 그 외 null. */
+  warrantyMonths: number | null;
   /** RECURRING_DELIVERY/SUBSCRIPTION 전용: 배송·결제 주기(일수). */
   intervalDays: number | null;
   scheduleType: ScheduleType;
@@ -92,7 +101,7 @@ export interface PendingPurchase {
   scheduleEstimated: boolean;
   /** AI가 추출한 금액(원). 원본에 없으면 null. */
   amount: number | null;
-  /** AI가 추정한 지출 카테고리(RECURRING_DELIVERY/SUBSCRIPTION만). 그 외 null. */
+  /** AI가 추정한 서비스 카테고리 — 모든 구매 유형에 적용. 판단 불가면 null. */
   category: PurchaseCategory | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
   brand: string | null;

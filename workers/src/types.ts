@@ -1,10 +1,11 @@
-export type PurchaseType = 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION';
+export type PurchaseType = 'GENERAL' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION';
 export type ScheduleType = 'INTERVAL' | 'FIXED_DAY';
-/** 정기배송/구독 전용 지출 카테고리 — 대시보드의 "카테고리별 분석"에 쓴다. 그 외 타입은 항상 null. */
-export type PurchaseCategory = 'STREAMING' | 'SHOPPING' | 'FOOD' | 'SOFTWARE' | 'OTHER';
+/** 서비스 카테고리 — 이제 모든 구매 유형에 적용된다(GENERAL 포함). 대시보드의 "카테고리별
+ *  분석" 보드 자체는 정기배송/구독 지출 전용으로 남아있지만, 필드는 GENERAL도 채울 수 있다. */
+export type PurchaseCategory = 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER';
 
-export const PURCHASE_TYPES: readonly PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY', 'SUBSCRIPTION'];
-export const PURCHASE_CATEGORIES: readonly PurchaseCategory[] = ['STREAMING', 'SHOPPING', 'FOOD', 'SOFTWARE', 'OTHER'];
+export const PURCHASE_TYPES: readonly PurchaseType[] = ['GENERAL', 'RECURRING_DELIVERY', 'SUBSCRIPTION'];
+export const PURCHASE_CATEGORIES: readonly PurchaseCategory[] = ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'];
 
 /** RECURRING_DELIVERY(실물 정기배송)와 SUBSCRIPTION(디지털 정기구독)은 라벨/색상만 다르고
  *  스케줄 계산(INTERVAL/FIXED_DAY, 회차, 다음 일정)은 완전히 동일하다 — 이 둘을 묶어 판단할
@@ -38,7 +39,7 @@ export interface PurchaseRow {
   discontinued_at: string | null;
   /** 이력 보관(프리미엄). NULL이면 활성 항목, 값이 있으면 그 시각에 보관 처리됨 — dDay/알림 대상에서 제외. */
   archived_at: string | null;
-  /** 정기배송/구독 전용 지출 카테고리. 그 외 타입은 NULL. */
+  /** 서비스 카테고리 — 모든 구매 유형에 적용. 미지정이면 NULL. */
   category: PurchaseCategory | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. 수동 등록이면 NULL. */
   brand: string | null;
@@ -110,6 +111,9 @@ export interface PendingPurchaseRow {
   return_deadline_days: number | null;
   /** SQLite boolean(0/1) — true면 return_deadline_days가 메일에 명시된 값이 아니라 추정값. */
   return_deadline_estimated: number;
+  /** AI가 GENERAL 항목을 전자제품(A/S 보증이 중요한)으로 판단했을 때만 기본값(12)이 채워짐.
+   *  그 외에는 NULL — 반품기한과 별개로 등록 화면에서 둘 다 프리필될 수 있게 한다. */
+  warranty_months: number | null;
   /** RECURRING_DELIVERY/SUBSCRIPTION 전용: 배송·결제 주기(일수). INTERVAL 방식일 때만 의미 있음. */
   interval_days: number | null;
   schedule_type: ScheduleType;
@@ -118,7 +122,7 @@ export interface PendingPurchaseRow {
   schedule_estimated: number;
   /** AI가 추출한 금액(원). 원본에 없으면 NULL. */
   amount: number | null;
-  /** AI가 추정한 지출 카테고리(RECURRING_DELIVERY/SUBSCRIPTION만). 그 외 NULL. */
+  /** AI가 추정한 서비스 카테고리 — 모든 구매 유형에 적용. 판단 불가면 NULL. */
   category: PurchaseCategory | null;
   /** 같은 상품명의 기존 활성 항목과 매칭됐고 금액이 달라졌을 때만 그 항목의 id. 그 외 NULL(가격 변동 없음/신규 항목). */
   matched_purchase_id: number | null;
@@ -148,13 +152,15 @@ export interface PendingPurchaseResponse {
   expectedDeliveryDate: string | null;
   returnDeadlineDays: number | null;
   returnDeadlineEstimated: boolean;
+  /** AI가 GENERAL 항목을 전자제품으로 판단했을 때만 기본값(12)이 채워짐. 그 외 null. */
+  warrantyMonths: number | null;
   intervalDays: number | null;
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
   scheduleEstimated: boolean;
   /** AI가 추출한 금액(원). 원본에 없으면 null. */
   amount: number | null;
-  /** AI가 추정한 지출 카테고리(RECURRING_DELIVERY/SUBSCRIPTION만). 그 외 null. */
+  /** AI가 추정한 서비스 카테고리 — 모든 구매 유형에 적용. 판단 불가면 null. */
   category: PurchaseCategory | null;
   /** 같은 상품명의 기존 활성 항목과 매칭됐고 금액이 달라졌을 때만 그 항목의 id. 그 외 null(가격 변동 없음/신규 항목). */
   matchedPurchaseId: number | null;
@@ -188,14 +194,24 @@ export interface PurchaseResponse {
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
   lastDeliveredDate: string | null;
+  /** "가장 급한" 기한 — GENERAL이고 반품기한/A·S보증 둘 다 있으면 그 중 더 이른(지나지 않았다면
+   *  더 가까운, 둘 다 지났다면 덜 지난) 쪽. 카드 배지·정렬·CSV/PDF export가 쓰는 단일 기한. */
   deadline: string;
   dDay: number;
   /** RECURRING_DELIVERY 전용 — 몇 회차인지(1부터 시작). 그 외 타입은 null. */
   deliveryRound: number | null;
   /** 이력 보관(프리미엄) 시각. null이면 활성 항목. */
   archivedAt: string | null;
-  /** 정기배송/구독 전용 지출 카테고리. 그 외 타입은 null. */
+  /** 서비스 카테고리 — 모든 구매 유형에 적용. 미지정이면 null. */
   category: PurchaseCategory | null;
+  /** GENERAL이고 returnDeadlineDays가 있을 때만: baseDate + returnDeadlineDays. 그 외 null. */
+  returnDeadlineDate: string | null;
+  /** returnDeadlineDate의 D-day. returnDeadlineDate가 null이면 null. */
+  returnDeadlineDDay: number | null;
+  /** GENERAL이고 warrantyMonths가 있을 때만: baseDate + warrantyMonths. 그 외 null. */
+  warrantyDeadlineDate: string | null;
+  /** warrantyDeadlineDate의 D-day. warrantyDeadlineDate가 null이면 null. */
+  warrantyDeadlineDDay: number | null;
   /** "유지하기"(이번 회차 확인)를 누른 누적 횟수 — 연속 미확인 회차 수 계산에 쓴다. */
   deliveryConfirmCount: number;
   /** 사용자가 "유지 안 함"을 누른 시각. null이면 미확인일 뿐(사용 안 함으로 해석 금지). */

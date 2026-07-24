@@ -2,11 +2,15 @@
 // D-7/D-3은 일반 안내 톤, D-1/D-0은 시점이 명확히 드러나도록 타입별로 다르게 쓴다.
 // computeDeadline/computeDDay(purchase-logic.ts)은 건드리지 않고 문구 조립만 이 파일이 맡는다.
 
+import type { DeadlineKind } from './purchase-logic';
 import type { PurchaseType } from '../types';
 
 export interface DigestItem {
   itemName: string;
   type: PurchaseType;
+  /** RETURN/WARRANTY는 GENERAL 전용(반품기한/A·S보증 각각 독립 리마인드), SCHEDULE은
+   *  RECURRING_DELIVERY/SUBSCRIPTION 전용 — computeDeadlines()의 인스턴스 종류를 그대로 옮긴다. */
+  kind: DeadlineKind;
   dDay: number;
   deadline: string;
 }
@@ -15,41 +19,38 @@ export function formatDDay(dDay: number): string {
   return dDay === 0 ? 'D-DAY' : `D-${dDay}`;
 }
 
-const DEADLINE_NOUN: Record<PurchaseType, string> = {
-  ONLINE_ORDER: '반품기한',
-  ELECTRONICS: '보증만료',
-  RECURRING_DELIVERY: '다음일정',
-  SUBSCRIPTION: '다음일정',
+const DEADLINE_NOUN: Record<DeadlineKind, string> = {
+  RETURN: '반품기한',
+  WARRANTY: '보증만료',
+  SCHEDULE: '다음일정',
 };
 
 /** 항목명을 뺀 나머지 절 — 이메일 표에서 굵은 항목명 아래에 붙일 때 쓴다(이름 중복 방지). */
 export function buildItemClause(item: DigestItem): string {
-  const { type, dDay } = item;
+  const { kind, dDay } = item;
 
   if (dDay === 7 || dDay === 3) {
-    return `${dDay}일 후 ${DEADLINE_NOUN[type]}입니다`;
+    return `${dDay}일 후 ${DEADLINE_NOUN[kind]}입니다`;
   }
 
   if (dDay === 1) {
-    switch (type) {
-      case 'ONLINE_ORDER':
+    switch (kind) {
+      case 'RETURN':
         return '반품기한이 내일까지예요';
-      case 'ELECTRONICS':
+      case 'WARRANTY':
         return '보증기간이 내일 만료돼요';
-      case 'RECURRING_DELIVERY':
-      case 'SUBSCRIPTION':
+      case 'SCHEDULE':
         return '다음 일정이 내일이에요';
     }
   }
 
   // dDay === 0
-  switch (type) {
-    case 'ONLINE_ORDER':
+  switch (kind) {
+    case 'RETURN':
       return '반품기한이 오늘까지예요 — 오늘 안에 발송하면 인정돼요';
-    case 'ELECTRONICS':
+    case 'WARRANTY':
       return '보증기간이 오늘 만료돼요';
-    case 'RECURRING_DELIVERY':
-    case 'SUBSCRIPTION':
+    case 'SCHEDULE':
       return '오늘 일정이에요';
   }
 }

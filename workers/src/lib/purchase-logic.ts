@@ -21,16 +21,35 @@ export interface DeadlineResult {
   deliveryRound: number | null;
 }
 
-/** 종류에 맞는 "챙겨야 할 기한"을 계산한다. */
-export function computeDeadline(row: DeadlineInput): DeadlineResult {
+export type DeadlineKind = 'RETURN' | 'WARRANTY' | 'SCHEDULE';
+
+export interface DeadlineInstance extends DeadlineResult {
+  kind: DeadlineKind;
+}
+
+/**
+ * GENERAL은 반품기한/A·S 보증기간을 동시에 가질 수 있어(둘 다 선택 입력) 한 구매 행이 서로 다른
+ * 시점의 리마인드를 최대 2건 만들어낼 수 있다 — D-day 다이제스트(digest.ts)는 이 배열을 그대로
+ * 순회해서 각 인스턴스를 독립적으로 알림 대상 여부를 판단한다. RECURRING_DELIVERY/SUBSCRIPTION은
+ * 지금까지처럼 스케줄 인스턴스 1개뿐이다.
+ */
+export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
   switch (row.type as PurchaseType) {
-    case 'ELECTRONICS':
-      return { deadline: addMonths(row.base_date, row.warranty_months ?? DEFAULT_WARRANTY_MONTHS), deliveryRound: null };
-    case 'ONLINE_ORDER':
-      return {
-        deadline: addDays(row.base_date, row.return_deadline_days ?? DEFAULT_RETURN_DEADLINE_DAYS),
-        deliveryRound: null,
-      };
+    case 'GENERAL': {
+      const instances: DeadlineInstance[] = [];
+      if (row.return_deadline_days !== null) {
+        instances.push({ kind: 'RETURN', deadline: addDays(row.base_date, row.return_deadline_days), deliveryRound: null });
+      }
+      if (row.warranty_months !== null) {
+        instances.push({ kind: 'WARRANTY', deadline: addMonths(row.base_date, row.warranty_months), deliveryRound: null });
+      }
+      // 둘 다 비어있는 건 정상적으론 없어야 하지만(등록 폼이 반품기한을 항상 기본값과 함께 보냄),
+      // 방어적으로 반품기한 기본값(7일) 하나는 남겨서 기한이 아예 없는 항목이 생기지 않게 한다.
+      if (instances.length === 0) {
+        instances.push({ kind: 'RETURN', deadline: addDays(row.base_date, DEFAULT_RETURN_DEADLINE_DAYS), deliveryRound: null });
+      }
+      return instances;
+    }
     case 'RECURRING_DELIVERY':
     case 'SUBSCRIPTION': {
       const scheduleType = row.schedule_type ?? 'INTERVAL';
@@ -43,7 +62,7 @@ export function computeDeadline(row: DeadlineInput): DeadlineResult {
         const base = parseDateOnly(row.base_date);
         const next = parseDateOnly(deadline);
         const monthsElapsed = (next.year - base.year) * 12 + (next.month - base.month);
-        return { deadline, deliveryRound: monthsElapsed + 1 };
+        return [{ kind: 'SCHEDULE', deadline, deliveryRound: monthsElapsed + 1 }];
       }
 
       // INTERVAL(기본): baseDate + intervalDays*k 방식.
@@ -51,12 +70,28 @@ export function computeDeadline(row: DeadlineInput): DeadlineResult {
       const interval = row.interval_days ?? DEFAULT_INTERVAL_DAYS;
       const daysSinceStart = daysBetween(row.base_date, todayDateOnly());
       const cyclesElapsed = Math.max(0, Math.ceil(daysSinceStart / interval));
-      return {
-        deadline: addDays(row.base_date, interval * cyclesElapsed),
-        deliveryRound: cyclesElapsed + 1,
-      };
+      return [
+        {
+          kind: 'SCHEDULE',
+          deadline: addDays(row.base_date, interval * cyclesElapsed),
+          deliveryRound: cyclesElapsed + 1,
+        },
+      ];
     }
   }
+}
+
+/**
+ * 카드 배지/정렬/CSV·PDF export처럼 "항목당 기한 1개"를 가정하는 소비처를 위한 대표 기한 —
+ * computeDeadlines() 중 오늘 이후 가장 가까운 것(전부 지났으면 가장 덜 지난 것)을 고른다.
+ * RECURRING_DELIVERY/SUBSCRIPTION, 또는 GENERAL이라도 둘 중 하나만 있으면 항상 그 값과 동일하다.
+ */
+export function computeDeadline(row: DeadlineInput): DeadlineResult {
+  const instances = computeDeadlines(row);
+  const today = todayDateOnly();
+  const upcoming = instances.filter((i) => i.deadline >= today).sort((a, b) => a.deadline.localeCompare(b.deadline));
+  const chosen = upcoming[0] ?? instances.slice().sort((a, b) => b.deadline.localeCompare(a.deadline))[0];
+  return { deadline: chosen.deadline, deliveryRound: chosen.deliveryRound };
 }
 
 export function computeDDay(deadline: string): number {

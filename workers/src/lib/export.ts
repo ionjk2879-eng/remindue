@@ -10,8 +10,7 @@ import { computeDDay, computeDeadline, computeStatusLabel } from './purchase-log
 import type { PurchaseRow, PurchaseType } from '../types';
 
 const TYPE_LABEL: Record<PurchaseType, string> = {
-  ELECTRONICS: '전자제품',
-  ONLINE_ORDER: '온라인주문',
+  GENERAL: '일반구매',
   RECURRING_DELIVERY: '정기배송',
   SUBSCRIPTION: '정기구독',
 };

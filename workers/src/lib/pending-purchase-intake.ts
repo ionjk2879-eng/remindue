@@ -2,13 +2,13 @@
 // "AI 추출 결과 → pending_purchases 행" 변환 로직. AI가 준 값을 그대로 믿지 않고 항상
 // sanitize를 거쳐 저장한다(모델이 스키마를 벗어난 값을 줄 수 있으므로).
 
-import { DEFAULT_RETURN_DEADLINE_DAYS, DEFAULT_INTERVAL_DAYS } from './purchase-logic';
+import { DEFAULT_RETURN_DEADLINE_DAYS, DEFAULT_INTERVAL_DAYS, DEFAULT_WARRANTY_MONTHS } from './purchase-logic';
 import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES, type PurchaseCategory, type PurchaseType } from '../types';
 import type { ExtractedOrder } from './order-extraction';
 
-/** AI가 준 종류 추정값이 유효한 4종 중 하나가 아니면(모델 오류 등) 안전하게 기본값으로 되돌린다. */
+/** AI가 준 종류 추정값이 유효한 3종 중 하나가 아니면(모델 오류 등) 안전하게 기본값으로 되돌린다. */
 export function sanitizeEstimatedType(value: string | null): PurchaseType {
-  return PURCHASE_TYPES.includes(value as PurchaseType) ? (value as PurchaseType) : 'ONLINE_ORDER';
+  return PURCHASE_TYPES.includes(value as PurchaseType) ? (value as PurchaseType) : 'GENERAL';
 }
 
 /** AI가 준 반품기한 일수가 비정상(0 이하 등)이면 안전하게 기본값으로 되돌린다. */
@@ -28,11 +28,15 @@ export function sanitizeAmount(amount: number | null): number | null {
   return typeof amount === 'number' && Number.isInteger(amount) && amount >= 0 ? amount : null;
 }
 
-/** 카테고리는 RECURRING_DELIVERY/SUBSCRIPTION일 때만 의미가 있다 — 그 외 타입이거나 AI가 준
- *  값이 유효한 5종을 벗어나면(모델 오류 등) null로 되돌린다. */
-export function sanitizeCategory(type: PurchaseType, category: string | null): PurchaseCategory | null {
-  if (!isRecurringType(type)) return null;
+/** 카테고리는 이제 모든 구매 유형에 적용된다 — AI가 준 값이 유효한 8종을 벗어나면(모델 오류 등) OTHER로 되돌린다. */
+export function sanitizeCategory(category: string | null): PurchaseCategory {
   return PURCHASE_CATEGORIES.includes(category as PurchaseCategory) ? (category as PurchaseCategory) : 'OTHER';
+}
+
+/** AI가 GENERAL 항목을 전자제품으로 판단했을 때만 기본 보증기간(12개월)을 채운다. 그 외 null —
+ *  반품기한(returnDeadlineDays)과 별개로 프리필돼서 등록 화면에서 둘 다 확인/수정할 수 있다. */
+export function sanitizeWarrantyMonths(type: PurchaseType, looksLikeElectronics: boolean): number | null {
+  return type === 'GENERAL' && looksLikeElectronics ? DEFAULT_WARRANTY_MONTHS : null;
 }
 
 const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
@@ -90,6 +94,7 @@ export interface PendingPurchaseFields {
   type: PurchaseType;
   returnDeadlineDays: number;
   returnDeadlineEstimated: 0 | 1;
+  warrantyMonths: number | null;
   intervalDays: number | null;
   scheduleType: 'INTERVAL' | 'FIXED_DAY';
   fixedDayOfMonth: number | null;
@@ -156,12 +161,13 @@ export async function buildPendingPurchaseFields(extracted: ExtractedOrder): Pro
     type,
     returnDeadlineDays,
     returnDeadlineEstimated,
+    warrantyMonths: sanitizeWarrantyMonths(type, extracted.looksLikeElectronics),
     intervalDays,
     scheduleType,
     fixedDayOfMonth,
     scheduleEstimated,
     amount,
-    category: sanitizeCategory(type, extracted.category),
+    category: sanitizeCategory(extracted.category),
     brand,
     brandDomain: sanitizeBrandDomain(brand, extracted.brandDomain),
     originalAmount,
@@ -218,8 +224,8 @@ export async function insertPendingPurchase(
   const result = await db
     .prepare(
       `INSERT INTO pending_purchases
-         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category, matched_purchase_id, previous_amount, brand, brand_domain, original_amount, original_currency, exchange_rate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, warranty_months, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category, matched_purchase_id, previous_amount, brand, brand_domain, original_amount, original_currency, exchange_rate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       userId,
@@ -230,6 +236,7 @@ export async function insertPendingPurchase(
       extracted.expectedDeliveryDate,
       fields.returnDeadlineDays,
       fields.returnDeadlineEstimated,
+      fields.warrantyMonths,
       fields.intervalDays,
       fields.scheduleType,
       fields.fixedDayOfMonth,
