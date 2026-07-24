@@ -80,22 +80,18 @@ const BRAND_DOMAIN: Record<string, string> = {
 // — 이 토큰(비밀 아님, publishable key)이 없으면 요청해봐야 항상 실패하므로 아예 시도하지 않는다.
 const LOGO_DEV_TOKEN = import.meta.env.VITE_LOGO_DEV_TOKEN as string | undefined;
 
-function BrandTag({ brand, brandDomain }: { brand: string; brandDomain?: string | null }) {
-  // AI가 뽑아준 brandDomain을 우선 쓰고, 없으면(수동 등록 등) 큐레이션 맵으로 폴백한다 —
-  // 이러면 매번 새 브랜드가 나올 때마다 이 맵을 수동으로 갱신할 필요가 없다.
+/** 카드 제목 옆에 크게 붙는 브랜드 로고 아이콘 — 로고가 없으면(맵/AI 둘 다 못 찾음) 아무것도
+ *  렌더링하지 않는다(자리 차지 안 함). 브랜드명 자체는 각 카드가 kicker 텍스트로 별도 표시한다. */
+function BrandAvatar({ brand, brandDomain }: { brand: string; brandDomain?: string | null }) {
   const domain = brandDomain ?? BRAND_DOMAIN[brand] ?? null;
+  if (!domain || !LOGO_DEV_TOKEN) return null;
   return (
-    <span className="brand-tag">
-      {domain && LOGO_DEV_TOKEN && (
-        <img
-          className="brand-tag__logo"
-          src={`https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}`}
-          alt=""
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-        />
-      )}
-      <span className="brand-tag__name">{brand}</span>
-    </span>
+    <img
+      className="brand-avatar"
+      src={`https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=96`}
+      alt=""
+      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+    />
   );
 }
 
@@ -1204,14 +1200,19 @@ export default function DashboardPage() {
               return (
               <div className={`pending-card${isPriceChange ? ' pending-card--price-change' : ''}`} key={item.id}>
                 <div className="pending-card__body">
-                  <p className="pending-card__name">
-                    <span className={`type-dot type-dot--${item.type}`} aria-hidden="true" />
-                    {item.itemName ?? '(상품명 미확인)'}
-                    <span className={`pending-card__type pending-card__type--${item.type}`}>
-                      {TYPE_SHORT_LABEL[item.type]}
-                    </span>
-                  </p>
-                  {item.brand && <BrandTag brand={item.brand} brandDomain={item.brandDomain} />}
+                  <div className="pending-card__heading">
+                    {item.brand && <BrandAvatar brand={item.brand} brandDomain={item.brandDomain} />}
+                    <div className="pending-card__heading-text">
+                      {item.brand && <span className="brand-kicker">{item.brand}</span>}
+                      <p className="pending-card__name">
+                        <span className={`type-dot type-dot--${item.type}`} aria-hidden="true" />
+                        {item.itemName ?? '(상품명 미확인)'}
+                        <span className={`pending-card__type pending-card__type--${item.type}`}>
+                          {TYPE_SHORT_LABEL[item.type]}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
                   {isPriceChange && (
                     <p className="pending-card__price-change">
                       ⚠ 가격 인상 감지 — <span className="mono">{item.previousAmount!.toLocaleString('ko-KR')}원</span>
@@ -1562,8 +1563,13 @@ export default function DashboardPage() {
                 <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
                 <div className="ticket-card__body">
                   <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
-                  <h3 className="ticket-card__title">{p.itemName}</h3>
-                  {p.brand && <BrandTag brand={p.brand} brandDomain={p.brandDomain} />}
+                  <div className="ticket-card__heading">
+                    {p.brand && <BrandAvatar brand={p.brand} brandDomain={p.brandDomain} />}
+                    <div className="ticket-card__heading-text">
+                      {p.brand && <span className="brand-kicker">{p.brand}</span>}
+                      <h3 className="ticket-card__title">{p.itemName}</h3>
+                    </div>
+                  </div>
                   {isRecurringType(p.type) && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
