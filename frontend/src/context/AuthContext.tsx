@@ -17,6 +17,8 @@ function isStoredTokenExpired(): boolean {
 }
 
 function clearAuthStorage() {
+  const nickname = localStorage.getItem('nickname');
+  if (nickname) localStorage.removeItem(`purchases_cache_${nickname}`);
   localStorage.removeItem('accessToken');
   localStorage.removeItem('nickname');
   localStorage.removeItem('isPremium');
