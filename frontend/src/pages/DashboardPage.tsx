@@ -126,6 +126,14 @@ interface AiBriefData extends AiBriefSections {
   topCategoryAmount: number | null;
   trendPct: number | null;
   reviewCount: number;
+  /**
+   * 다음 결제/배송 예정일과 그 항목명. AI(LLM)가 아니라 실제 데이터에서 직접 계산한 결정론적
+   * 사실이라 100% 정확하다 — 날짜·이름은 모델이 지어내면 안 되는 값이라 여기서 채운다.
+   */
+  nextPaymentDate: string | null;
+  nextPaymentItem: string | null;
+  /** 확인 대기 목록에서 가격 인상이 감지된 항목명 목록. 마찬가지로 결정론적 계산값. */
+  priceIncreaseItems: string[];
 }
 
 const TYPE_LABEL: Record<PurchaseType, string> = {
@@ -417,6 +425,18 @@ export default function DashboardPage() {
     };
     const topCatLabel = topCat ? (CATEGORY_LABEL_KO[topCat.cat] ?? topCat.cat) : null;
 
+    // 다음 결제/배송(가장 가까운 dDay의 정기배송·구독)과 가격 인상 감지 항목 — AI가 아니라 실제
+    // 데이터로 직접 계산한다(날짜·이름은 모델이 지어내면 안 되는 값이라서).
+    const upcoming = purchases
+      .filter((p) => isRecurringType(p.type))
+      .sort((a, b) => a.dDay - b.dDay)[0] ?? null;
+    const priceIncreasePurchaseIds = new Set(
+      pendingItems.filter((item) => item.matchedPurchaseId !== null).map((item) => item.matchedPurchaseId!)
+    );
+    const priceIncreaseItems = purchases
+      .filter((p) => priceIncreasePurchaseIds.has(p.id))
+      .map((p) => p.itemName);
+
     // Show card with metrics immediately, text sections loading
     setAiBrief({
       month: mo,
@@ -425,6 +445,9 @@ export default function DashboardPage() {
       totalRecurring,
       topCategory: topCatLabel,
       topCategoryAmount: topCat?.total ?? null,
+      nextPaymentDate: upcoming?.deadline ?? null,
+      nextPaymentItem: upcoming?.itemName ?? null,
+      priceIncreaseItems,
       trendPct,
       reviewCount,
       goodNews: null,
@@ -1233,6 +1256,31 @@ export default function DashboardPage() {
                     <strong className="ai-brief__metric-value ai-brief__metric-value--cat">{aiBrief.topCategory}</strong>
                   </div>
                 )}
+              </div>
+              {/* AI가 지어낸 문장이 아니라 실제 데이터로 계산한 사실 그대로 — 날짜·서비스명이라
+                  틀리면 안 되는 값들은 여기서 결정론적으로 채운다. */}
+              <div className="ai-brief__facts">
+                <p>
+                  {aiBrief.month}월 예상 지출은 <strong className="mono">{aiBrief.monthlySpend.toLocaleString('ko-KR')}원</strong>입니다.
+                </p>
+                <p>
+                  {aiBrief.nextPaymentItem && aiBrief.nextPaymentDate ? (
+                    <>
+                      다음 결제는 <strong>{formatKoreanMonthDay(aiBrief.nextPaymentDate)} {aiBrief.nextPaymentItem}</strong>입니다.
+                    </>
+                  ) : (
+                    '예정된 정기결제·정기배송이 없습니다.'
+                  )}
+                </p>
+                <p>
+                  {aiBrief.priceIncreaseItems.length > 0 ? (
+                    <>
+                      최근 가격이 오른 서비스는 <strong>{aiBrief.priceIncreaseItems.join(', ')}</strong>입니다.
+                    </>
+                  ) : (
+                    '최근 가격이 오른 서비스는 없습니다.'
+                  )}
+                </p>
               </div>
               {aiBriefTextLoading ? (
                 <div className="ai-brief__text-loading">AI 분석 중...</div>

@@ -836,6 +836,24 @@ button.summary-board__tile:hover {
   padding: 4px 0;
 }
 
+/* AI가 생성한 문장이 아니라 실제 데이터로 계산한 사실 요약 — 좋은소식/주의사항/인사이트보다
+   먼저 눈에 띄게, metrics 바로 아래 둔다. */
+.ai-brief__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, #8b7cf6 8%, var(--paper));
+  border-radius: var(--radius-sm);
+}
+
+.ai-brief__facts p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
 .ai-brief__section {
   display: flex;
   flex-direction: column;
