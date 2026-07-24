@@ -79,11 +79,14 @@ ${lines}`;
   });
 
   if (!res.ok) {
-    return c.json({ summary: null }, 500);
+    const errText = await res.text().catch(() => '');
+    console.error(`[ai-summary] Anthropic API error ${res.status}:`, errText);
+    return c.json({ summary: null, error: `API error ${res.status}` }, 500);
   }
 
   const data = await res.json<{ content: { type: string; text: string }[] }>();
   const summary = data.content?.[0]?.text?.trim() ?? null;
+  console.log('[ai-summary] generated summary length:', summary?.length ?? 0);
   return c.json({ summary });
 });
 

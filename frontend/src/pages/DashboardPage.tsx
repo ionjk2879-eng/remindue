@@ -221,6 +221,7 @@ export default function DashboardPage() {
   const [showSpendingDetail, setShowSpendingDetail] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [aiSummaryError, setAiSummaryError] = useState(false);
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
@@ -327,10 +328,17 @@ export default function DashboardPage() {
     };
 
     setAiSummary(null);
+    setAiSummaryError(false);
     setAiSummaryLoading(true);
     fetchAiSummary(input)
-      .then((summary) => { if (summary) setAiSummary(summary); })
-      .catch(() => {})
+      .then((summary) => {
+        if (summary) setAiSummary(summary);
+        else setAiSummaryError(true);
+      })
+      .catch((err) => {
+        console.error('[AI summary]', err);
+        setAiSummaryError(true);
+      })
       .finally(() => setAiSummaryLoading(false));
   };
 
@@ -820,6 +828,8 @@ export default function DashboardPage() {
                 <span className="summary-board__ai-loading">분석 중...</span>
               ) : aiSummary ? (
                 <p className="summary-board__ai-text">{aiSummary}</p>
+              ) : aiSummaryError ? (
+                <span className="summary-board__ai-cta" style={{ color: 'var(--stamp-red)' }}>분석 실패 — 다시 눌러보세요</span>
               ) : (
                 <span className="summary-board__ai-cta">눌러서 분석하기</span>
               )}
