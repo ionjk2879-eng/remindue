@@ -297,7 +297,19 @@ select option {
   gap: 14px;
 }
 
-.site-header__nav {
+/* 드롭다운 토글 버튼 + 패널을 감싸는 위치 기준(position anchor) — 데스크톱에서는 그냥
+   투명한 wrapper일 뿐이고, 모바일에서만 아래 드롭다운 패널의 기준점 역할을 한다. */
+.site-header__menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.site-header__menu-toggle {
+  display: none;
+}
+
+.site-header__dropdown {
   display: flex;
   align-items: center;
   gap: 16px;
@@ -337,6 +349,54 @@ select option {
 .site-header__link--premium {
   color: var(--type-electronics);
   font-weight: 700;
+}
+
+/* 좁은 화면에서는 FAQ/문의/설정/로그아웃/테마토글을 한 줄에 다 욱여넣는 대신 햄버거
+   드롭다운 하나로 접는다 — 프리미엄 CTA와 로그인 버튼만 항상 보이게 남겨둔다. */
+@media (max-width: 640px) {
+  .site-header {
+    padding: 12px 16px;
+  }
+
+  .site-header__menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    border: 1px solid var(--hairline-strong);
+    background: transparent;
+    color: var(--ink-soft);
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .site-header__dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    background: var(--paper-card);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lift);
+    padding: 14px 18px;
+    min-width: 150px;
+    z-index: 50;
+  }
+
+  .site-header__dropdown--open {
+    display: flex;
+  }
+
+  .site-header__dropdown .site-header__link {
+    font-size: 0.92rem;
+  }
 }
 
 /* --------------------------------------------------------------------------
