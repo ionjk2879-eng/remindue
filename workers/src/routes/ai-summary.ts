@@ -15,6 +15,9 @@ interface SpendingSummaryInput {
   topCategoryAmount: number | null;
   reviewCount: number;
   totalItems: number;
+  nextPaymentDate: string | null;
+  nextPaymentItem: string | null;
+  priceIncreaseItems: string[];
 }
 
 function parseTag(text: string, tag: string): string | null {
@@ -73,6 +76,9 @@ aiSummary.post('/spending-summary', async (c) => {
       topCategory,
       topCategoryAmount,
       reviewCount,
+      nextPaymentDate,
+      nextPaymentItem,
+      priceIncreaseItems,
     } = body;
 
     const fmt = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -95,6 +101,12 @@ aiSummary.post('/spending-summary', async (c) => {
         ? `- 이번 달 최다 지출 카테고리: ${topCategory} (${fmt(topCategoryAmount)}원)`
         : null,
       reviewCount > 0 ? `- 6개월 이상 수령 미확인 구독: ${reviewCount}건` : null,
+      nextPaymentItem && nextPaymentDate
+        ? `- 다음 결제/배송 예정: ${nextPaymentDate} ${nextPaymentItem}`
+        : '- 다음 결제/배송 예정: 없음',
+      priceIncreaseItems.length > 0
+        ? `- 최근 가격 인상 감지된 서비스: ${priceIncreaseItems.join(', ')}`
+        : '- 최근 가격 인상 감지된 서비스: 없음',
     ]
       .filter(Boolean)
       .join('\n');
@@ -104,14 +116,18 @@ aiSummary.post('/spending-summary', async (c) => {
         {
           role: 'system',
           content: `당신은 가계부 소비 패턴 분석 AI입니다.
-아래 소비 데이터를 분석하여 정확히 이 형식으로만 답하세요 (마크다운, 추가 설명, 라벨 번역 없이):
+아래 소비 데이터(지출 규모·추이, 정기배송/구독 건수, 최다 지출 카테고리, 미확인 구독,
+다음 결제 예정, 가격 인상 여부)를 전부 종합적으로 검토해서 이 사람의 소비 패턴을 판단하고,
+정확히 이 형식으로만 답하세요 (마크다운, 추가 설명, 라벨 번역 없이):
 
 좋은소식: (긍정적인 관찰 1~2문장, 한국어)
 주의사항: (주의할 점 1~2문장, 한국어. 특별히 없으면 "없음")
-인사이트: (핵심 제안 1문장, 한국어)
+인사이트: (아래 항목들을 종합했을 때의 핵심 제안 1문장, 한국어)
 
-반드시 순수 한국어(한글)로만 써라. 한자, 일본어, 영어 등 어떤 외국어 문자·단어도 절대 섞지 마라 —
-브랜드명이 필요하면 한국에서 통용되는 한글 표기를 써라(예: "Netflix"가 아니라 "넷플릭스").`,
+- 날짜와 서비스명을 언급할 때는 반드시 주어진 데이터에 있는 그대로만 인용해라 — 지어내거나
+  다른 날짜/이름으로 바꾸지 마라.
+- 반드시 순수 한국어(한글)로만 써라. 한자, 일본어, 영어 등 어떤 외국어 문자·단어도 절대 섞지 마라 —
+  브랜드명이 필요하면 한국에서 통용되는 한글 표기를 써라(예: "Netflix"가 아니라 "넷플릭스").`,
         },
         { role: 'user', content: dataLines },
       ],

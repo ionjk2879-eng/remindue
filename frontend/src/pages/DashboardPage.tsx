@@ -501,6 +501,9 @@ export default function DashboardPage() {
       topCategoryAmount: topCat?.total ?? null,
       reviewCount,
       totalItems: purchases.length,
+      nextPaymentDate: upcoming?.deadline ?? null,
+      nextPaymentItem: upcoming?.itemName ?? null,
+      priceIncreaseItems,
     };
 
     fetchAiSummary(input)
