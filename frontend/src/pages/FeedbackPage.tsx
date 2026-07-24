@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { createFeedback, fetchFeedbackList } from '../api/feedback';
 import { CATEGORY_LABEL, CategoryBadge, StatusBadge } from '../components/FeedbackBadges';
+import Pagination from '../components/Pagination';
 import type { FeedbackCategory, FeedbackListItem } from '../types';
 
 const CATEGORY_OPTIONS: FeedbackCategory[] = ['BUG', 'FEATURE_REQUEST', 'QUESTION', 'OTHER'];
+const PAGE_SIZE = 10;
 
 function formatDate(dateStr: string): string {
   return dateStr.slice(0, 10);
@@ -20,6 +22,7 @@ export default function FeedbackPage() {
   const [isPrivate, setIsPrivate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const load = async () => {
     const data = await fetchFeedbackList();
@@ -41,6 +44,7 @@ export default function FeedbackPage() {
       setCategory('QUESTION');
       setIsPrivate(false);
       setShowForm(false);
+      setPage(1);
       await load();
     } catch (err) {
       const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
@@ -93,8 +97,9 @@ export default function FeedbackPage() {
       {items === null ? null : items.length === 0 ? (
         <p className="empty-state">아직 등록된 문의가 없어요.</p>
       ) : (
+        <>
         <ul className="feedback-list">
-          {items.map((item) => (
+          {items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((item) => (
             <li key={item.id}>
               <Link to={`/feedback/${item.id}`} className="feedback-list-item">
                 <div className="feedback-list-item__top">
@@ -114,6 +119,12 @@ export default function FeedbackPage() {
             </li>
           ))}
         </ul>
+        <Pagination
+          page={page}
+          totalPages={Math.max(1, Math.ceil(items.length / PAGE_SIZE))}
+          onPageChange={setPage}
+        />
+        </>
       )}
     </div>
   );
