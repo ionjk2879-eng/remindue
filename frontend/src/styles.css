@@ -3545,10 +3545,6 @@ button.summary-board__tile:hover {
   gap: 8px;
 }
 
-.feedback-reply__edit textarea {
-  font-size: 0.9rem;
-}
-
 .feedback-reply p {
   font-size: 0.9rem;
   line-height: 1.6;
@@ -3575,4 +3571,45 @@ button.summary-board__tile:hover {
   border: 1px solid var(--hairline);
   border-radius: var(--radius-card);
   padding: 20px;
+}
+
+/* 문의 게시판(글 작성/수정 + 답글 작성/수정) 입력칸 — 앱 전역 .field의 밑줄 스타일도, 감싸지
+   않은 textarea의 브라우저 기본 박스 모양도 쓰지 않고 배경 틴트만 있는 플랫한 스타일로 통일한다. */
+.feedback-form input,
+.feedback-form select,
+.feedback-form textarea,
+.feedback-reply-form textarea,
+.feedback-reply-form select,
+.feedback-reply__edit textarea {
+  background: var(--paper);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 0.92rem;
+  color: var(--ink);
+  transition: box-shadow 0.15s ease;
+}
+
+.feedback-form textarea,
+.feedback-reply-form textarea,
+.feedback-reply__edit textarea {
+  resize: vertical;
+}
+
+.feedback-form input::placeholder,
+.feedback-form textarea::placeholder,
+.feedback-reply-form textarea::placeholder,
+.feedback-reply__edit textarea::placeholder {
+  color: var(--placeholder);
+}
+
+.feedback-form input:focus,
+.feedback-form select:focus,
+.feedback-form textarea:focus,
+.feedback-reply-form textarea:focus,
+.feedback-reply-form select:focus,
+.feedback-reply__edit textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--hairline-strong);
 }
