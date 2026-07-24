@@ -149,8 +149,13 @@ export default function PricingPage() {
             <td>O</td>
           </tr>
           <tr>
-            <td>커스텀 알림 시점</td>
+            <td>커스텀 알림 시점(D-day)</td>
             <td>7/3/1/당일 고정</td>
+            <td>직접 설정</td>
+          </tr>
+          <tr>
+            <td>확인 예고 알림 시점</td>
+            <td>3일 전 고정</td>
             <td>직접 설정</td>
           </tr>
           <tr>

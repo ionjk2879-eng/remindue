@@ -341,17 +341,23 @@ export default function SettingsPage() {
             </div>
           ) : (
             <>
-              <select
-                value={advanceDays}
-                disabled={savingAdvanceDays}
-                onChange={(e) => handleSaveAdvanceDays(Number(e.target.value))}
-              >
+              <div className="notification-day-options">
                 {CONFIRMATION_ADVANCE_DAY_OPTIONS.map((day) => (
-                  <option key={day} value={day}>
+                  <label
+                    key={day}
+                    className={`notification-day-option${advanceDays === day ? ' notification-day-option--active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="advanceDays"
+                      checked={advanceDays === day}
+                      disabled={savingAdvanceDays}
+                      onChange={() => handleSaveAdvanceDays(day)}
+                    />
                     {day}일 전
-                  </option>
+                  </label>
                 ))}
-              </select>
+              </div>
               {advanceDaysMessage && <p className="settings-section__message">{advanceDaysMessage}</p>}
             </>
           )

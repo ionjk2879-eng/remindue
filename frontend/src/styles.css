@@ -2761,6 +2761,14 @@ button.summary-board__tile:hover {
   cursor: pointer;
 }
 
+/* 예고 알림 시점처럼 단일 선택(라디오)인 경우 선택된 칩을 시각적으로 강조한다. */
+.notification-day-option--active {
+  background: var(--neutral-bg);
+  border-color: var(--ink);
+  color: var(--ink);
+  font-weight: 700;
+}
+
 .invite-form {
   display: flex;
   gap: 8px;
