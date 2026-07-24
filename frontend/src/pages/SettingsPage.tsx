@@ -308,7 +308,10 @@ export default function SettingsPage() {
               <p className="settings-section__hint">D-day가 며칠 남았을 때 알림을 받을지 골라주세요.</p>
               <div className="notification-day-options">
                 {NOTIFICATION_DAY_OPTIONS.map((day) => (
-                  <label key={day} className="notification-day-option">
+                  <label
+                    key={day}
+                    className={`notification-day-option${selectedDays.includes(day) ? ' notification-day-option--active' : ''}`}
+                  >
                     <input type="checkbox" checked={selectedDays.includes(day)} onChange={() => toggleDay(day)} />
                     {formatDayLabel(day)}
                   </label>

@@ -2777,6 +2777,23 @@ button.summary-board__tile:hover {
 
 .invite-form input {
   flex: 1;
+  background: var(--paper);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 0.92rem;
+  color: var(--ink);
+  transition: box-shadow 0.15s ease;
+}
+
+.invite-form input::placeholder {
+  color: var(--placeholder);
+}
+
+.invite-form input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--hairline-strong);
 }
 
 .invite-list {
@@ -2871,6 +2888,23 @@ button.summary-board__tile:hover {
 .withdraw-form input {
   flex: 1;
   max-width: 240px;
+  background: var(--paper);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 0.92rem;
+  color: var(--ink);
+  transition: box-shadow 0.15s ease;
+}
+
+.withdraw-form input::placeholder {
+  color: var(--placeholder);
+}
+
+.withdraw-form input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--hairline-strong);
 }
 
 /* --------------------------------------------------------------------------
