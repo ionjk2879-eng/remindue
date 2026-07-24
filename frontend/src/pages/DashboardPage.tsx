@@ -469,7 +469,9 @@ export default function DashboardPage() {
         goodNews = `${totalRecurring}개의 구독을 관리 중으로 현재 관리하기 쉬운 상태입니다.`;
       else goodNews = `${mo}월 예상 지출은 ${fmtWon(Math.round(moSpend))}원입니다.`;
 
-      let attention: string | null = null;
+      // 좋은소식과 나란히 "2개"로 항상 보여주기로 했으니, 특별히 우려되는 점이 없어도
+      // 마지막 else에서 참고용 문구를 채워 null이 되지 않게 한다.
+      let attention: string;
       if (reviewCount > 0) {
         const perItem = totalRecurring > 0 ? Math.round(moSpend / totalRecurring) : 0;
         const savingEst = perItem * reviewCount * 12;
@@ -478,6 +480,8 @@ export default function DashboardPage() {
         attention = `이번 달 지출이 전월 대비 ${trendPct}% 늘었습니다. 새로 추가된 구독을 확인해보세요.`;
       } else if (totalRecurring >= 10) {
         attention = `현재 ${totalRecurring}개의 구독이 활성화되어 있습니다. 주기적으로 점검해보세요.`;
+      } else {
+        attention = '특별히 우려되는 점은 없습니다. 그래도 주기적으로 구독 현황을 점검해보세요.';
       }
 
       let insight: string;
@@ -1293,12 +1297,10 @@ export default function DashboardPage() {
                     <span className="ai-brief__section-label">😊 좋은 소식</span>
                     <p className="ai-brief__section-text">{aiBrief.goodNews ?? '—'}</p>
                   </div>
-                  {(aiBrief.attention || aiBrief.reviewCount > 0) && (
-                    <div className="ai-brief__section">
-                      <span className="ai-brief__section-label">👀 눈여겨볼 점</span>
-                      <p className="ai-brief__section-text">{aiBrief.attention ?? '특별한 주의사항 없음'}</p>
-                    </div>
-                  )}
+                  <div className="ai-brief__section">
+                    <span className="ai-brief__section-label">👀 눈여겨볼 점</span>
+                    <p className="ai-brief__section-text">{aiBrief.attention ?? '특별한 주의사항 없음'}</p>
+                  </div>
                   {aiBrief.insight && (
                     <div className="ai-brief__insight">💡 {aiBrief.insight}</div>
                   )}
