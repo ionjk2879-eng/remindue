@@ -29,6 +29,8 @@ export interface Purchase {
   category: PurchaseCategory | null;
   /** "이번 회차 확인"을 누른 누적 횟수 — "AI 절약 제안"(장기 미확인 구독 추천)에 쓴다. */
   deliveryConfirmCount: number;
+  /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
+  brand: string | null;
   createdAt: string;
 }
 
@@ -44,6 +46,7 @@ export interface PurchaseInput {
   scheduleType?: ScheduleType;
   fixedDayOfMonth?: number | null;
   category?: PurchaseCategory | null;
+  brand?: string | null;
 }
 
 export interface AuthResponse {
@@ -77,6 +80,8 @@ export interface PendingPurchase {
   amount: number | null;
   /** AI가 추정한 지출 카테고리(RECURRING_DELIVERY/SUBSCRIPTION만). 그 외 null. */
   category: PurchaseCategory | null;
+  /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
+  brand: string | null;
   /** 같은 상품명의 기존 활성 항목과 매칭됐고 금액이 달라졌을 때만 그 항목의 id — "가격 인상 감지". 그 외 null. */
   matchedPurchaseId: number | null;
   /** matchedPurchaseId가 있을 때 그 항목의 변경 전 금액. 그 외 null. */

@@ -50,9 +50,15 @@ export interface AiSummaryInput {
   totalItems: number;
 }
 
-export async function fetchAiSummary(input: AiSummaryInput): Promise<string | null> {
-  const { data } = await apiClient.post<{ summary: string | null }>('/ai/spending-summary', input);
-  return data.summary;
+export interface AiBriefSections {
+  goodNews: string | null;
+  attention: string | null;
+  insight: string | null;
+}
+
+export async function fetchAiSummary(input: AiSummaryInput): Promise<AiBriefSections> {
+  const { data } = await apiClient.post<AiBriefSections>('/ai/spending-summary', input);
+  return data;
 }
 
 /** CSV/PDF는 인증 헤더가 필요해서 <a href>로 바로 열 수 없다 — blob으로 받아서 임시 링크를 만들어 다운로드를 트리거한다. */

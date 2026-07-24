@@ -12,6 +12,7 @@ import {
   downloadExport,
   fetchAiSummary,
   type AiSummaryInput,
+  type AiBriefSections,
 } from '../api/purchases';
 import { applyPriceChange, fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
 import { completeOnboarding as apiCompleteOnboarding, regenerateForwardingAddress } from '../api/settings';
@@ -30,6 +31,75 @@ import StampBadge from '../components/StampBadge';
 import PremiumBadge from '../components/PremiumBadge';
 import PushPermissionBanner from '../components/PushPermissionBanner';
 import OnboardingOverlay from '../components/OnboardingOverlay';
+
+const BRAND_DOMAIN: Record<string, string> = {
+  // 한국 쇼핑·커머스
+  '네이버': 'naver.com', '네이버쇼핑': 'naver.com', '네이버플러스': 'naver.com',
+  '쿠팡': 'coupang.com', '쿠팡이츠': 'coupangeats.com',
+  '마켓컬리': 'kurly.com', '컬리': 'kurly.com',
+  'SSG': 'ssg.com', 'SSG.COM': 'ssg.com', 'SSG닷컴': 'ssg.com',
+  '지마켓': 'gmarket.co.kr', '옥션': 'auction.co.kr',
+  '11번가': '11st.co.kr', '위메프': 'wemakeprice.com', '티몬': 'tmon.co.kr',
+  '인터파크': 'interpark.com', '무신사': 'musinsa.com',
+  '올리브영': 'oliveyoung.co.kr', '오늘의집': 'ohou.se',
+  '당근': 'daangn.com', '당근마켓': 'daangn.com', '번개장터': 'bunjang.co.kr',
+  '롯데온': 'lotteon.com', '롯데마트': 'lottemart.com',
+  // 한국 음식·배달
+  '배달의민족': 'baemin.com', '배민': 'baemin.com', '요기요': 'yogiyo.co.kr',
+  // 한국 미디어·교육
+  '왓챠': 'watcha.com', '웨이브': 'wavve.com', '티빙': 'tving.com',
+  '밀리의서재': 'millie.co.kr', '리디': 'ridibooks.com', '리디북스': 'ridibooks.com',
+  '클래스101': 'class101.net', '인프런': 'inflearn.com',
+  '패스트캠퍼스': 'fastcampus.co.kr',
+  // 한국 금융·플랫폼
+  '카카오': 'kakao.com', '카카오페이': 'kakaopay.com',
+  // 글로벌 스트리밍
+  '넷플릭스': 'netflix.com', 'Netflix': 'netflix.com',
+  '유튜브': 'youtube.com', 'YouTube': 'youtube.com',
+  '유튜브프리미엄': 'youtube.com', 'YouTube Premium': 'youtube.com',
+  '스포티파이': 'spotify.com', 'Spotify': 'spotify.com',
+  '디즈니플러스': 'disneyplus.com', 'Disney+': 'disneyplus.com', '디즈니+': 'disneyplus.com',
+  // 글로벌 소프트웨어·클라우드
+  '애플': 'apple.com', 'Apple': 'apple.com',
+  '애플뮤직': 'apple.com', 'Apple Music': 'apple.com',
+  '아마존': 'amazon.com', 'Amazon': 'amazon.com',
+  '구글': 'google.com', 'Google': 'google.com',
+  '마이크로소프트': 'microsoft.com', 'Microsoft': 'microsoft.com',
+  'Adobe': 'adobe.com', '어도비': 'adobe.com',
+  'GitHub': 'github.com', 'Notion': 'notion.so',
+  'Slack': 'slack.com', 'Zoom': 'zoom.us',
+  'ChatGPT': 'openai.com', 'OpenAI': 'openai.com',
+  'Dropbox': 'dropbox.com', '드롭박스': 'dropbox.com',
+  'Figma': 'figma.com',
+};
+
+function BrandTag({ brand }: { brand: string }) {
+  const domain = BRAND_DOMAIN[brand] ?? null;
+  return (
+    <span className="brand-tag">
+      {domain && (
+        <img
+          className="brand-tag__logo"
+          src={`https://logo.clearbit.com/${domain}`}
+          alt=""
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        />
+      )}
+      <span className="brand-tag__name">{brand}</span>
+    </span>
+  );
+}
+
+interface AiBriefData extends AiBriefSections {
+  month: number;
+  monthlySpend: number;
+  yearlySpend: number;
+  totalRecurring: number;
+  topCategory: string | null;
+  topCategoryAmount: number | null;
+  trendPct: number | null;
+  reviewCount: number;
+}
 
 const TYPE_LABEL: Record<PurchaseType, string> = {
   ELECTRONICS: '전자제품 (보증기간)',
@@ -219,9 +289,9 @@ export default function DashboardPage() {
   const [exporting, setExporting] = useState(false);
   const [purchasesLoaded, setPurchasesLoaded] = useState(false);
   const [showSpendingDetail, setShowSpendingDetail] = useState(false);
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
-  const [aiSummaryError, setAiSummaryError] = useState(false);
+  const [aiBrief, setAiBrief] = useState<AiBriefData | null>(null);
+  const [aiBriefTextLoading, setAiBriefTextLoading] = useState(false);
+  const [brand, setBrand] = useState('');
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
@@ -273,13 +343,12 @@ export default function DashboardPage() {
     if (view === 'ARCHIVED') loadArchived();
   }, [view]);
 
-  const handleAiSummary = async () => {
-    if (aiSummaryLoading) return;
-
+  const handleAiSummary = () => {
     const today = todayDateOnly();
     const [yr, mo] = today.split('-').map(Number);
     const rcCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
     const subCount = purchases.filter((p) => p.type === 'SUBSCRIPTION').length;
+    const totalRecurring = rcCount + subCount;
     const moSpend = purchases.reduce((sum, p) => {
       if (p.amount === null || !isRecurringType(p.type)) return sum;
       return sum + occurrencesInMonth(p, yr, mo) * p.amount;
@@ -313,6 +382,57 @@ export default function DashboardPage() {
       SOFTWARE: '소프트웨어',
       OTHER: '기타',
     };
+    const topCatLabel = topCat ? (CATEGORY_LABEL_KO[topCat.cat] ?? topCat.cat) : null;
+
+    // Show card with metrics immediately, text sections loading
+    setAiBrief({
+      month: mo,
+      monthlySpend: Math.round(moSpend),
+      yearlySpend: Math.round(yrSpend),
+      totalRecurring,
+      topCategory: topCatLabel,
+      topCategoryAmount: topCat?.total ?? null,
+      trendPct,
+      reviewCount,
+      goodNews: null,
+      attention: null,
+      insight: null,
+    });
+    setAiBriefTextLoading(true);
+
+    const fmtWon = (n: number) => n.toLocaleString('ko-KR');
+
+    const buildFallback = (): AiBriefSections => {
+      let goodNews: string;
+      if (totalRecurring === 0) goodNews = '아직 정기 구독이 등록되어 있지 않습니다.';
+      else if (trendPct !== null && trendPct <= -10)
+        goodNews = `전월 대비 ${Math.abs(trendPct)}% 줄어 ${fmtWon(Math.round(moSpend))}원이 예상됩니다. 잘 관리하고 있어요!`;
+      else if (Math.round(moSpend) < 30000)
+        goodNews = `${mo}월 예상 지출은 ${fmtWon(Math.round(moSpend))}원으로 부담이 크지 않습니다.`;
+      else if (totalRecurring <= 3)
+        goodNews = `${totalRecurring}개의 구독을 관리 중으로 현재 관리하기 쉬운 상태입니다.`;
+      else goodNews = `${mo}월 예상 지출은 ${fmtWon(Math.round(moSpend))}원입니다.`;
+
+      let attention: string | null = null;
+      if (reviewCount > 0) {
+        const perItem = totalRecurring > 0 ? Math.round(moSpend / totalRecurring) : 0;
+        const savingEst = perItem * reviewCount * 12;
+        attention = `최근 수령 확인이 없는 구독이 ${reviewCount}개 있습니다. 해지하면 연간 약 ${fmtWon(savingEst)}원 절약 가능.`;
+      } else if (trendPct !== null && trendPct >= 20) {
+        attention = `이번 달 지출이 전월 대비 ${trendPct}% 늘었습니다. 새로 추가된 구독을 확인해보세요.`;
+      } else if (totalRecurring >= 10) {
+        attention = `현재 ${totalRecurring}개의 구독이 활성화되어 있습니다. 주기적으로 점검해보세요.`;
+      }
+
+      let insight: string;
+      if (totalRecurring === 0) insight = '구독을 추가하면 월별 지출 추이와 갱신일을 자동으로 추적해드릴게요.';
+      else if (reviewCount > 0) insight = '미사용 구독을 정리하면 연간 지출을 의미 있게 줄일 수 있어요.';
+      else if (trendPct !== null && trendPct > 10) insight = '지출이 늘고 있어요. 최근 추가한 구독이 있는지 확인해보세요.';
+      else if (trendPct !== null && trendPct < -10) insight = '지출이 줄고 있어요. 현재 소비 패턴을 유지하면 좋겠어요.';
+      else insight = '이번 달 지출 패턴은 안정적입니다.';
+
+      return { goodNews, attention, insight };
+    };
 
     const input: AiSummaryInput = {
       month: mo,
@@ -321,26 +441,24 @@ export default function DashboardPage() {
       monthlySpend: Math.round(moSpend),
       yearlySpend: Math.round(yrSpend),
       monthTrendPercent: trendPct,
-      topCategory: topCat ? (CATEGORY_LABEL_KO[topCat.cat] ?? topCat.cat) : null,
+      topCategory: topCatLabel,
       topCategoryAmount: topCat?.total ?? null,
       reviewCount,
       totalItems: purchases.length,
     };
 
-    setAiSummary(null);
-    setAiSummaryError(false);
-    setAiSummaryLoading(true);
     fetchAiSummary(input)
-      .then((summary) => {
-        if (summary) setAiSummary(summary);
-        else setAiSummaryError(true);
+      .then((sections) => {
+        const resolved: AiBriefSections =
+          sections.goodNews || sections.insight
+            ? sections
+            : buildFallback();
+        setAiBrief((prev) => (prev ? { ...prev, ...resolved } : prev));
       })
-      .catch((err) => {
-        const detail = (err as { response?: { data?: unknown } })?.response?.data;
-        console.error('[AI summary] error:', err, 'response:', detail);
-        setAiSummaryError(true);
+      .catch(() => {
+        setAiBrief((prev) => (prev ? { ...prev, ...buildFallback() } : prev));
       })
-      .finally(() => setAiSummaryLoading(false));
+      .finally(() => setAiBriefTextLoading(false));
   };
 
   useEffect(() => {
@@ -370,6 +488,7 @@ export default function DashboardPage() {
     setScheduleType('INTERVAL');
     setFixedDayOfMonth('1');
     setCategory('OTHER');
+    setBrand('');
     setShowRegisterForm(false);
   };
 
@@ -387,6 +506,7 @@ export default function DashboardPage() {
     setScheduleType(p.scheduleType ?? 'INTERVAL');
     setFixedDayOfMonth(String(p.fixedDayOfMonth ?? 1));
     setCategory(p.category ?? 'OTHER');
+    setBrand(p.brand ?? '');
   };
 
   const handleCancelEdit = () => {
@@ -425,6 +545,7 @@ export default function DashboardPage() {
       setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
       if (item.returnDeadlineDays !== null) setReturnDeadlineDays(String(item.returnDeadlineDays));
     }
+    setBrand(item.brand ?? '');
     setPendingConfirmId(item.id);
   };
 
@@ -480,6 +601,7 @@ export default function DashboardPage() {
       scheduleType: isRecurringType(type) ? scheduleType : undefined,
       fixedDayOfMonth: isRecurringType(type) && scheduleType === 'FIXED_DAY' ? Number(fixedDayOfMonth) : undefined,
       category: isRecurringType(type) ? category : undefined,
+      brand: brand.trim() || null,
     };
     const confirmingPendingId = pendingConfirmId;
     try {
@@ -820,21 +942,67 @@ export default function DashboardPage() {
             type="button"
             className="summary-board__tile summary-board__tile--ai-summary summary-board__tile--clickable"
             onClick={handleAiSummary}
-            disabled={aiSummaryLoading}
           >
-            <span className="summary-board__icon" aria-hidden="true">✨</span>
-            <div className="summary-board__text">
-              <span className="summary-board__label">AI 소비 요약</span>
-              {aiSummaryLoading ? (
-                <span className="summary-board__ai-loading">분석 중...</span>
-              ) : aiSummary ? (
-                <p className="summary-board__ai-text">{aiSummary}</p>
-              ) : aiSummaryError ? (
-                <span className="summary-board__ai-cta" style={{ color: 'var(--stamp-red)' }}>분석 실패 — 다시 눌러보세요</span>
-              ) : (
-                <span className="summary-board__ai-cta">눌러서 분석하기</span>
-              )}
-            </div>
+            {aiBrief ? (
+              <div className="ai-brief">
+                <div className="ai-brief__header">
+                  <span>🤖 AI 소비 브리핑</span>
+                  <span className="ai-brief__refresh">↻ 다시 분석</span>
+                </div>
+                <div className="ai-brief__divider" />
+                <div className="ai-brief__metrics">
+                  <div className="ai-brief__metric">
+                    <span className="ai-brief__metric-label">💰 이번 달 예상</span>
+                    <strong className="ai-brief__metric-value">{aiBrief.monthlySpend.toLocaleString('ko-KR')}원</strong>
+                  </div>
+                  <div className="ai-brief__metric">
+                    <span className="ai-brief__metric-label">📦 구독 수</span>
+                    <strong className="ai-brief__metric-value">{aiBrief.totalRecurring}개</strong>
+                  </div>
+                  {aiBrief.trendPct !== null && (
+                    <div className="ai-brief__metric">
+                      <span className="ai-brief__metric-label">📈 전월 대비</span>
+                      <strong className={`ai-brief__metric-value${aiBrief.trendPct > 0 ? ' ai-brief__metric-value--up' : ' ai-brief__metric-value--down'}`}>
+                        {aiBrief.trendPct > 0 ? '+' : ''}{aiBrief.trendPct}%
+                      </strong>
+                    </div>
+                  )}
+                  {aiBrief.topCategory && (
+                    <div className="ai-brief__metric">
+                      <span className="ai-brief__metric-label">🏆 최다 지출</span>
+                      <strong className="ai-brief__metric-value ai-brief__metric-value--cat">{aiBrief.topCategory}</strong>
+                    </div>
+                  )}
+                </div>
+                {aiBriefTextLoading ? (
+                  <div className="ai-brief__text-loading">AI 분석 중...</div>
+                ) : (
+                  <>
+                    <div className="ai-brief__section">
+                      <span className="ai-brief__section-label">😊 좋은 소식</span>
+                      <p className="ai-brief__section-text">{aiBrief.goodNews ?? '—'}</p>
+                    </div>
+                    {(aiBrief.attention || aiBrief.reviewCount > 0) && (
+                      <div className="ai-brief__section">
+                        <span className="ai-brief__section-label">👀 눈여겨볼 점</span>
+                        <p className="ai-brief__section-text">{aiBrief.attention ?? '특별한 주의사항 없음'}</p>
+                      </div>
+                    )}
+                    {aiBrief.insight && (
+                      <div className="ai-brief__insight">💡 {aiBrief.insight}</div>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              <>
+                <span className="summary-board__icon" aria-hidden="true">🤖</span>
+                <div className="summary-board__text">
+                  <span className="summary-board__label">AI 소비 브리핑</span>
+                  <span className="summary-board__ai-cta">눌러서 소비 패턴 분석하기</span>
+                </div>
+              </>
+            )}
           </button>
         </div>
       )}
@@ -997,6 +1165,7 @@ export default function DashboardPage() {
                       {TYPE_SHORT_LABEL[item.type]}
                     </span>
                   </p>
+                  {item.brand && <BrandTag brand={item.brand} />}
                   {isPriceChange && (
                     <p className="pending-card__price-change">
                       ⚠ 가격 인상 감지 — <span className="mono">{item.previousAmount!.toLocaleString('ko-KR')}원</span>
@@ -1332,6 +1501,7 @@ export default function DashboardPage() {
                 <div className="ticket-card__body">
                   <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
                   <h3 className="ticket-card__title">{p.itemName}</h3>
+                  {p.brand && <BrandTag brand={p.brand} />}
                   {isRecurringType(p.type) && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>

@@ -35,6 +35,8 @@ export interface PurchaseRow {
   archived_at: string | null;
   /** 정기배송/구독 전용 지출 카테고리. 그 외 타입은 NULL. */
   category: PurchaseCategory | null;
+  /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. 수동 등록이면 NULL. */
+  brand: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -103,6 +105,8 @@ export interface PendingPurchaseRow {
   matched_purchase_id: number | null;
   /** matched_purchase_id가 있을 때 그 항목의 "변경 전" 금액. 그 외 NULL. */
   previous_amount: number | null;
+  /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. NULL이면 미감지. */
+  brand: string | null;
   status: PendingPurchaseStatus;
   created_at: string;
 }
@@ -129,6 +133,8 @@ export interface PendingPurchaseResponse {
   matchedPurchaseId: number | null;
   /** matchedPurchaseId가 있을 때 그 항목의 "변경 전" 금액. 그 외 null. */
   previousAmount: number | null;
+  /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
+  brand: string | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }
@@ -157,6 +163,8 @@ export interface PurchaseResponse {
   category: PurchaseCategory | null;
   /** "이번 회차 확인"을 누른 누적 횟수 — 대시보드의 "AI 절약 제안"(장기 미확인 구독 추천)에 쓴다. */
   deliveryConfirmCount: number;
+  /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
+  brand: string | null;
   createdAt: string;
 }
 
@@ -196,6 +204,7 @@ export interface PurchaseRequestBody {
   scheduleType?: ScheduleType;
   fixedDayOfMonth?: number | null;
   category?: PurchaseCategory | null;
+  brand?: string | null;
 }
 
 export type BillingPlan = 'ONE_TIME' | 'MONTHLY' | 'ANNUAL';
