@@ -34,7 +34,7 @@ async function getOwnedPurchase(db: D1Database, userId: number, id: number): Pro
 
 function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRequestBody {
   if (!body.type || !PURCHASE_TYPES.includes(body.type)) {
-    throw new BadRequestError('type은 ELECTRONICS/ONLINE_ORDER/RECURRING_DELIVERY/SUBSCRIPTION 중 하나여야 합니다');
+    throw new BadRequestError('type은 GENERAL/RECURRING_DELIVERY/SUBSCRIPTION 중 하나여야 합니다');
   }
   if (!body.itemName || !body.itemName.trim()) {
     throw new BadRequestError('itemName은 필수입니다');
@@ -42,9 +42,8 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
   if (!body.baseDate || !/^\d{4}-\d{2}-\d{2}$/.test(body.baseDate)) {
     throw new BadRequestError('baseDate는 yyyy-MM-dd 형식이어야 합니다');
   }
-  // 카테고리는 정기배송/구독에서만 의미가 있다 — 그 외 타입이면 클라이언트가 뭘 보내든 무시하고 null로 저장한다.
-  const category =
-    isRecurringType(body.type) && body.category && PURCHASE_CATEGORIES.includes(body.category) ? body.category : null;
+  // 카테고리는 이제 모든 구매 유형에 적용된다.
+  const category = body.category && PURCHASE_CATEGORIES.includes(body.category) ? body.category : null;
   const brand = typeof body.brand === 'string' && body.brand.trim() ? body.brand.trim() : null;
   const originalCurrency = sanitizeCurrency(body.originalCurrency ?? null);
   const originalAmount = sanitizeOriginalAmount(originalCurrency, body.originalAmount ?? null);

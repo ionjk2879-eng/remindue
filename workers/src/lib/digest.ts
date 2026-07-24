@@ -5,7 +5,7 @@
 // 이메일은 email_notifications_enabled 플래그를 따르고, 푸시는 구독 자체가
 // 곧 "받겠다"는 의사표시라 그 플래그와 무관하게(구독이 있으면) 보낸다.
 
-import { computeDDay, computeDeadline } from './purchase-logic';
+import { computeDDay, computeDeadlines } from './purchase-logic';
 import { buildDigestEmailHtml, sendDigestEmail } from './email';
 import { buildDigestTitle, buildItemMessage, type DigestItem } from './messages';
 import { sendPush } from './push';
@@ -55,19 +55,23 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
   const itemsByUserId = new Map<number, UserDigestBucket>();
 
   for (const row of results) {
-    const { deadline } = computeDeadline(row);
-    const dDay = computeDDay(deadline);
     const targetDays = effectiveNotificationDays(row.user_is_premium === 1, row.user_notification_days);
-    if (!targetDays.includes(dDay)) continue;
 
-    const bucket = itemsByUserId.get(row.user_id) ?? {
-      email: row.user_email,
-      nickname: row.user_nickname,
-      emailEnabled: row.user_email_notifications_enabled === 1,
-      items: [],
-    };
-    bucket.items.push({ itemName: row.item_name, type: row.type, dDay, deadline });
-    itemsByUserId.set(row.user_id, bucket);
+    // GENERAL은 반품기한/A·S보증 인스턴스가 각각 독립적으로 D-day를 맞을 수 있어(예: 반품기한은
+    // 지난주에 이미 지났고 보증만료만 이번에 D-7) 행당 여러 DigestItem이 나올 수 있다.
+    for (const instance of computeDeadlines(row)) {
+      const dDay = computeDDay(instance.deadline);
+      if (!targetDays.includes(dDay)) continue;
+
+      const bucket = itemsByUserId.get(row.user_id) ?? {
+        email: row.user_email,
+        nickname: row.user_nickname,
+        emailEnabled: row.user_email_notifications_enabled === 1,
+        items: [],
+      };
+      bucket.items.push({ itemName: row.item_name, type: row.type, kind: instance.kind, dDay, deadline: instance.deadline });
+      itemsByUserId.set(row.user_id, bucket);
+    }
   }
 
   const dashboardUrl = `${env.APP_URL}/dashboard`;

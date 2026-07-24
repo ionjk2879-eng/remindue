@@ -152,44 +152,49 @@ interface AiBriefData extends AiBriefSections {
 }
 
 const TYPE_LABEL: Record<PurchaseType, string> = {
-  ELECTRONICS: '전자제품 (보증기간)',
-  ONLINE_ORDER: '온라인 주문 (반품기한)',
+  GENERAL: '일반 구매',
   RECURRING_DELIVERY: '정기배송',
   SUBSCRIPTION: '정기구독',
 };
 
+/** 비-recurring(GENERAL) 카드는 renderGeneralDeadlineLines가 반품기한/A·S보증을 각각 따로
+ *  보여주므로 이 라벨은 실제로 쓰이지 않는다 — 타입 완전성을 위한 안전망 값. */
 const DEADLINE_LABEL: Record<PurchaseType, string> = {
-  ELECTRONICS: '보증만료일',
-  ONLINE_ORDER: '반품기한',
+  GENERAL: '기한',
   RECURRING_DELIVERY: '다음 일정',
   SUBSCRIPTION: '다음 일정',
 };
 
 const TYPE_SHORT_LABEL: Record<PurchaseType, string> = {
-  ELECTRONICS: '전자제품',
-  ONLINE_ORDER: '온라인주문',
+  GENERAL: '일반구매',
   RECURRING_DELIVERY: '정기배송',
   SUBSCRIPTION: '정기구독',
 };
 
-const PURCHASE_TYPES: PurchaseType[] = ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY', 'SUBSCRIPTION'];
+const PURCHASE_TYPES: PurchaseType[] = ['GENERAL', 'RECURRING_DELIVERY', 'SUBSCRIPTION'];
 
-/** 정기배송/구독 전용 지출 카테고리 — "카테고리별 분석" 보드에서 이 순서대로 노출한다. */
-const PURCHASE_CATEGORIES: PurchaseCategory[] = ['STREAMING', 'SHOPPING', 'FOOD', 'SOFTWARE', 'OTHER'];
+/** 서비스 카테고리 — 이제 모든 구매 유형에 적용된다. "카테고리별 분석" 보드에서 이 순서대로 노출한다. */
+const PURCHASE_CATEGORIES: PurchaseCategory[] = ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'];
 
 const CATEGORY_LABEL: Record<PurchaseCategory, string> = {
-  STREAMING: '영상',
+  SOFTWARE: '소프트웨어',
+  AI: 'AI',
+  ENTERTAINMENT: '엔터테인먼트',
   SHOPPING: '쇼핑',
   FOOD: '식품',
-  SOFTWARE: '소프트웨어',
+  CREATOR_SUPPORT: '크리에이터 후원',
+  CLOUD: '클라우드',
   OTHER: '기타',
 };
 
 const CATEGORY_ICON: Record<PurchaseCategory, string> = {
-  STREAMING: '🎬',
+  SOFTWARE: '💻',
+  AI: '🤖',
+  ENTERTAINMENT: '🎬',
   SHOPPING: '🛒',
   FOOD: '🍽️',
-  SOFTWARE: '💻',
+  CREATOR_SUPPORT: '💝',
+  CLOUD: '☁️',
   OTHER: '📦',
 };
 
@@ -198,8 +203,7 @@ type FilterType = 'ALL' | PurchaseType;
 /** 목록 위 필터 메뉴 — 종류별 배지/점 색과 동일한 팔레트를 쓰지만 라벨은 사용자가 목록을 훑을 때 더 와닿는 실용적인 표현으로 따로 둔다. */
 const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
   { key: 'ALL', label: '전체' },
-  { key: 'ELECTRONICS', label: 'A/S보증' },
-  { key: 'ONLINE_ORDER', label: '환불' },
+  { key: 'GENERAL', label: '일반구매' },
   { key: 'RECURRING_DELIVERY', label: '정기배송' },
   { key: 'SUBSCRIPTION', label: '정기구독' },
 ];
@@ -248,6 +252,52 @@ function todayDateOnly(): string {
  */
 function isFullyConfirmed(p: Purchase): boolean {
   return isRecurringType(p.type) && p.lastDeliveredDate === todayDateOnly();
+}
+
+/**
+ * GENERAL 카드의 기한 표시 — 반품기한/A·S보증 둘 다 있으면 두 줄, 하나만 있으면 한 줄만
+ * 렌더링한다(둘 다 없는 경우는 이론상 없음 — computeDeadlines의 안전망 참고).
+ */
+function renderGeneralDeadlineLines(p: Purchase) {
+  return (
+    <>
+      {p.returnDeadlineDate && (
+        <p className="ticket-card__deadline">
+          반품기한 · <span className="mono">{p.returnDeadlineDate}</span>
+        </p>
+      )}
+      {p.warrantyDeadlineDate && (
+        <p className="ticket-card__deadline">
+          A/S 보증만료 · <span className="mono">{p.warrantyDeadlineDate}</span>
+        </p>
+      )}
+    </>
+  );
+}
+
+/** urgent 배너처럼 "기한 1개"만 보여줄 수 있는 곳에서 p.deadline(soonest/primary)이 반품기한과
+ *  A/S보증 중 어느 쪽인지 라벨링한다. */
+function primaryDeadlineLabel(p: Purchase): string {
+  if (isRecurringType(p.type)) return '다음 일정';
+  if (p.deadline === p.warrantyDeadlineDate && p.deadline !== p.returnDeadlineDate) return 'A/S 보증만료';
+  return '반품기한';
+}
+
+/**
+ * "정기배송"/"정기구독" 요약 타일 상세용 — 날짜순이 아니라 서비스 카테고리별로 묶어서
+ * 한눈에 보여준다(같은 유형·같은 서비스끼리 정렬). 그룹 내부는 dDay 오름차순.
+ * category가 null인 항목은 마지막에 'UNCATEGORIZED' 그룹으로 묶인다.
+ */
+function groupByCategory(items: Purchase[]): { category: PurchaseCategory | 'UNCATEGORIZED'; items: Purchase[] }[] {
+  const groups = PURCHASE_CATEGORIES.map((cat) => ({
+    category: cat as PurchaseCategory | 'UNCATEGORIZED',
+    items: items.filter((p) => p.category === cat).sort((a, b) => a.dDay - b.dDay),
+  })).filter((g) => g.items.length > 0);
+
+  const uncategorized = items.filter((p) => p.category === null).sort((a, b) => a.dDay - b.dDay);
+  if (uncategorized.length > 0) groups.push({ category: 'UNCATEGORIZED', items: uncategorized });
+
+  return groups;
 }
 
 /**
@@ -312,7 +362,7 @@ function occurrencesInMonth(p: Purchase, year: number, month: number): number {
   return occurrenceDatesInMonth(p, year, month).length;
 }
 
-/** 정기배송/구독은 occurrencesInMonth × amount, 1회성(ELECTRONICS/ONLINE_ORDER)은 baseDate가
+/** 정기배송/구독은 occurrencesInMonth × amount, 1회성(GENERAL)은 baseDate가
  *  그 연/월이면 amount 그대로 — 특정 연/월의 총 지출액. */
 function totalSpendInMonth(purchases: Purchase[], year: number, month: number): number {
   let total = 0;
@@ -331,10 +381,12 @@ function totalSpendInMonth(purchases: Purchase[], year: number, month: number): 
 export default function DashboardPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [type, setType] = useState<PurchaseType>('ELECTRONICS');
+  const [type, setType] = useState<PurchaseType>('GENERAL');
   const [itemName, setItemName] = useState('');
   const [baseDate, setBaseDate] = useState('');
   const [amount, setAmount] = useState('');
+  /** GENERAL 전용 — 체크하면 A/S 보증(개월) 필드가 추가로 노출되고 반품기한과 함께 등록된다. */
+  const [isElectronics, setIsElectronics] = useState(false);
   const [warrantyMonths, setWarrantyMonths] = useState('12');
   const [returnDeadlineDays, setReturnDeadlineDays] = useState('7');
   const [intervalDays, setIntervalDays] = useState('30');
@@ -350,6 +402,8 @@ export default function DashboardPage() {
   const [confirmAllMessage, setConfirmAllMessage] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [filterType, setFilterType] = useState<FilterType>('ALL');
+  /** 종류 필터가 'ALL'이 아닐 때만 노출되는 2차 필터 — 'UNCATEGORIZED'는 category가 null인 항목. */
+  const [filterCategory, setFilterCategory] = useState<'ALL' | 'UNCATEGORIZED' | PurchaseCategory>('ALL');
   const [view, setView] = useState<'ACTIVE' | 'ARCHIVED' | 'SHARED'>('ACTIVE');
   const [archivedPurchases, setArchivedPurchases] = useState<Purchase[]>([]);
   const [acceptedShares, setAcceptedShares] = useState<SharedAccess[]>([]);
@@ -368,6 +422,8 @@ export default function DashboardPage() {
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
   const [showSavingsDetail, setShowSavingsDetail] = useState(false);
   const [showPriceStatusDetail, setShowPriceStatusDetail] = useState(false);
+  const [showRecurringDeliveryDetail, setShowRecurringDeliveryDetail] = useState(false);
+  const [showSubscriptionDetail, setShowSubscriptionDetail] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
   const itemNameInputRef = useRef<HTMLInputElement>(null);
@@ -445,14 +501,7 @@ export default function DashboardPage() {
     // reviewCandidates(컴포넌트 상단, 절약 후보 확정 기준)를 그대로 재사용 — 기준이 어긋나지 않게.
     const reviewCount = reviewCandidates.length;
 
-    const CATEGORY_LABEL_KO: Record<string, string> = {
-      STREAMING: '영상 스트리밍',
-      SHOPPING: '쇼핑',
-      FOOD: '식품',
-      SOFTWARE: '소프트웨어',
-      OTHER: '기타',
-    };
-    const topCatLabel = topCat ? (CATEGORY_LABEL_KO[topCat.cat] ?? topCat.cat) : null;
+    const topCatLabel = topCat ? CATEGORY_LABEL[topCat.cat] : null;
 
     // 다음 결제/배송(가장 가까운 dDay의 정기배송·구독) — AI가 아니라 실제 데이터로 직접 계산한다
     // (날짜·이름은 모델이 지어내면 안 되는 값이라서). 가격 인상/사용 안 함 항목은 "가격 인상" 타일의
@@ -583,10 +632,11 @@ export default function DashboardPage() {
   const resetForm = () => {
     setEditingId(null);
     setPendingConfirmId(null);
-    setType('ELECTRONICS');
+    setType('GENERAL');
     setItemName('');
     setBaseDate('');
     setAmount('');
+    setIsElectronics(false);
     setWarrantyMonths('12');
     setReturnDeadlineDays('7');
     setIntervalDays('30');
@@ -609,6 +659,7 @@ export default function DashboardPage() {
     setItemName(p.itemName);
     setBaseDate(p.baseDate);
     setAmount(p.amount !== null ? String(p.amount) : '');
+    setIsElectronics(p.warrantyMonths !== null);
     setWarrantyMonths(String(p.warrantyMonths ?? 12));
     setReturnDeadlineDays(String(p.returnDeadlineDays ?? 7));
     setIntervalDays(String(p.intervalDays ?? 30));
@@ -657,6 +708,13 @@ export default function DashboardPage() {
     } else {
       setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
       if (item.returnDeadlineDays !== null) setReturnDeadlineDays(String(item.returnDeadlineDays));
+      // AI가 전자제품으로 감지했으면(looksLikeElectronics) 반품기한과 별개로 A/S 보증기간도
+      // 같이 프리필한다 — "전자제품 등록 시 환불+A/S 한번에" 요청의 자동화 경로.
+      if (item.warrantyMonths !== null) {
+        setIsElectronics(true);
+        setWarrantyMonths(String(item.warrantyMonths));
+      }
+      setCategory(item.category ?? 'OTHER');
     }
     setBrand(item.brand ?? '');
     setBrandDomain(item.brandDomain ?? null);
@@ -712,12 +770,12 @@ export default function DashboardPage() {
       itemName,
       baseDate,
       amount: amount.trim() !== '' ? Number(amount) : undefined,
-      warrantyMonths: type === 'ELECTRONICS' ? Number(warrantyMonths) : undefined,
-      returnDeadlineDays: type === 'ONLINE_ORDER' ? Number(returnDeadlineDays) : undefined,
+      warrantyMonths: type === 'GENERAL' && isElectronics ? Number(warrantyMonths) : undefined,
+      returnDeadlineDays: type === 'GENERAL' ? Number(returnDeadlineDays) : undefined,
       intervalDays: isRecurringType(type) && scheduleType === 'INTERVAL' ? Number(intervalDays) : undefined,
       scheduleType: isRecurringType(type) ? scheduleType : undefined,
       fixedDayOfMonth: isRecurringType(type) && scheduleType === 'FIXED_DAY' ? Number(fixedDayOfMonth) : undefined,
-      category: isRecurringType(type) ? category : undefined,
+      category,
       brand: brand.trim() || null,
       brandDomain: brand.trim() ? brandDomain : null,
     };
@@ -841,6 +899,9 @@ export default function DashboardPage() {
   /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
   const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
   const subscriptionCount = purchases.filter((p) => p.type === 'SUBSCRIPTION').length;
+  /** "정기배송"/"정기구독" 타일 상세 — 아래 목록과 달리 날짜순이 아니라 카테고리별로 묶어서 보여준다. */
+  const recurringDeliveryGroups = groupByCategory(purchases.filter((p) => p.type === 'RECURRING_DELIVERY'));
+  const subscriptionGroups = groupByCategory(purchases.filter((p) => p.type === 'SUBSCRIPTION'));
 
   /** N일마다 항목은 30일 기준 월 환산액으로, 매월 특정일 고정 항목은 금액을 그대로 더한다. */
   const monthlyEquivalent = (p: Purchase): number =>
@@ -851,7 +912,7 @@ export default function DashboardPage() {
 
   /**
    * "이번 달 예상지출" 클릭 시 펼쳐지는 항목별 내역 — 정기배송/구독은 이번 달에 실제로 결제되는
-   * 날짜마다 한 줄씩(같은 항목이 여러 번 결제되면 그만큼 여러 줄), ELECTRONICS/ONLINE_ORDER 같은
+   * 날짜마다 한 줄씩(같은 항목이 여러 번 결제되면 그만큼 여러 줄), GENERAL 같은
    * 1회성 결제도 baseDate가 이번 달이면 그 날짜에 포함한다. 금액이 없는 항목은 제외.
    */
   const spendingOccurrences = purchases.flatMap((p) => {
@@ -981,7 +1042,21 @@ export default function DashboardPage() {
     (p) => !priceChangePurchaseIds.has(p.id) && !reviewCandidateIds.has(p.id)
   );
 
-  const displayedPurchases = filterType === 'ALL' ? purchases : purchases.filter((p) => p.type === filterType);
+  /** 이 종류(filterType) 안에 실제로 존재하는 카테고리만 2차 필터 칩으로 노출한다(빈 칩 방지). */
+  const categoryFilterOptions: ('UNCATEGORIZED' | PurchaseCategory)[] =
+    filterType === 'ALL'
+      ? []
+      : [
+          ...PURCHASE_CATEGORIES.filter((c) => purchases.some((p) => p.type === filterType && p.category === c)),
+          ...(purchases.some((p) => p.type === filterType && p.category === null) ? (['UNCATEGORIZED'] as const) : []),
+        ];
+
+  const displayedPurchases = purchases.filter((p) => {
+    if (filterType !== 'ALL' && p.type !== filterType) return false;
+    if (filterCategory === 'ALL') return true;
+    if (filterCategory === 'UNCATEGORIZED') return p.category === null;
+    return p.category === filterCategory;
+  });
 
   // 신규 가입자 온보딩 — 아직 안 봤고(hasSeenOnboarding=false), 목록 조회가 끝난 뒤에도 등록된
   // 항목이 하나도 없을 때만 띄운다. purchasesLoaded 가드가 없으면 데이터 도착 전 순간적으로
@@ -1069,7 +1144,12 @@ export default function DashboardPage() {
               </span>
             </div>
           </div>
-          <div className="summary-board__tile summary-board__tile--delivery">
+          <button
+            type="button"
+            className="summary-board__tile summary-board__tile--delivery summary-board__tile--clickable"
+            onClick={() => setShowRecurringDeliveryDetail((v) => !v)}
+            aria-expanded={showRecurringDeliveryDetail}
+          >
             <span className="summary-board__icon" aria-hidden="true">📦</span>
             <div className="summary-board__text">
               <span className="summary-board__label">정기배송</span>
@@ -1078,8 +1158,14 @@ export default function DashboardPage() {
                 <span className="summary-board__unit">건</span>
               </span>
             </div>
-          </div>
-          <div className="summary-board__tile summary-board__tile--subscription">
+            <span className="summary-board__chevron" aria-hidden="true">{showRecurringDeliveryDetail ? '▲' : '▾'}</span>
+          </button>
+          <button
+            type="button"
+            className="summary-board__tile summary-board__tile--subscription summary-board__tile--clickable"
+            onClick={() => setShowSubscriptionDetail((v) => !v)}
+            aria-expanded={showSubscriptionDetail}
+          >
             <span className="summary-board__icon" aria-hidden="true">🔄</span>
             <div className="summary-board__text">
               <span className="summary-board__label">정기구독</span>
@@ -1088,7 +1174,8 @@ export default function DashboardPage() {
                 <span className="summary-board__unit">건</span>
               </span>
             </div>
-          </div>
+            <span className="summary-board__chevron" aria-hidden="true">{showSubscriptionDetail ? '▲' : '▾'}</span>
+          </button>
           {/* 인상 감지/절약 제안 둘 다 "평소엔 숨겨져 있다가 있을 때만 뜨는" 방식이면 사용자가 그런
               기능이 있는지조차 모르기 쉬워서, 값이 0이어도(비어있어도) 상시 표시한다. */}
           <button
@@ -1192,6 +1279,70 @@ export default function DashboardPage() {
             </div>
           )}
 
+        </div>
+      )}
+
+      {showRecurringDeliveryDetail && (
+        <div className="spending-detail">
+          <div className="spending-detail__section">
+            <p className="spending-detail__heading">📦 정기배송 현황</p>
+            {recurringDeliveryGroups.length === 0 ? (
+              <p className="spending-detail__empty">등록된 정기배송이 없어요.</p>
+            ) : (
+              recurringDeliveryGroups.map((group) => (
+                <div className="spending-detail__date-group" key={group.category}>
+                  <p className="spending-detail__date-heading">
+                    {group.category === 'UNCATEGORIZED' ? '🗂 미지정' : `${CATEGORY_ICON[group.category]} ${CATEGORY_LABEL[group.category]}`}
+                  </p>
+                  <ul className="spending-detail__list">
+                    {group.items.map((p) => (
+                      <li key={p.id}>
+                        <span>
+                          {p.itemName}
+                          <span className="spending-detail__list-type">
+                            {formatKoreanMonthDay(p.deadline)} · {p.deliveryRound}회차
+                          </span>
+                        </span>
+                        <span className="mono">{p.amount !== null ? `${p.amount.toLocaleString('ko-KR')}원` : '-'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {showSubscriptionDetail && (
+        <div className="spending-detail">
+          <div className="spending-detail__section">
+            <p className="spending-detail__heading">🔄 정기구독 현황</p>
+            {subscriptionGroups.length === 0 ? (
+              <p className="spending-detail__empty">등록된 정기구독이 없어요.</p>
+            ) : (
+              subscriptionGroups.map((group) => (
+                <div className="spending-detail__date-group" key={group.category}>
+                  <p className="spending-detail__date-heading">
+                    {group.category === 'UNCATEGORIZED' ? '🗂 미지정' : `${CATEGORY_ICON[group.category]} ${CATEGORY_LABEL[group.category]}`}
+                  </p>
+                  <ul className="spending-detail__list">
+                    {group.items.map((p) => (
+                      <li key={p.id}>
+                        <span>
+                          {p.itemName}
+                          <span className="spending-detail__list-type">
+                            {formatKoreanMonthDay(p.deadline)} · {p.deliveryRound}회차
+                          </span>
+                        </span>
+                        <span className="mono">{p.amount !== null ? `${p.amount.toLocaleString('ko-KR')}원` : '-'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
 
@@ -1579,15 +1730,21 @@ export default function DashboardPage() {
                         {item.orderDate && (
                           <>주문일 <span className="mono">{item.orderDate}</span></>
                         )}
-                        {item.type === 'ONLINE_ORDER' && item.returnDeadlineDays !== null && (
+                        {item.returnDeadlineDays !== null && (
                           <>
                             {item.orderDate && ' · '}
                             반품기한 <span className="mono">{item.returnDeadlineDays}일</span>
                           </>
                         )}
+                        {item.warrantyMonths !== null && (
+                          <>
+                            {(item.orderDate || item.returnDeadlineDays !== null) && ' · '}
+                            A/S보증 <span className="mono">{item.warrantyMonths}개월</span>
+                          </>
+                        )}
                         {item.expectedDeliveryDate && (
                           <>
-                            {(item.orderDate || (item.type === 'ONLINE_ORDER' && item.returnDeadlineDays !== null)) && ' · '}
+                            {(item.orderDate || item.returnDeadlineDays !== null || item.warrantyMonths !== null) && ' · '}
                             예상배송일 <span className="mono">{item.expectedDeliveryDate}</span>
                           </>
                         )}
@@ -1610,7 +1767,7 @@ export default function DashboardPage() {
                       {item.category && `${CATEGORY_ICON[item.category]} ${CATEGORY_LABEL[item.category]}`}
                     </p>
                   )}
-                  {(item.type === 'ONLINE_ORDER' || item.type === 'ELECTRONICS') && (
+                  {item.type === 'GENERAL' && (
                     <p className="pending-card__hint">
                       이 정보는 AI가 완벽히 인식하지 못할 수 있어요. 직접 입력을 더 추천해요.
                     </p>
@@ -1652,7 +1809,7 @@ export default function DashboardPage() {
           <ul>
             {urgent.map((p) => (
               <li key={p.id}>
-                {p.itemName} — {DEADLINE_LABEL[p.type]} <span className="mono">{p.deadline}</span>
+                {p.itemName} — {primaryDeadlineLabel(p)} <span className="mono">{p.deadline}</span>
                 {isFullyConfirmed(p) && <span className="confirm-badge confirm-badge--sm">✓ 확인완료</span>}
               </li>
             ))}
@@ -1675,8 +1832,7 @@ export default function DashboardPage() {
             <div className="type-select-row">
               <span className={`type-dot type-dot--${type}`} aria-hidden="true" />
               <select id="type" value={type} onChange={(e) => setType(e.target.value as PurchaseType)}>
-                <option value="ELECTRONICS">전자제품</option>
-                <option value="ONLINE_ORDER">온라인 주문</option>
+                <option value="GENERAL">일반 구매</option>
                 <option value="RECURRING_DELIVERY">정기배송</option>
                 <option value="SUBSCRIPTION">정기구독</option>
               </select>
@@ -1697,7 +1853,7 @@ export default function DashboardPage() {
 
           <div className="field field--date">
             <label htmlFor="baseDate">
-              {isRecurringType(type) ? '시작일' : type === 'ONLINE_ORDER' ? '수령일' : '구매일'}
+              {isRecurringType(type) ? '시작일' : '구매일'}
             </label>
             <input id="baseDate" type="date" value={baseDate} onChange={(e) => setBaseDate(e.target.value)} required />
           </div>
@@ -1714,27 +1870,37 @@ export default function DashboardPage() {
             />
           </div>
 
-          {type === 'ELECTRONICS' && (
-            <div className="field field--narrow">
-              <label htmlFor="warrantyMonths">보증(개월)</label>
-              <input
-                id="warrantyMonths"
-                type="number"
-                value={warrantyMonths}
-                onChange={(e) => setWarrantyMonths(e.target.value)}
-              />
-            </div>
-          )}
-          {type === 'ONLINE_ORDER' && (
-            <div className="field field--narrow">
-              <label htmlFor="returnDeadlineDays">반품기한(일)</label>
-              <input
-                id="returnDeadlineDays"
-                type="number"
-                value={returnDeadlineDays}
-                onChange={(e) => setReturnDeadlineDays(e.target.value)}
-              />
-            </div>
+          {type === 'GENERAL' && (
+            <>
+              <div className="field field--narrow">
+                <label htmlFor="returnDeadlineDays">반품기한(일)</label>
+                <input
+                  id="returnDeadlineDays"
+                  type="number"
+                  value={returnDeadlineDays}
+                  onChange={(e) => setReturnDeadlineDays(e.target.value)}
+                />
+              </div>
+              <label className="schedule-radio">
+                <input
+                  type="checkbox"
+                  checked={isElectronics}
+                  onChange={(e) => setIsElectronics(e.target.checked)}
+                />
+                전자제품이에요 (A/S 보증도 추적)
+              </label>
+              {isElectronics && (
+                <div className="field field--narrow">
+                  <label htmlFor="warrantyMonths">보증(개월)</label>
+                  <input
+                    id="warrantyMonths"
+                    type="number"
+                    value={warrantyMonths}
+                    onChange={(e) => setWarrantyMonths(e.target.value)}
+                  />
+                </div>
+              )}
+            </>
           )}
           {isRecurringType(type) && (
             <div className="schedule-radio-group">
@@ -1784,18 +1950,16 @@ export default function DashboardPage() {
               />
             </div>
           )}
-          {isRecurringType(type) && (
-            <div className="field field--narrow">
-              <label htmlFor="category">카테고리</label>
-              <select id="category" value={category} onChange={(e) => setCategory(e.target.value as PurchaseCategory)}>
-                {PURCHASE_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {CATEGORY_ICON[c]} {CATEGORY_LABEL[c]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="field field--narrow">
+            <label htmlFor="category">카테고리</label>
+            <select id="category" value={category} onChange={(e) => setCategory(e.target.value as PurchaseCategory)}>
+              {PURCHASE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {CATEGORY_ICON[c]} {CATEGORY_LABEL[c]}
+                </option>
+              ))}
+            </select>
+          </div>
           {type === 'RECURRING_DELIVERY' && editingId === null && (
             <p className="register-form__hint">
               생수·밀키트·사료처럼 실물이 정기적으로 배송되는 항목이에요.
@@ -1866,7 +2030,10 @@ export default function DashboardPage() {
                   className={`type-filter__btn${opt.key !== 'ALL' ? ` type-filter__btn--${opt.key}` : ''}${
                     filterType === opt.key ? ' type-filter__btn--active' : ''
                   }`}
-                  onClick={() => setFilterType(opt.key)}
+                  onClick={() => {
+                    setFilterType(opt.key);
+                    setFilterCategory('ALL');
+                  }}
                 >
                   {opt.key !== 'ALL' && <span className={`type-dot type-dot--${opt.key}`} aria-hidden="true" />}
                   {opt.label}
@@ -1875,6 +2042,38 @@ export default function DashboardPage() {
               );
             })}
           </div>
+
+          {categoryFilterOptions.length > 0 && (
+            <div className="type-filter type-filter--category" role="tablist" aria-label="카테고리별 필터">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filterCategory === 'ALL'}
+                className={`type-filter__btn${filterCategory === 'ALL' ? ' type-filter__btn--active' : ''}`}
+                onClick={() => setFilterCategory('ALL')}
+              >
+                전체
+              </button>
+              {categoryFilterOptions.map((c) => {
+                const count = purchases.filter(
+                  (p) => p.type === filterType && (c === 'UNCATEGORIZED' ? p.category === null : p.category === c)
+                ).length;
+                return (
+                  <button
+                    type="button"
+                    role="tab"
+                    key={c}
+                    aria-selected={filterCategory === c}
+                    className={`type-filter__btn${filterCategory === c ? ' type-filter__btn--active' : ''}`}
+                    onClick={() => setFilterCategory(c)}
+                  >
+                    {c === 'UNCATEGORIZED' ? '🗂 미지정' : `${CATEGORY_ICON[c]} ${CATEGORY_LABEL[c]}`}
+                    <span className="mono type-filter__count">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <div className="ticket-list">
             {displayedPurchases.map((p) => (
@@ -1897,9 +2096,7 @@ export default function DashboardPage() {
                         : ` (${formatShortDate(p.deadline)})`}
                     </p>
                   ) : (
-                    <p className="ticket-card__deadline">
-                      {DEADLINE_LABEL[p.type]} · <span className="mono">{p.deadline}</span>
-                    </p>
+                    renderGeneralDeadlineLines(p)
                   )}
                   {p.amount !== null && (
                     <p className="ticket-card__amount mono">
@@ -1953,9 +2150,13 @@ export default function DashboardPage() {
                 <div className="ticket-card__body">
                   <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
                   <h3 className="ticket-card__title">{p.itemName}</h3>
-                  <p className="ticket-card__deadline">
-                    {DEADLINE_LABEL[p.type]} · <span className="mono">{p.deadline}</span>
-                  </p>
+                  {isRecurringType(p.type) ? (
+                    <p className="ticket-card__deadline">
+                      {DEADLINE_LABEL[p.type]} · <span className="mono">{p.deadline}</span>
+                    </p>
+                  ) : (
+                    renderGeneralDeadlineLines(p)
+                  )}
                   <div className="ticket-card__actions">
                     <button className="btn-text" onClick={() => handleUnarchive(p.id)}>
                       복원
@@ -2000,9 +2201,7 @@ export default function DashboardPage() {
                         : ` (${formatShortDate(p.deadline)})`}
                     </p>
                   ) : (
-                    <p className="ticket-card__deadline">
-                      {DEADLINE_LABEL[p.type]} · <span className="mono">{p.deadline}</span>
-                    </p>
+                    renderGeneralDeadlineLines(p)
                   )}
                 </div>
                 <div className="ticket-card__perforation" aria-hidden="true" />

@@ -21,13 +21,9 @@
 
   /* 종류(type) 색상 — D-day 긴급도 색과는 완전히 분리된 팔레트.
      각 색상은 배지 배경으로도 쓰이므로 -bg(연한 배경)/-border(배지 테두리) 짝을 둔다. */
-  --type-electronics: #2a5cc4;
-  --type-electronics-bg: #e6edfb;
-  --type-electronics-border: #b6cbf3;
-
-  --type-online-order: #a03e8f;
-  --type-online-order-bg: #f7e8f4;
-  --type-online-order-border: #edc2e4;
+  --type-general: #2a5cc4;
+  --type-general-bg: #e6edfb;
+  --type-general-border: #b6cbf3;
 
   --type-recurring: #3f8f3f;
   --type-recurring-bg: #e5f4e3;
@@ -100,13 +96,9 @@
     --overdue-grey: #a3a39c;
     --overdue-grey-light: #bdbdb5;
 
-    --type-electronics: #6f95e8;
-    --type-electronics-bg: #1f2a42;
-    --type-electronics-border: #3d5580;
-
-    --type-online-order: #cd6fbb;
-    --type-online-order-bg: #34222f;
-    --type-online-order-border: #55374c;
+    --type-general: #6f95e8;
+    --type-general-bg: #1f2a42;
+    --type-general-border: #3d5580;
 
     --type-recurring: #6bbf6b;
     --type-recurring-bg: #1f2f1f;
@@ -151,13 +143,9 @@
   --overdue-grey: #a3a39c;
   --overdue-grey-light: #bdbdb5;
 
-  --type-electronics: #6f95e8;
-  --type-electronics-bg: #1f2a42;
-  --type-electronics-border: #3d5580;
-
-  --type-online-order: #cd6fbb;
-  --type-online-order-bg: #34222f;
-  --type-online-order-border: #55374c;
+  --type-general: #6f95e8;
+  --type-general-bg: #1f2a42;
+  --type-general-border: #3d5580;
 
   --type-recurring: #6bbf6b;
   --type-recurring-bg: #1f2f1f;
@@ -347,7 +335,7 @@ select option {
 }
 
 .site-header__link--premium {
-  color: var(--type-electronics);
+  color: var(--type-general);
   font-weight: 700;
 }
 
@@ -640,7 +628,7 @@ select option {
   height: 18px;
   margin-right: 6px;
   border-radius: 50%;
-  background: var(--type-electronics);
+  background: var(--type-general);
   color: var(--badge-text);
   font-size: 0.66rem;
   font-weight: 800;
@@ -725,7 +713,7 @@ button.summary-board__tile:hover {
 }
 
 .summary-board__tile--yearly {
-  border-left-color: var(--type-electronics);
+  border-left-color: var(--type-general);
 }
 
 .summary-board__tile--week {
@@ -1338,12 +1326,8 @@ button.summary-board__tile:hover {
   box-shadow: inset 0 0 0 1.5px var(--badge-highlight);
 }
 
-.type-dot--ELECTRONICS {
-  background: var(--type-electronics);
-}
-
-.type-dot--ONLINE_ORDER {
-  background: var(--type-online-order);
+.type-dot--GENERAL {
+  background: var(--type-general);
 }
 
 .type-dot--RECURRING_DELIVERY {
@@ -1429,22 +1413,26 @@ button.summary-board__tile:hover {
   opacity: 0.7;
 }
 
+/* 종류 필터 아래 2차 카테고리 필터 — 살짝 더 작고, 위 줄과 더 붙어 보이게 여백을 줄인다. */
+.type-filter--category {
+  margin-top: -10px;
+}
+
+.type-filter--category .type-filter__btn {
+  font-size: 0.76rem;
+  padding: 5px 12px;
+}
+
 .type-filter__btn--active {
   color: var(--ink);
   border-color: var(--ink);
   box-shadow: var(--shadow-rest);
 }
 
-.type-filter__btn--ELECTRONICS.type-filter__btn--active {
-  color: var(--type-electronics);
-  background: var(--type-electronics-bg);
-  border-color: var(--type-electronics);
-}
-
-.type-filter__btn--ONLINE_ORDER.type-filter__btn--active {
-  color: var(--type-online-order);
-  background: var(--type-online-order-bg);
-  border-color: var(--type-online-order);
+.type-filter__btn--GENERAL.type-filter__btn--active {
+  color: var(--type-general);
+  background: var(--type-general-bg);
+  border-color: var(--type-general);
 }
 
 .type-filter__btn--RECURRING_DELIVERY.type-filter__btn--active {
@@ -1747,16 +1735,10 @@ button.summary-board__tile:hover {
   background: var(--paper);
 }
 
-.pending-card__type--ELECTRONICS {
-  color: var(--type-electronics);
-  background: var(--type-electronics-bg);
-  border-color: var(--type-electronics-border);
-}
-
-.pending-card__type--ONLINE_ORDER {
-  color: var(--type-online-order);
-  background: var(--type-online-order-bg);
-  border-color: var(--type-online-order-border);
+.pending-card__type--GENERAL {
+  color: var(--type-general);
+  background: var(--type-general-bg);
+  border-color: var(--type-general-border);
 }
 
 .pending-card__type--RECURRING_DELIVERY {
@@ -1963,12 +1945,8 @@ button.summary-board__tile:hover {
   align-self: stretch;
 }
 
-.ticket-card__type-tab--ELECTRONICS {
-  background: var(--type-electronics);
-}
-
-.ticket-card__type-tab--ONLINE_ORDER {
-  background: var(--type-online-order);
+.ticket-card__type-tab--GENERAL {
+  background: var(--type-general);
 }
 
 .ticket-card__type-tab--RECURRING_DELIVERY {
@@ -2001,16 +1979,10 @@ button.summary-board__tile:hover {
   background: var(--paper);
 }
 
-.ticket-card__type--ELECTRONICS {
-  color: var(--type-electronics);
-  background: var(--type-electronics-bg);
-  border-color: var(--type-electronics-border);
-}
-
-.ticket-card__type--ONLINE_ORDER {
-  color: var(--type-online-order);
-  background: var(--type-online-order-bg);
-  border-color: var(--type-online-order-border);
+.ticket-card__type--GENERAL {
+  color: var(--type-general);
+  background: var(--type-general-bg);
+  border-color: var(--type-general-border);
 }
 
 .ticket-card__type--RECURRING_DELIVERY {
@@ -2310,7 +2282,7 @@ button.summary-board__tile:hover {
 }
 
 .pricing-card--recommended {
-  border-color: var(--type-electronics);
+  border-color: var(--type-general);
   box-shadow: var(--shadow-lift);
 }
 
@@ -2321,9 +2293,9 @@ button.summary-board__tile:hover {
   transform: translateX(-50%);
   font-size: 0.72rem;
   font-weight: 800;
-  color: var(--type-electronics);
-  background: var(--type-electronics-bg);
-  border: 1px solid var(--type-electronics-border);
+  color: var(--type-general);
+  background: var(--type-general-bg);
+  border: 1px solid var(--type-general-border);
   border-radius: 999px;
   padding: 3px 10px;
   white-space: nowrap;
@@ -3232,9 +3204,9 @@ button.summary-board__tile:hover {
 }
 
 .feedback-category-badge--QUESTION {
-  background: var(--type-electronics-bg);
-  color: var(--type-electronics);
-  border-color: var(--type-electronics-border);
+  background: var(--type-general-bg);
+  color: var(--type-general);
+  border-color: var(--type-general-border);
 }
 
 .feedback-category-badge--OTHER {

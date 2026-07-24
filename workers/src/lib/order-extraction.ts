@@ -13,8 +13,8 @@ export interface ExtractedOrder {
   orderDate: string | null;
   /** yyyy-MM-dd — 정기배송·구독이면 다음 배송일/결제일, 일반주문이면 예상 도착일 */
   expectedDeliveryDate: string | null;
-  /** 상품 종류 추정 */
-  estimatedType: 'ELECTRONICS' | 'ONLINE_ORDER' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION' | null;
+  /** 구매 유형 추정 — GENERAL(일반 구매, 전자제품 포함)/RECURRING_DELIVERY(정기배송)/SUBSCRIPTION(정기구독). */
+  estimatedType: 'GENERAL' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION' | null;
   /**
    * 결제/주문 금액(원). 통화 기호·콤마 없는 정수. 원본이 원화면 이 필드를 채운다.
    * 원본이 외화(달러 등)면 이 필드는 null로 두고 대신 originalAmount/currency를 채운다 —
@@ -25,8 +25,14 @@ export interface ExtractedOrder {
   currency: string | null;
   /** currency가 non-null일 때만 채운다: 원본 외화 결제 금액(소수점 유지, 예: 7.99). currency가 null이면 반드시 null. */
   originalAmount: number | null;
-  /** estimatedType이 RECURRING_DELIVERY/SUBSCRIPTION일 때만 채운다: 지출 카테고리 추정. 그 외 null. */
-  category: 'STREAMING' | 'SHOPPING' | 'FOOD' | 'SOFTWARE' | 'OTHER' | null;
+  /** 지출 카테고리 추정 — 모든 구매 유형에 대해 채운다(판단 불가면 OTHER). */
+  category: 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER' | null;
+  /**
+   * estimatedType이 GENERAL일 때만 의미 있다: 냉장고/TV/세탁기/노트북/청소기 등 A/S 보증기간
+   * 추적이 중요한 가전제품으로 보이면 true. RECURRING_DELIVERY/SUBSCRIPTION이면 항상 false.
+   * true면 서버가 반품기한과 별개로 A/S 보증기간(기본 12개월)도 함께 등록 대기 목록에 프리필한다.
+   */
+  looksLikeElectronics: boolean;
   /** 반품/교환 기한이 원본에 구체적으로 명시되어 있었는지. */
   foundExplicitDeadline: boolean;
   /** 주문일 기준 반품/교환 가능 일수. foundExplicitDeadline=false면 null. */
@@ -71,9 +77,9 @@ const EXTRACTION_SCHEMA = {
         'yyyy-MM-dd 형식. 정기배송·구독이면 "다음 배송일", "다음 결제일", "갱신일", "만료일", "다음 청구일" 중 가장 명확한 날짜를 최우선으로 추출. 일반 주문이면 예상 도착일. 명시되지 않으면 null.',
     },
     estimatedType: {
-      anyOf: [{ type: 'string', enum: ['ELECTRONICS', 'ONLINE_ORDER', 'RECURRING_DELIVERY', 'SUBSCRIPTION'] }, { type: 'null' }],
+      anyOf: [{ type: 'string', enum: ['GENERAL', 'RECURRING_DELIVERY', 'SUBSCRIPTION'] }, { type: 'null' }],
       description:
-        '종류 추정. 아래 우선순위대로 판단해라.\n' +
+        '구매 유형 추정. 아래 우선순위대로 판단해라.\n' +
         '1순위 RECURRING_DELIVERY(실물이 정기적으로 배송됨): "정기배송", "배송주기", "다음 배송일", "정기 할인" 등 ' +
         '실물 배송을 가리키는 표현이 있으면 이 값. 생수, 밀키트, 사료, 신선식품, 화장품 정기배송처럼 매번 물건이 집으로 오는 서비스.\n' +
         '2순위 SUBSCRIPTION(실물 배송 없는 디지털/멤버십 정기결제): 아래 키워드/패턴 중 하나라도 있고 실물 배송 언급이 없으면 이 값:\n' +
@@ -82,8 +88,8 @@ const EXTRACTION_SCHEMA = {
         '  - "도메인 갱신", "호스팅 갱신", "라이선스 갱신", "클라우드 저장공간"\n' +
         '  - 넷플릭스, 유튜브 프리미엄, 스포티파이, 디즈니플러스, 왓챠 등 스트리밍/OTT 서비스명\n' +
         '  - subscription, renewal, billing cycle, next billing date, auto-renew (영문)\n' +
-        '3순위 ELECTRONICS: 냉장고/TV/노트북/청소기 등 보증기간이 중요한 가전·전자제품.\n' +
-        '4순위 ONLINE_ORDER: 위 세 조건에 해당하지 않는 일반 쇼핑몰 주문.\n' +
+        '3순위 GENERAL: 위 두 조건에 해당하지 않는 일반 구매 — 냉장고/TV/노트북 등 보증기간이 중요한 가전제품도, ' +
+        '일반 쇼핑몰 주문(의류/식품/도서 등 일회성 구매)도 전부 이 값.\n' +
         'isOrderConfirmation=false면 null.',
     },
     amount: {
@@ -107,15 +113,28 @@ const EXTRACTION_SCHEMA = {
         '소수점은 그대로 유지(예: "$7.99"→7.99, "€12"→12). currency가 null이면 반드시 null.',
     },
     category: {
-      anyOf: [{ type: 'string', enum: ['STREAMING', 'SHOPPING', 'FOOD', 'SOFTWARE', 'OTHER'] }, { type: 'null' }],
+      anyOf: [
+        { type: 'string', enum: ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'] },
+        { type: 'null' },
+      ],
       description:
-        'estimatedType이 RECURRING_DELIVERY 또는 SUBSCRIPTION일 때만 채운다: 지출 카테고리 추정.\n' +
-        'STREAMING: 넷플릭스, 유튜브 프리미엄, 스포티파이, 디즈니플러스, 왓챠 등 영상·음악 스트리밍/OTT.\n' +
-        'SHOPPING: 쿠팡 와우, 네이버플러스 멤버십 등 쇼핑 멤버십/정기할인 구독.\n' +
-        'FOOD: 생수, 밀키트, 신선식품, 커피, 반찬 등 실물 식품·음료 정기배송.\n' +
-        'SOFTWARE: 클라우드 저장공간, 도메인/호스팅, 소프트웨어·앱 라이선스 정기결제.\n' +
-        '위 넷 중 뚜렷이 해당하지 않으면 OTHER(사료·화장품 정기배송 등). ' +
-        'estimatedType이 ELECTRONICS/ONLINE_ORDER이거나 isOrderConfirmation=false면 반드시 null.',
+        '지출 카테고리 추정 — estimatedType과 무관하게 모든 구매에 대해 채운다.\n' +
+        'SOFTWARE: 도메인/호스팅, 소프트웨어·앱 라이선스 등 개발/생산성 도구 정기결제.\n' +
+        'AI: Claude, ChatGPT, Gemini 등 AI 챗봇/생성형 AI 서비스 구독.\n' +
+        'ENTERTAINMENT: 넷플릭스, 유튜브 프리미엄, 스포티파이, 디즈니플러스, 왓챠 등 영상·음악 스트리밍/OTT.\n' +
+        'SHOPPING: 쿠팡 와우, 네이버플러스 멤버십 등 쇼핑 멤버십/정기할인 구독, 일반 쇼핑몰 주문(의류/잡화 등).\n' +
+        'FOOD: 생수, 밀키트, 신선식품, 커피, 반찬 등 실물 식품·음료(정기배송이든 일반 주문이든).\n' +
+        'CREATOR_SUPPORT: 유튜브 멤버십, 트위치 구독, 패트리온 등 특정 크리에이터/채널 후원성 결제.\n' +
+        'CLOUD: 클라우드 저장공간(구글원, iCloud+, 드롭박스 등) 정기결제.\n' +
+        '위에 뚜렷이 해당하지 않으면 OTHER(가전제품, 사료·화장품 정기배송 등). ' +
+        'isOrderConfirmation=false면 반드시 null.',
+    },
+    looksLikeElectronics: {
+      type: 'boolean',
+      description:
+        'estimatedType이 GENERAL일 때만 의미 있다: 냉장고/TV/세탁기/노트북/청소기 등 A/S 보증기간 추적이 ' +
+        '중요한 가전제품으로 보이면 true. RECURRING_DELIVERY/SUBSCRIPTION이거나 가전제품이 아니거나 ' +
+        'isOrderConfirmation=false면 false.',
     },
     foundExplicitDeadline: {
       type: 'boolean',
@@ -191,6 +210,7 @@ const EXTRACTION_SCHEMA = {
     'currency',
     'originalAmount',
     'category',
+    'looksLikeElectronics',
     'foundExplicitDeadline',
     'returnDeadlineDays',
     'intervalDays',
@@ -236,17 +256,24 @@ isOrderConfirmation=true일 때, 아래 순서대로 판단한다. 핵심 기준
 - 넷플릭스, 유튜브 프리미엄, 스포티파이, 디즈니플러스, 왓챠 등 스트리밍/OTT 서비스
 - subscription, renewal, billing cycle, next billing date, auto-renew (영문)
 
-**ELECTRONICS**: 냉장고, TV, 세탁기, 노트북, 청소기 등 보증기간이 중요한 가전·전자제품
+**GENERAL**: 위 두 가지에 해당하지 않는 일반 구매 — 냉장고/TV/세탁기/노트북/청소기 등 보증기간이
+중요한 가전제품도, 의류·식품·도서·화장품 등 일회성 주문도 전부 이 값.
 
-**ONLINE_ORDER**: 위 세 가지에 해당하지 않는 일반 주문 (의류, 식품, 도서, 화장품 등 일회성 구매)
+## 3단계: 지출 카테고리 추정 (category) — 모든 구매에 대해 채운다
+- SOFTWARE: 도메인/호스팅, 소프트웨어·앱 라이선스 등 개발/생산성 도구 정기결제
+- AI: Claude, ChatGPT, Gemini 등 AI 챗봇/생성형 AI 서비스 구독
+- ENTERTAINMENT: 넷플릭스, 유튜브 프리미엄, 스포티파이, 디즈니플러스, 왓챠 등 영상·음악 스트리밍/OTT
+- SHOPPING: 쿠팡 와우, 네이버플러스 멤버십 등 쇼핑 멤버십/정기할인 구독, 일반 쇼핑몰 주문
+- FOOD: 생수, 밀키트, 신선식품, 커피, 반찬 등 실물 식품·음료(정기배송이든 일반 주문이든)
+- CREATOR_SUPPORT: 유튜브 멤버십, 트위치 구독, 패트리온 등 크리에이터/채널 후원성 결제
+- CLOUD: 클라우드 저장공간(구글원, iCloud+, 드롭박스 등) 정기결제
+- 위에 뚜렷이 해당하지 않으면 OTHER (가전제품, 사료·화장품 정기배송 등)
+isOrderConfirmation=false면 반드시 null.
 
-## 3단계: 지출 카테고리 추정 (category) — estimatedType이 RECURRING_DELIVERY/SUBSCRIPTION일 때만
-- STREAMING: 넷플릭스, 유튜브 프리미엄, 스포티파이, 디즈니플러스, 왓챠 등 영상·음악 스트리밍/OTT
-- SHOPPING: 쿠팡 와우, 네이버플러스 멤버십 등 쇼핑 멤버십/정기할인 구독
-- FOOD: 생수, 밀키트, 신선식품, 커피, 반찬 등 실물 식품·음료 정기배송
-- SOFTWARE: 클라우드 저장공간, 도메인/호스팅, 소프트웨어·앱 라이선스 정기결제
-- 위 넷 중 뚜렷이 해당하지 않으면 OTHER (사료·화장품 정기배송 등)
-estimatedType이 ELECTRONICS/ONLINE_ORDER이거나 isOrderConfirmation=false면 반드시 null.
+## 3-1단계: 전자제품 판단 (looksLikeElectronics) — estimatedType이 GENERAL일 때만
+냉장고, TV, 세탁기, 노트북, 청소기 등 A/S 보증기간 추적이 중요한 가전제품으로 보이면 true —
+서버가 반품기한과 별개로 A/S 보증기간(기본 12개월)도 함께 등록 대기 목록에 프리필한다.
+RECURRING_DELIVERY/SUBSCRIPTION이거나 가전제품이 아니면 false.
 
 ## 4단계: 스케줄 방식 판단 (scheduleType) + 주기 추출 (intervalDays / fixedDayOfMonth / scheduleEstimated)
 RECURRING_DELIVERY 또는 SUBSCRIPTION으로 판단했을 때:
@@ -281,7 +308,7 @@ intervalDays 변환 기준:
   next billing date, renewal date, expiry date 같은 영문 표현도 해당.
 - 명시되지 않은 날짜는 추측하지 말고 null로 남겨라. 날짜는 반드시 yyyy-MM-dd로 변환.
 
-## 6단계: 반품기한 추출 (ONLINE_ORDER/ELECTRONICS만 실질적으로 의미 있음)
+## 6단계: 반품기한 추출 (GENERAL만 실질적으로 의미 있음)
 반품/교환 가능 기한이 구체적인 숫자 또는 날짜로 명시된 경우에만 foundExplicitDeadline=true.
 없으면 false, returnDeadlineDays=null (서버가 법정 최소 기준으로 대체).
 

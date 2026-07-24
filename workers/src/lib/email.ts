@@ -8,12 +8,12 @@ import { buildDigestTitle, buildItemClause, formatDDay, type DigestItem } from '
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 const FROM_ADDRESS = 'Remindue <onboarding@resend.dev>';
 
-const TYPE_SHORT_LABEL: Record<PurchaseType, string> = {
-  ELECTRONICS: '전자제품',
-  ONLINE_ORDER: '온라인주문',
-  RECURRING_DELIVERY: '정기배송',
-  SUBSCRIPTION: '정기구독',
-};
+/** RETURN/WARRANTY(GENERAL 전용)는 kind로, SCHEDULE(정기배송/구독)은 type으로 더 세분화해서 표시한다. */
+function digestItemShortLabel(item: DigestItem): string {
+  if (item.kind === 'RETURN') return '반품';
+  if (item.kind === 'WARRANTY') return 'A/S보증';
+  return item.type === 'RECURRING_DELIVERY' ? '정기배송' : '정기구독';
+}
 
 export type { DigestItem };
 export { formatDDay };
@@ -47,7 +47,7 @@ export function buildDigestEmailHtml(nickname: string, items: DigestItem[], dash
             </div>
           </td>
           <td style="padding:10px 8px;border-bottom:1px solid #E2E0D6;font-size:12px;color:#6B7280;white-space:nowrap;">
-            ${TYPE_SHORT_LABEL[item.type]}
+            ${digestItemShortLabel(item)}
           </td>
           <td style="padding:10px 8px;border-bottom:1px solid #E2E0D6;font-size:13px;font-weight:800;color:${dDayColor(item.dDay)};font-family:'Courier New',Courier,monospace;white-space:nowrap;">
             ${formatDDay(item.dDay)}
