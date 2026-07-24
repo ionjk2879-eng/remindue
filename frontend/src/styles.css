@@ -686,6 +686,27 @@ button.summary-board__tile:hover {
   white-space: normal;
 }
 
+.summary-board__tile--ai-summary {
+  grid-column: 1 / -1;
+  border-left-color: #8b7cf6;
+  background: color-mix(in srgb, #8b7cf6 6%, var(--paper-card));
+  align-items: flex-start;
+}
+
+.summary-board__ai-loading {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.summary-board__ai-text {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
 .summary-board__icon {
   flex: 0 0 auto;
   font-size: 1.3rem;
