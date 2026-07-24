@@ -249,10 +249,76 @@ purchases.post('/:id/mark-delivered', async (c) => {
 
   await c.env.DB.prepare(
     `UPDATE purchases
-        SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1, updated_at = datetime('now')
+        SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
+            discontinued_at = NULL, updated_at = datetime('now')
       WHERE id = ?`
   )
     .bind(today, id)
+    .run();
+
+  const updated = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<PurchaseRow>();
+  return c.json(toPurchaseResponse(updated!));
+});
+
+/**
+ * "이번 회차 확인"(유지하기)을 여러 건 한 번에 처리 — 확인이 필요한 항목을 하나씩 누르는 게
+ * 불편하다는 피드백으로 추가. mark-delivered와 동일한 효과(delivery_confirm_count 증가,
+ * discontinued_at 해제)를 배열로 받은 id 전부에 한 번의 배치로 적용한다.
+ */
+purchases.post('/confirm-all', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const body = await c.req.json<{ ids?: number[] }>().catch(() => ({}) as { ids?: number[] });
+  const ids = Array.isArray(body.ids) ? body.ids.filter((id) => Number.isInteger(id)) : [];
+  if (ids.length === 0) throw new BadRequestError('ids는 1개 이상의 정수 배열이어야 합니다');
+
+  const owned: PurchaseRow[] = [];
+  for (const id of ids) {
+    owned.push(await getOwnedPurchase(c.env.DB, user.id, id));
+  }
+  for (const row of owned) {
+    if (!isRecurringType(row.type)) {
+      throw new BadRequestError('정기구독·배송 항목만 일괄 확인할 수 있습니다');
+    }
+  }
+
+  const today = confirmReceiptToday('SUBSCRIPTION');
+  await c.env.DB.batch(
+    owned.map((row) =>
+      c.env.DB.prepare(
+        `UPDATE purchases
+            SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
+                discontinued_at = NULL, updated_at = datetime('now')
+          WHERE id = ?`
+      ).bind(today, row.id)
+    )
+  );
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT * FROM purchases WHERE id IN (${owned.map(() => '?').join(',')})`
+  )
+    .bind(...owned.map((row) => row.id))
+    .all<PurchaseRow>();
+
+  return c.json(results.map(toPurchaseResponse));
+});
+
+/**
+ * "유지 안 함" — 사용자가 명시적으로 "더 이상 안 쓴다"고 표시. discontinued_at을 채운다.
+ * 미확인(침묵)과 구분되는 확실한 신호라 AI 절약 후보 판정에서 더 높은 확신으로 취급된다.
+ * mark-delivered를 다시 누르면(재사용 재개) discontinued_at은 NULL로 되돌아간다.
+ */
+purchases.post('/:id/discontinue', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const id = Number(c.req.param('id'));
+  const existing = await getOwnedPurchase(c.env.DB, user.id, id);
+  if (!isRecurringType(existing.type)) {
+    throw new BadRequestError('정기구독·배송 항목에서만 "유지 안 함"을 표시할 수 있습니다');
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE purchases SET discontinued_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`
+  )
+    .bind(id)
     .run();
 
   const updated = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<PurchaseRow>();

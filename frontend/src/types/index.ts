@@ -27,8 +27,10 @@ export interface Purchase {
   deliveryRound: number | null;
   archivedAt: string | null;
   category: PurchaseCategory | null;
-  /** "이번 회차 확인"을 누른 누적 횟수 — "AI 절약 제안"(장기 미확인 구독 추천)에 쓴다. */
+  /** "유지하기"(이번 회차 확인)를 누른 누적 횟수 — 연속 미확인 회차 수 계산에 쓴다. */
   deliveryConfirmCount: number;
+  /** 사용자가 "유지 안 함"을 누른 시각. null이면 미확인일 뿐(사용 안 함으로 해석 금지). */
+  discontinuedAt: string | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */

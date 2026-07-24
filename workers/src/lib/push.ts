@@ -8,6 +8,15 @@ export interface PushPayload {
   title: string;
   body: string;
   url: string;
+  /**
+   * 알림에 액션 버튼("유지하기"/"나중에" 등)을 붙일 때만 채운다 — Notification API의
+   * actions와 그대로 매핑된다(sw.ts). 지원 안 하는 플랫폼(iOS Safari 등)에서는 그냥
+   * 무시되고 알림 본문을 탭했을 때의 기본 동작(앱 열기)만 동작한다.
+   */
+  actions?: { action: string; title: string }[];
+  /** actions와 짝을 이루는 1회성 토큰(action-tokens.ts) — 서비스워커가 버튼 클릭 시 인증
+   *  없이 /api/push/confirm-action을 호출할 때 쓴다. actions가 없으면 의미 없다. */
+  actionToken?: string;
 }
 
 export interface PushSendResult {

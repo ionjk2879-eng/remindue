@@ -13,6 +13,7 @@ interface SpendingSummaryInput {
   monthTrendPercent: number | null;
   topCategory: string | null;
   topCategoryAmount: number | null;
+  topCategoryShare: number | null;
   reviewCount: number;
   totalItems: number;
   nextPaymentDate: string | null;
@@ -75,6 +76,7 @@ aiSummary.post('/spending-summary', async (c) => {
       monthTrendPercent,
       topCategory,
       topCategoryAmount,
+      topCategoryShare,
       reviewCount,
       nextPaymentDate,
       nextPaymentItem,
@@ -98,9 +100,9 @@ aiSummary.post('/spending-summary', async (c) => {
       `- ${month}월 예상 지출: ${fmt(monthlySpend)}원${trendText ? ` (${trendText})` : ''}`,
       `- 올해 예상 총 지출: ${fmt(yearlySpend)}원`,
       topCategory && topCategoryAmount !== null
-        ? `- 이번 달 최다 지출 카테고리: ${topCategory} (${fmt(topCategoryAmount)}원)`
+        ? `- 이번 달 최다 지출 카테고리: ${topCategory} (${fmt(topCategoryAmount)}원, 전체의 ${topCategoryShare ?? '?'}%)`
         : null,
-      reviewCount > 0 ? `- 6개월 이상 수령 미확인 구독: ${reviewCount}건` : null,
+      reviewCount > 0 ? `- 유지 안 함 표시했거나 3회차 이상 확인 안 된 구독/배송: ${reviewCount}건` : null,
       nextPaymentItem && nextPaymentDate
         ? `- 다음 결제/배송 예정: ${nextPaymentDate} ${nextPaymentItem}`
         : '- 다음 결제/배송 예정: 없음',
@@ -120,10 +122,31 @@ aiSummary.post('/spending-summary', async (c) => {
 다음 결제 예정, 가격 인상 여부)를 전부 종합적으로 검토해서 이 사람의 소비 패턴을 판단하고,
 정확히 이 형식으로만 답하세요 (마크다운, 추가 설명, 라벨 번역 없이):
 
-좋은소식: (긍정적인 관찰 1~2문장, 한국어)
-주의사항: (주의할 점 1~2문장, 한국어. 특별히 없으면 "없음")
+좋은소식: (긍정적인 관찰 1문장, 한국어)
+주의사항: (주목할 만한 점 1문장, 한국어)
 인사이트: (아래 항목들을 종합했을 때의 핵심 제안 1문장, 한국어)
 
+- 각 문장은 "구체적인 사실 하나 + 그에 대한 따뜻한 반응이나 챙겨주는 말 하나"를 같이 담아라.
+  사실만 던지고 끝내지 마라 — 그러면 은행 알림 문자나 고지서처럼 차갑게 느껴진다.
+  분량은 25~50자 정도, 사실+챙김 두 가지가 다 들어갈 만큼은 써라.
+  나쁜 예1(장황·추상적): "최근 지출 감소 추세와 정기 구독 서비스를 관리함으로써 지출을 효율적으로
+  관리할 수 있는 기회를 확대할 수 있습니다." (숫자도 없고 빙빙 돈다)
+  나쁜 예2(사실만 던짐·차갑다): "지난달보다 12% 줄었어요." (통보만 하고 끝 — 고지서 같다)
+  좋은 예: "지난달보다 12% 줄었어요, 알뜰하게 잘 관리하고 계세요!" / "다음 결제까지 5일 남았어요,
+  깜빡하지 않게 챙겨드릴게요."
+- 특히 인사이트는 AI가 사용자 대신 챙겨주는 듯한 능동적인 말투로 끝맺어라(예: "~해보세요",
+  "~확인했어요", "~해드릴게요"). 관찰자처럼 사실만 통보하지 말고, 옆에서 챙겨주는 느낌으로.
+- 주의사항은 "없음"으로 비우지 마라 — 정말 특별한 우려가 없더라도, 관리 관점에서 참고할 만한
+  점(예: 정기적인 점검 권유, 다음 결제 대비 등)을 하나는 반드시 짚어라.
+- 관찰(observation)에 그치지 말고 판단(judgment)을 내려라 — 숫자를 그대로 되읊지 말고 그게
+  무슨 의미인지 해석해라.
+  예: "구독 수 2개" → "관리 부담이 크지 않은 편입니다."
+  예: "최다 카테고리 비중 15%" → "특정 카테고리에 쏠리지 않고 비교적 균형적입니다." (비중이
+  대략 50% 넘으면 "쏠려 있다", 30% 미만이면 "균형적이다"로 판단해라. 그 사이는 자유롭게 판단.)
+  예: "정기구독/배송 10개 이상" → "관리할 항목이 많은 편이니 점검이 필요합니다."
+- 단, 데이터에 없는 원인은 지어내지 마라. 예를 들어 지출이 줄었다고 해서 "일회성 구매가
+  줄어서"처럼 이 데이터에 없는 이유를 단정하지 마라 — 이유를 모르면 그냥 결과와 그에 대한
+  판단만 말해라("정기 지출이 줄었어요, 좋은 흐름이에요" 정도).
 - 날짜와 서비스명을 언급할 때는 반드시 주어진 데이터에 있는 그대로만 인용해라 — 지어내거나
   다른 날짜/이름으로 바꾸지 마라.
 - 반드시 순수 한국어(한글)로만 써라. 한자, 일본어, 영어 등 어떤 외국어 문자·단어도 절대 섞지 마라 —

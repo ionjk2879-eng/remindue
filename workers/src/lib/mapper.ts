@@ -24,6 +24,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     archivedAt: row.archived_at,
     category: row.category,
     deliveryConfirmCount: row.delivery_confirm_count,
+    discontinuedAt: row.discontinued_at,
     brand: row.brand,
     brandDomain: row.brand_domain,
     originalAmount: row.original_amount,

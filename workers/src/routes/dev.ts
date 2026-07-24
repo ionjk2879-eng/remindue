@@ -9,6 +9,7 @@ import { NotFoundError } from '../lib/errors';
 import { addDays, todayDateOnly } from '../lib/date';
 import { runWeeklyDigest } from '../lib/weekly-digest';
 import { runDailyDigest } from '../lib/digest';
+import { runConfirmationNudge } from '../lib/confirmation-nudge';
 import { runBillingRenewals, runPremiumExpirySweep } from '../lib/billing-renewal';
 import { sendPush } from '../lib/push';
 import type { Env, PushSubscriptionRow, UserRow } from '../types';
@@ -117,6 +118,19 @@ dev.post('/run-weekly-digest', async (c) => {
   }
 
   const result = await runWeeklyDigest(c.env);
+  return c.json(result);
+});
+
+/**
+ * runConfirmationNudge를 요일 조건 없이 즉시 실행한다 — "확인이 필요한 항목" 알림을
+ * 월요일을 기다리지 않고 바로 확인할 때 쓴다.
+ */
+dev.post('/run-confirmation-nudge', async (c) => {
+  if (c.env.ENVIRONMENT !== 'development') {
+    throw new NotFoundError('Not Found');
+  }
+
+  const result = await runConfirmationNudge(c.env);
   return c.json(result);
 });
 

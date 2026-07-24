@@ -13,6 +13,7 @@ import aiSummaryRoutes from './routes/ai-summary';
 import { HttpError } from './lib/errors';
 import { runDailyDigest } from './lib/digest';
 import { runWeeklyDigest } from './lib/weekly-digest';
+import { runConfirmationNudge } from './lib/confirmation-nudge';
 import { runBillingRenewals, runPremiumExpirySweep } from './lib/billing-renewal';
 import { handleIncomingEmail } from './lib/email-intake';
 import type { Env } from './types';
@@ -77,6 +78,18 @@ export default {
       runDailyDigest(env).then((result) => {
         console.log(
           `[daily-digest] 완료 — 대상 사용자 ${result.usersNotified}명, 이메일 ${result.emailsSent}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
+        );
+      })
+    );
+
+    // "확인이 필요한 항목" 알림도 매일 확인한다(요일 무관) — dDay===3(예고)/dDay===-1(완료 확인)
+    // 조건이 요일과 무관하게 아무 날에나 걸릴 수 있어서, 주 1회만 체크하면 그 요일에 안 걸리는
+    // 구독은 영영 못 잡는다. "일주일 기준"이라는 요구사항은 크론 주기가 아니라 구독 하나당
+    // 결제 주기가 보통 한 달 이상이라 자연히 자주 오지 않는다는 뜻으로 구현했다.
+    ctx.waitUntil(
+      runConfirmationNudge(env).then((result) => {
+        console.log(
+          `[confirmation-nudge] 완료 — 대상 사용자 ${result.usersNotified}명, 이메일 ${result.emailsSent}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
         );
       })
     );

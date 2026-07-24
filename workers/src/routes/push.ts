@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { BadRequestError } from '../lib/errors';
-import type { Env, PushSubscriptionRequestBody, UserRow } from '../types';
+import { consumeActionToken } from '../lib/action-tokens';
+import { confirmReceiptToday, InvalidPurchaseOperationError } from '../lib/purchase-logic';
+import type { Env, PurchaseRow, PushSubscriptionRequestBody, UserRow } from '../types';
 
 const push = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
@@ -54,6 +56,46 @@ push.post('/unsubscribe', async (c) => {
   }
 
   await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(body.endpoint).run();
+
+  return c.body(null, 204);
+});
+
+/**
+ * 알림의 "유지하기" 액션 버튼 — 인증 없이 토큰만으로 처리한다(위 unsubscribe와 같은 이유: 알림을
+ * 앱을 열지 않고 바로 눌렀을 때, 서비스워커엔 로그인 세션이 없다). 토큰은 confirmation-nudge.ts가
+ * 당일(dDay=0) 결제 알림을 보낼 때 발급하고, 1회 사용하면 무효화된다(action-tokens.ts).
+ * 효과는 routes/purchases.ts의 mark-delivered와 동일 — 회차 확인 + discontinued_at 해제.
+ */
+push.post('/confirm-action', async (c) => {
+  const body = await c.req.json<{ token?: string }>().catch(() => ({}) as { token?: string });
+  if (!body.token) {
+    throw new BadRequestError('token은 필수입니다');
+  }
+
+  const purchaseId = await consumeActionToken(c.env.DB, body.token);
+  if (purchaseId === null) {
+    throw new BadRequestError('유효하지 않거나 이미 사용된 토큰입니다');
+  }
+
+  const purchase = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(purchaseId).first<PurchaseRow>();
+  if (!purchase) throw new BadRequestError(`항목을 찾을 수 없습니다: ${purchaseId}`);
+
+  let today: string;
+  try {
+    today = confirmReceiptToday(purchase.type);
+  } catch (e) {
+    if (e instanceof InvalidPurchaseOperationError) throw new BadRequestError(e.message);
+    throw e;
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE purchases
+        SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
+            discontinued_at = NULL, updated_at = datetime('now')
+      WHERE id = ?`
+  )
+    .bind(today, purchaseId)
+    .run();
 
   return c.body(null, 204);
 });

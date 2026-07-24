@@ -43,11 +43,10 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
     return;
   }
 
-  if (user.is_premium !== 1) {
-    console.log(`[email-intake] 무료 플랜이라 처리하지 않습니다 (수신자: ${user.email})`);
-    return;
-  }
-
+  // 이메일 자동 등록(추출)은 이제 무료 플랜도 쓸 수 있다 — 실제 등록 개수 제한은 여기가 아니라
+  // 확인(POST /purchases) 시점에 FREE_PLAN_MAX_PURCHASES로 걸린다(routes/purchases.ts). 즉
+  // 이메일을 얼마든지 전달해서 확인 대기 목록에 쌓을 순 있지만, 실제로 등록 확정할 수 있는 건
+  // 무료 기준 5개까지다.
   const parsed = await PostalMime.parse(message.raw);
   const subject = parsed.subject ?? '(제목 없음)';
   const bodyText = parsed.text?.trim() || (parsed.html ? stripHtml(parsed.html) : '');

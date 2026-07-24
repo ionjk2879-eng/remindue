@@ -31,6 +31,11 @@ export interface PurchaseRow {
   fixed_day_of_month: number | null;
   last_delivered_date: string | null;
   delivery_confirm_count: number;
+  /**
+   * 사용자가 "유지 안 함"을 눌러 명시적으로 표시한 시각. NULL이면 그냥 미확인일 뿐 — 침묵을
+   * "사용 안 함"으로 해석하지 않는다. "유지하기"(mark-delivered)를 다시 누르면 NULL로 되돌아간다.
+   */
+  discontinued_at: string | null;
   /** 이력 보관(프리미엄). NULL이면 활성 항목, 값이 있으면 그 시각에 보관 처리됨 — dDay/알림 대상에서 제외. */
   archived_at: string | null;
   /** 정기배송/구독 전용 지출 카테고리. 그 외 타입은 NULL. */
@@ -77,6 +82,12 @@ export interface UserRow {
    * 되살아난다(무료로 내려갔다고 값을 지우지 않는다).
    */
   notification_days: string;
+  /**
+   * "확인이 필요한 항목" 예고 알림(confirmation-nudge.ts)이 결제/배송 며칠 전에 올지. 기본 3.
+   * notification_days와 같은 원칙 — 무료는 항상 3으로 강제(effectiveConfirmationAdvanceDays),
+   * 프리미엄만 이 저장값을 실제로 쓴다.
+   */
+  confirmation_advance_days: number;
   /** SQLite boolean(0/1) — 3단계 온보딩 안내를 완료했거나 건너뛰었는지. 둘 다 이 값을 1로 저장한다(routes/settings.ts). */
   has_seen_onboarding: number;
 }
@@ -185,8 +196,10 @@ export interface PurchaseResponse {
   archivedAt: string | null;
   /** 정기배송/구독 전용 지출 카테고리. 그 외 타입은 null. */
   category: PurchaseCategory | null;
-  /** "이번 회차 확인"을 누른 누적 횟수 — 대시보드의 "AI 절약 제안"(장기 미확인 구독 추천)에 쓴다. */
+  /** "유지하기"(이번 회차 확인)를 누른 누적 횟수 — 연속 미확인 회차 수 계산에 쓴다. */
   deliveryConfirmCount: number;
+  /** 사용자가 "유지 안 함"을 누른 시각. null이면 미확인일 뿐(사용 안 함으로 해석 금지). */
+  discontinuedAt: string | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
