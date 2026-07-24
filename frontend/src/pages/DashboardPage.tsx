@@ -222,10 +222,22 @@ export default function DashboardPage() {
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
   const itemNameInputRef = useRef<HTMLInputElement>(null);
 
+  const cacheKey = `purchases_cache_${nickname ?? 'anon'}`;
+
   const load = async () => {
+    // 캐시 데이터 즉시 표시 (stale-while-revalidate)
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        setPurchases(JSON.parse(raw) as Purchase[]);
+        setPurchasesLoaded(true);
+      }
+    } catch {}
+    // 항상 서버에서 최신 데이터 fetch
     const data = await fetchPurchases();
     setPurchases(data);
     setPurchasesLoaded(true);
+    try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch {}
   };
 
   const loadPending = async () => {
