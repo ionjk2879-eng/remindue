@@ -751,6 +751,8 @@ button.summary-board__tile:hover {
   border-left-color: #8b7cf6;
   background: color-mix(in srgb, #8b7cf6 6%, var(--paper-card));
   align-items: flex-start;
+  /* 다른 요약 타일들보다 훨씬 정보 밀도가 높은 카드라 여백을 더 넉넉하게 준다. */
+  padding: 20px 22px;
 }
 
 /* summary-board 그리드 밖, 월/연 지출 상세 패널 바로 아래에 독립 섹션으로 온다 —
@@ -774,7 +776,7 @@ button.summary-board__tile:hover {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   text-align: left;
 }
 
@@ -782,7 +784,7 @@ button.summary-board__tile:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.9rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: #8b7cf6;
   letter-spacing: -0.01em;
@@ -802,32 +804,32 @@ button.summary-board__tile:hover {
 
 .ai-brief__metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-  gap: 6px 14px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px 18px;
 }
 
 .ai-brief__metric {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
 }
 
 .ai-brief__metric-label {
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   color: var(--ink-soft);
   white-space: nowrap;
 }
 
 .ai-brief__metric-value {
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: 1.55rem;
+  font-weight: 800;
   color: var(--ink);
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .ai-brief__metric-value--up   { color: var(--stamp-red); }
 .ai-brief__metric-value--down { color: #22c55e; }
-.ai-brief__metric-value--cat  { font-size: 0.88rem; }
+.ai-brief__metric-value--cat  { font-size: 1.15rem; }
 
 .ai-brief__text-loading {
   font-size: 0.8rem;
@@ -849,37 +851,37 @@ button.summary-board__tile:hover {
 
 .ai-brief__facts p {
   margin: 0;
-  font-size: 0.84rem;
+  font-size: 0.92rem;
   color: var(--ink);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .ai-brief__section {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .ai-brief__section-label {
-  font-size: 0.75rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--ink);
 }
 
 .ai-brief__section-text {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   color: var(--ink-soft);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .ai-brief__insight {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: #8b7cf6;
   font-style: italic;
-  padding-top: 6px;
+  padding-top: 8px;
   border-top: 1px solid color-mix(in srgb, #8b7cf6 15%, var(--hairline));
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .summary-board__icon {
