@@ -1292,26 +1292,26 @@ export default function DashboardPage() {
           <p className="forwarding-banner__recurring-hint">
             📦 <strong>정기배송을 등록하는 경우</strong>
             <br />
-            메일 내용에 <strong>배송 주기(1·2·3·4주)</strong>와 <strong>첫 배송 예정일</strong>을 함께
-            적어 보내주시면 AI가 이후 결제일과 배송일을 자동으로 관리해요. 실제 스토어 주문확인
-            메일에는 배송 주기가 거의 안 적혀 있어서, 전달하실 때 이 두 가지를 직접 적어주셔야 해요 —
-            주기는 반드시 "N주"(1~4주) 형식으로, 도착일은 월일만 적어도(예: 8월 26일, 826) 올해로
-            알아서 인식돼요.
+            메일 내용에 <strong>배송 주기(1·2·3·4주)</strong>와 <strong>도착</strong>을 함께 적어
+            보내주시면 AI가 이후 결제일과 배송일을 자동으로 관리해요. 실제 스토어 주문확인 메일에는
+            배송 주기가 거의 안 적혀 있어서, 전달하실 때 이 두 가지를 직접 적어주셔야 해요 — 주기는
+            반드시 "N주"(1~4주) 형식으로, 도착은 몇월 며칠인지만 적으면(예: 4월 2일) 올해로 알아서
+            인식돼요.
             <br />
             <span className="mono">
               배송 주기: 4주
               <br />
-              첫 배송 예정일: 2026-07-28
+              도착: 4월 2일
             </span>
           </p>
           <p className="forwarding-banner__recurring-hint">
             📦 <strong>일반 배송(1회성 구매)을 등록하는 경우</strong>
             <br />
-            메일 내용에 <strong>예상 도착일</strong>만 적어 보내주시면(배송 주기는 필요 없어요) 그
-            날짜를 기준으로 반품기한(7일)·A/S 보증(1년)을 계산해드려요. 도착일은 월일만 적어도(예:
-            8월 26일, 826) 올해로 알아서 인식돼요.
+            메일 내용에 <strong>도착</strong>만 적어 보내주시면(배송 주기는 필요 없어요) 그 날짜를
+            기준으로 반품기한(7일)·A/S 보증(1년)을 계산해드려요. 도착은 몇월 며칠인지만 적으면(예:
+            2월 28일) 올해로 알아서 인식돼요.
             <br />
-            <span className="mono">예상 도착일: 8월 26일</span>
+            <span className="mono">도착: 2월 28일</span>
           </p>
           <p className="forwarding-banner__privacy">
             🔒 전달하신 이메일은 상품명·날짜 추출을 위해 Claude API(Anthropic)로 처리되며, 처리 후
