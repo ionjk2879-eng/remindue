@@ -39,6 +39,14 @@ export interface PurchaseRow {
   discontinued_at: string | null;
   /** 이력 보관(프리미엄). NULL이면 활성 항목, 값이 있으면 그 시각에 보관 처리됨 — dDay/알림 대상에서 제외. */
   archived_at: string | null;
+  /**
+   * "삭제"(취소와 다름) 시각. NULL이면 정상. 값이 있으면 목록/알림에서 완전히 빠지지만, 실제
+   * 발생한 지출이라 월별·연간 지출 통계에서는 계속 집계된다(정기 항목은 이 시각 이후 회차만
+   * 제외 — computeSpendCutoff 참고). "이미 지난 걸 목록에서 치우고 싶다"는 요청에 대응하되
+   * 지출 기록은 잃지 않기 위한 구분. 주문 자체가 무효였거나 환불받아 지출로 안 칠 항목은
+   * discard가 아니라 DELETE(하드 삭제, "취소")를 쓴다.
+   */
+  discarded_at: string | null;
   /** 서비스 카테고리 — 모든 구매 유형에 적용. 미지정이면 NULL. */
   category: PurchaseCategory | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. 수동 등록이면 NULL. */
@@ -202,6 +210,9 @@ export interface PurchaseResponse {
   deliveryRound: number | null;
   /** 이력 보관(프리미엄) 시각. null이면 활성 항목. */
   archivedAt: string | null;
+  /** "삭제"(취소와 다름) 시각. null이면 정상 — discard된 항목은 애초에 목록 조회에 안 잡히므로
+   *  이 필드는 사실상 항상 null로 온다(스키마 완전성을 위해 남겨둠). */
+  discardedAt: string | null;
   /** 서비스 카테고리 — 모든 구매 유형에 적용. 미지정이면 null. */
   category: PurchaseCategory | null;
   /** GENERAL이고 returnDeadlineDays가 있을 때만: baseDate + returnDeadlineDays. 그 외 null. */

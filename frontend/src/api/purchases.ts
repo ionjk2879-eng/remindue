@@ -8,6 +8,13 @@ export async function fetchPurchases(options?: { archived?: boolean }) {
   return data;
 }
 
+/** 월별/연간 지출 집계 전용 — 활성+보관+삭제(discard) 전부 포함(하드 삭제/"취소"만 제외).
+ *  카드로 렌더링하지 않고 지출 합산에만 쓴다. */
+export async function fetchPurchasesForSpendHistory() {
+  const { data } = await apiClient.get<Purchase[]>('/purchases', { params: { scope: 'spend' } });
+  return data;
+}
+
 export async function createPurchase(input: PurchaseInput) {
   const { data } = await apiClient.post<Purchase>('/purchases', input);
   return data;
@@ -18,8 +25,14 @@ export async function updatePurchase(id: number, input: PurchaseInput) {
   return data;
 }
 
+/** "취소" — 하드 삭제, 지출 통계에서도 완전히 빠진다. */
 export async function deletePurchase(id: number) {
   await apiClient.delete(`/purchases/${id}`);
+}
+
+/** "삭제" — 목록에서는 빠지지만 실제 지출로서 월별/연간 통계에는 계속 집계된다. */
+export async function discardPurchase(id: number) {
+  await apiClient.post(`/purchases/${id}/discard`);
 }
 
 export async function markDelivered(id: number) {

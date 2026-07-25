@@ -72,18 +72,24 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
 }
 
 /**
- * 기한이 임박한 순서(D-day 오름차순)로 정렬해서 반환한다. 기본은 활성 항목만(archived_at IS
- * NULL) — 보관함(?archived=true)은 별도 조회다. 조회는 플랜과 무관하게 항상 가능하다(보관
- * "행위"만 프리미엄 전용 — POST /:id/archive 참고).
+ * 기한이 임박한 순서(D-day 오름차순)로 반환한다. 기본은 활성 항목만(archived_at IS NULL AND
+ * discarded_at IS NULL) — 보관함(?archived=true)은 별도 조회다. discard된("삭제") 항목은 둘
+ * 중 어느 쪽에도 안 잡힌다 — 목록에서는 완전히 빠지되 지출 통계에는 남아야 하므로, 그 용도는
+ * ?scope=spend로 전부(활성+보관+삭제, 하드 삭제된 것만 제외) 가져간다(월별/연간 지출 집계
+ * 전용 — 대시보드는 이 응답을 카드로 렌더링하지 않는다). 조회는 플랜과 무관하게 항상
+ * 가능하다(보관 "행위"만 프리미엄 전용 — POST /:id/archive 참고).
  */
 purchases.get('/', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const scope = c.req.query('scope');
   const archived = c.req.query('archived') === 'true';
-  const { results } = await c.env.DB.prepare(
-    `SELECT * FROM purchases WHERE user_id = ? AND archived_at IS ${archived ? 'NOT NULL' : 'NULL'}`
-  )
-    .bind(user.id)
-    .all<PurchaseRow>();
+
+  const where =
+    scope === 'spend'
+      ? 'user_id = ?'
+      : `user_id = ? AND archived_at IS ${archived ? 'NOT NULL' : 'NULL'} AND discarded_at IS NULL`;
+
+  const { results } = await c.env.DB.prepare(`SELECT * FROM purchases WHERE ${where}`).bind(user.id).all<PurchaseRow>();
 
   const responses = results.map(toPurchaseResponse).sort((a, b) => a.dDay - b.dDay);
   return c.json(responses);
@@ -220,6 +226,11 @@ purchases.put('/:id', async (c) => {
   return c.json(toPurchaseResponse(updated!));
 });
 
+/**
+ * "취소"(삭제와 다름) — 잘못 등록했거나, 주문 자체가 취소됐거나, 배송/결제 후 환불받아서 실제
+ * 지출로 칠 필요가 없는 경우. 하드 삭제라 지출 통계에서도 완전히 빠진다. 이미 실제로 발생한
+ * 지출을 목록에서만 치우고 싶을 땐 이걸 쓰지 말고 POST /:id/discard("삭제")를 쓴다.
+ */
 purchases.delete('/:id', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   const id = Number(c.req.param('id'));
@@ -357,6 +368,24 @@ purchases.post('/:id/unarchive', async (c) => {
 
   const updated = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<PurchaseRow>();
   return c.json(toPurchaseResponse(updated!));
+});
+
+/**
+ * "삭제"(취소와 다름, 무료 포함 누구나) — DELETE(하드 삭제, "취소")와 달리 실제로 발생한
+ * 지출이므로 행 자체는 남기고 discarded_at만 채운다. 목록(활성/보관 어느 쪽 조회에도)과
+ * D-day/확인 알림 대상에서는 완전히 빠지지만, 월별·연간 지출 집계(?scope=spend, CSV/PDF
+ * export)에서는 계속 잡힌다. 되돌리는 UI는 없다 — discard된 항목은 어디서도 다시 안 보인다.
+ */
+purchases.post('/:id/discard', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const id = Number(c.req.param('id'));
+  await getOwnedPurchase(c.env.DB, user.id, id);
+
+  await c.env.DB.prepare(`UPDATE purchases SET discarded_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`)
+    .bind(id)
+    .run();
+
+  return c.body(null, 204);
 });
 
 export default purchases;

@@ -27,6 +27,8 @@ export interface Purchase {
   dDay: number;
   deliveryRound: number | null;
   archivedAt: string | null;
+  /** "삭제"(취소와 다름) 시각. discard된 항목은 목록 조회에 안 잡히므로 사실상 항상 null. */
+  discardedAt: string | null;
   category: PurchaseCategory | null;
   /** GENERAL이고 returnDeadlineDays가 있을 때만: baseDate + returnDeadlineDays. 그 외 null. */
   returnDeadlineDate: string | null;

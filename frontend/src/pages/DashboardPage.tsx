@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import {
   fetchPurchases,
+  fetchPurchasesForSpendHistory,
   createPurchase,
   updatePurchase,
   deletePurchase,
+  discardPurchase,
   markDelivered,
   confirmAllDelivered,
   discontinuePurchase,
@@ -332,22 +334,33 @@ function daysSinceBaseDate(baseDate: string): number {
   return Math.floor((now - start) / 86_400_000);
 }
 
+/** 보관·삭제된 정기 항목은 그 시각 이후 회차가 지출 집계에서 빠진다(이미 지난 회차는 실제로
+ *  발생한 지출이니 그대로 잡힌다) — 둘 다 있으면 더 이른(먼저 멈춘) 시각을 기준으로 삼는다. */
+function spendCutoffDate(p: Purchase): string | null {
+  const dates = [p.archivedAt, p.discardedAt].filter((d): d is string => d !== null).map((d) => d.slice(0, 10));
+  return dates.length === 0 ? null : dates.sort()[0];
+}
+
 /**
  * 정기배송/구독이 특정 연/월에 실제로 결제·배송되는 날짜들(yyyy-MM-dd) — FIXED_DAY는 시작월
  * 이후로 그 달의 고정일 하루(월말보다 큰 날짜면 말일로 보정), INTERVAL은 주기에 따라 그 달에
  * 0개일 수도 여러 개일 수도 있다(예: 7일마다 항목은 한 달에 4~5개). 정기배송/구독이 아니면 빈 배열.
+ * 보관/삭제된 항목은 spendCutoffDate 이후 회차를 제외한다(지출 집계용 fetchPurchasesForSpendHistory
+ * 호출부에서만 실제로 archivedAt/discardedAt이 채워져 오므로, 평소 활성 목록 계산에는 영향 없다).
  */
 function occurrenceDatesInMonth(p: Purchase, year: number, month: number): string[] {
   if (!isRecurringType(p.type)) return [];
   const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
   const pad = (n: number) => String(n).padStart(2, '0');
+  const cutoff = spendCutoffDate(p);
 
   if (p.scheduleType === 'FIXED_DAY') {
     const started = year > baseYear || (year === baseYear && month >= baseMonth);
     if (!started) return [];
     const daysInMonth = new Date(year, month, 0).getDate();
     const day = Math.min(p.fixedDayOfMonth ?? 1, daysInMonth);
-    return [`${year}-${pad(month)}-${pad(day)}`];
+    const date = `${year}-${pad(month)}-${pad(day)}`;
+    return cutoff !== null && date > cutoff ? [] : [date];
   }
 
   const interval = Math.max(1, p.intervalDays || 30);
@@ -364,7 +377,8 @@ function occurrenceDatesInMonth(p: Purchase, year: number, month: number): strin
   for (let t = baseTime + kMin * stepMs; t < monthEndExclusive; t += stepMs) {
     if (t >= monthStart) {
       const d = new Date(t);
-      dates.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+      const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      if (cutoff === null || date <= cutoff) dates.push(date);
     }
   }
   return dates;
@@ -393,6 +407,8 @@ function totalSpendInMonth(purchases: Purchase[], year: number, month: number): 
 
 export default function DashboardPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  /** 월별/연간 지출 집계 전용(활성+보관+삭제 전부 포함) — 카드로 렌더링하지 않는다. */
+  const [spendHistoryPurchases, setSpendHistoryPurchases] = useState<Purchase[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [type, setType] = useState<PurchaseType>('GENERAL');
   const [itemName, setItemName] = useState('');
@@ -460,6 +476,11 @@ export default function DashboardPage() {
     try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch {}
   };
 
+  const loadSpendHistory = async () => {
+    const data = await fetchPurchasesForSpendHistory();
+    setSpendHistoryPurchases(data);
+  };
+
   const loadPending = async () => {
     const data = await fetchPendingPurchases();
     setForwardingEmail(data.forwardingEmail);
@@ -480,6 +501,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     load();
+    loadSpendHistory();
     loadPending();
     loadAcceptedShares();
   }, []);
@@ -494,18 +516,18 @@ export default function DashboardPage() {
     const rcCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
     const subCount = purchases.filter((p) => p.type === 'SUBSCRIPTION').length;
     const totalRecurring = rcCount + subCount;
-    const moSpend = purchases.reduce((sum, p) => {
+    const moSpend = spendHistoryPurchases.reduce((sum, p) => {
       if (p.amount === null || !isRecurringType(p.type)) return sum;
       return sum + occurrencesInMonth(p, yr, mo) * p.amount;
     }, 0);
     const yrSpend = Array.from({ length: 12 }, (_, i) =>
-      totalSpendInMonth(purchases, yr, i + 1),
+      totalSpendInMonth(spendHistoryPurchases, yr, i + 1),
     ).reduce((a, b) => a + b, 0);
-    const prevMoSpend = totalSpendInMonth(purchases, mo === 1 ? yr - 1 : yr, mo === 1 ? 12 : mo - 1);
+    const prevMoSpend = totalSpendInMonth(spendHistoryPurchases, mo === 1 ? yr - 1 : yr, mo === 1 ? 12 : mo - 1);
     const trendPct = prevMoSpend > 0 ? Math.round(((moSpend - prevMoSpend) / prevMoSpend) * 100) : null;
 
     const catAmounts = PURCHASE_CATEGORIES.map((cat) => {
-      const total = purchases
+      const total = spendHistoryPurchases
         .filter((p) => isRecurringType(p.type) && p.category === cat && p.amount !== null)
         .reduce((sum, p) => sum + occurrencesInMonth(p, yr, mo) * p.amount!, 0);
       return { cat, total: Math.round(total) };
@@ -748,6 +770,7 @@ export default function DashboardPage() {
     await applyPriceChange(id);
     await loadPending();
     await load();
+    await loadSpendHistory();
   };
 
 
@@ -805,6 +828,7 @@ export default function DashboardPage() {
       }
       resetForm();
       await load();
+      await loadSpendHistory();
       if (confirmingPendingId !== null) {
         await loadPending();
       }
@@ -821,9 +845,20 @@ export default function DashboardPage() {
     }
   };
 
+  /** "취소" — 하드 삭제, 지출 통계에서도 완전히 빠진다(잘못 등록했거나 주문이 무효/환불된 경우). */
   const handleDelete = async (id: number) => {
+    if (!window.confirm('취소하면 이 항목의 지출 기록도 완전히 사라져요. 계속할까요?')) return;
     await deletePurchase(id);
     await load();
+    await loadSpendHistory();
+  };
+
+  /** "삭제" — 목록에서만 빠지고, 이미 발생한 지출은 월별/연간 통계에 계속 남는다. */
+  const handleDiscard = async (id: number) => {
+    if (!window.confirm('삭제하면 목록에서는 빠지지만, 이미 발생한 지출은 통계에 그대로 남아요. 계속할까요?')) return;
+    await discardPurchase(id);
+    await load();
+    await loadSpendHistory();
   };
 
   const handleMarkDelivered = async (id: number) => {
@@ -862,12 +897,14 @@ export default function DashboardPage() {
   const handleArchive = async (id: number) => {
     await archivePurchase(id);
     await load();
+    await loadSpendHistory();
   };
 
   const handleUnarchive = async (id: number) => {
     await unarchivePurchase(id);
     await loadArchived();
     await load();
+    await loadSpendHistory();
   };
 
   /** 완료든 건너뛰기든 동일하게 처리한다 — focusForm만 마지막 단계 CTA(등록하러 가기)에서 true. */
@@ -929,7 +966,7 @@ export default function DashboardPage() {
    * 날짜마다 한 줄씩(같은 항목이 여러 번 결제되면 그만큼 여러 줄), GENERAL 같은
    * 1회성 결제도 baseDate가 이번 달이면 그 날짜에 포함한다. 금액이 없는 항목은 제외.
    */
-  const spendingOccurrences = purchases.flatMap((p) => {
+  const spendingOccurrences = spendHistoryPurchases.flatMap((p) => {
     if (p.amount === null) return [];
     if (isRecurringType(p.type)) {
       return occurrenceDatesInMonth(p, currentYearNum, currentMonthNum).map((date, idx) => ({
@@ -961,7 +998,7 @@ export default function DashboardPage() {
   const monthlySpendEstimate = spendingOccurrences.reduce((sum, occ) => sum + occ.amount, 0);
 
   /** "올해 예상 지출" — 1~12월 각각의 실제 지출 총액(정기 결제 발생 횟수 + 1회성 결제)과 그 합계. */
-  const monthlySpendTotals = Array.from({ length: 12 }, (_, i) => totalSpendInMonth(purchases, currentYearNum, i + 1));
+  const monthlySpendTotals = Array.from({ length: 12 }, (_, i) => totalSpendInMonth(spendHistoryPurchases, currentYearNum, i + 1));
   const yearlySpendEstimate = monthlySpendTotals.reduce((sum, v) => sum + v, 0);
 
   /**
@@ -973,7 +1010,7 @@ export default function DashboardPage() {
     const month = i + 1;
     const prevMonth = month === 1 ? 12 : month - 1;
     const prevYear = month === 1 ? currentYearNum - 1 : currentYearNum;
-    const prevTotal = totalSpendInMonth(purchases, prevYear, prevMonth);
+    const prevTotal = totalSpendInMonth(spendHistoryPurchases, prevYear, prevMonth);
 
     const trend: 'up' | 'down' | 'flat' = total > prevTotal ? 'up' : total < prevTotal ? 'down' : 'flat';
     const percentLabel =
@@ -2033,6 +2070,13 @@ export default function DashboardPage() {
       </form>
       )}
 
+      <p className="register-form__hint register-form__hint--legend">
+        항목을 치울 때 <strong>삭제</strong>와 <strong>취소</strong>는 달라요 — <strong>삭제</strong>는
+        목록에서만 빠지고 이미 발생한 지출은 통계에 그대로 남아요(이미 받은 배송, 지난 결제 등).{' '}
+        <strong>취소</strong>는 지출 기록까지 완전히 없어져요(잘못 등록했거나, 주문이 취소됐거나,
+        환불받아서 지출로 칠 필요가 없는 경우에 써주세요).
+      </p>
+
       <div className="view-tabs" role="tablist" aria-label="목록 종류">
         <button type="button" className={`view-tabs__btn${view === 'ACTIVE' ? ' view-tabs__btn--active' : ''}`} onClick={() => setView('ACTIVE')}>
           내 목록
@@ -2176,8 +2220,11 @@ export default function DashboardPage() {
                         보관
                       </button>
                     )}
-                    <button className="btn-text" onClick={() => handleDelete(p.id)}>
+                    <button className="btn-text" onClick={() => handleDiscard(p.id)}>
                       삭제
+                    </button>
+                    <button className="btn-text" onClick={() => handleDelete(p.id)}>
+                      취소
                     </button>
                   </div>
                 </div>
@@ -2219,6 +2266,12 @@ export default function DashboardPage() {
                   <div className="ticket-card__actions">
                     <button className="btn-text" onClick={() => handleUnarchive(p.id)}>
                       복원
+                    </button>
+                    <button className="btn-text" onClick={() => handleDiscard(p.id)}>
+                      삭제
+                    </button>
+                    <button className="btn-text" onClick={() => handleDelete(p.id)}>
+                      취소
                     </button>
                   </div>
                 </div>

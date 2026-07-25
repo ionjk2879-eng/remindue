@@ -28,6 +28,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     dDay,
     deliveryRound,
     archivedAt: row.archived_at,
+    discardedAt: row.discarded_at,
     category: row.category,
     returnDeadlineDate: returnInstance?.deadline ?? null,
     returnDeadlineDDay: returnInstance ? computeDDay(returnInstance.deadline) : null,

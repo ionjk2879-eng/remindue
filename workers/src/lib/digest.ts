@@ -49,7 +49,7 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
             u.is_premium AS user_is_premium, u.notification_days AS user_notification_days
        FROM purchases p
        JOIN users u ON u.id = p.user_id
-      WHERE p.archived_at IS NULL`
+      WHERE p.archived_at IS NULL AND p.discarded_at IS NULL`
   ).all<PurchaseWithUser>();
 
   const itemsByUserId = new Map<number, UserDigestBucket>();

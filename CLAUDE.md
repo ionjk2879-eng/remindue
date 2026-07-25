@@ -355,6 +355,42 @@ Archived items are excluded from both digest crons (`lib/digest.ts`,
 `lib/weekly-digest.ts` both filter `archived_at IS NULL`) — archiving means
 "stop bothering me about this," not just "hide it from the main list."
 
+## Discard vs cancel (`purchases.discarded_at` vs `DELETE /purchases/:id`)
+
+Two different ways to remove an item from the visible lists, free for everyone
+(no premium gate on either):
+
+- **Discard ("삭제")** — `POST /api/purchases/:id/discard` sets `discarded_at`.
+  The row stays in D1. Meant for stuff that already genuinely happened (a
+  delivery you received, a payment you made) that the user just wants off
+  their list — the spend must still count. `GET /purchases` (both the default
+  active view and `?archived=true`) filters `discarded_at IS NULL`, so a
+  discarded row disappears from every browsable list and from all three
+  crons (digest/confirmation-nudge/weekly-digest, all now also filter
+  `discarded_at IS NULL`) — but nothing deletes the row, so it's still there
+  for spend accounting and CSV/PDF export (`GET /purchases/export` has no
+  `archived_at`/`discarded_at` filter at all, by design — it's meant to be
+  the full historical record).
+- **Cancel ("취소")** — the pre-existing `DELETE /api/purchases/:id`, a real
+  hard delete. For the opposite case: registered by mistake, an order that
+  got cancelled before anything was actually charged, or a refund that means
+  the spend shouldn't count anymore. Since the row is gone, it also
+  disappears from spend accounting.
+
+Frontend-side, spend totals ("이번 달/올해 예상지출", the AI brief's spend
+figures) are computed from a **separate** fetch —
+`fetchPurchasesForSpendHistory()` → `GET /purchases?scope=spend`, which
+ignores `archived_at`/`discarded_at` entirely and returns every row for the
+user (still excludes hard-deleted/cancelled rows, since those don't exist in
+D1 anymore). `DashboardPage.tsx` keeps this in a separate `spendHistoryPurchases`
+state, distinct from the `purchases` state used for card rendering — never
+merge these two or archived/discarded items will start showing up as cards.
+For recurring items, `occurrenceDatesInMonth`'s `spendCutoffDate` caps
+generated occurrences at `archivedAt`/`discardedAt` (whichever is earlier) so
+only occurrences that actually happened while the item was live get counted
+— an archived subscription's spend from before it was archived still counts,
+but it stops accruing projected future-month spend.
+
 ## AI auto-registration (email forwarding)
 
 - **`lib/order-extraction.ts`** — the schema (`ExtractedOrder`), system

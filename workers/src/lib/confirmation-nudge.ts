@@ -126,6 +126,7 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
        JOIN users u ON u.id = p.user_id
       WHERE p.type IN ('RECURRING_DELIVERY', 'SUBSCRIPTION')
         AND p.archived_at IS NULL
+        AND p.discarded_at IS NULL
         AND p.discontinued_at IS NULL`
   ).all<RecurringPurchaseWithUser>();
 

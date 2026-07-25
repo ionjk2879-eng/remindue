@@ -2068,6 +2068,12 @@ button.summary-board__tile:hover {
   line-height: 1.6;
 }
 
+/* 새 항목 등록 토글/폼 바로 아래, 목록 위에 걸리는 "삭제 vs 취소" 설명 — register-form 안이
+   아니라 바깥에 있어서 여백을 별도로 챙긴다. */
+.register-form__hint--legend {
+  margin: 0 0 20px;
+}
+
 .schedule-radio-group {
   display: flex;
   gap: 16px;
