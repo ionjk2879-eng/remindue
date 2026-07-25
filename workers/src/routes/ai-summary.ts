@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
-import type { Env } from '../types';
+import { PaymentRequiredError } from '../lib/errors';
+import type { Env, UserRow } from '../types';
 
 const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
@@ -64,7 +65,14 @@ async function translateToKorean(env: Env, text: string): Promise<string> {
 const aiSummary = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 aiSummary.use('*', authMiddleware);
 
+/** AI 소비 매니저는 프리미엄 전용 — 프론트는 무료 플랜에서 이 탭 자체를 잠가서 호출하지 않지만,
+ *  직접 호출을 막기 위해 라우트에서도 확인한다. */
 aiSummary.post('/spending-summary', async (c) => {
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(c.get('userEmail')).first<UserRow>();
+  if (!user || user.is_premium !== 1) {
+    throw new PaymentRequiredError('AI 소비 매니저는 프리미엄 전용 기능이에요.');
+  }
+
   try {
     const body = await c.req.json<SpendingSummaryInput>();
     const {

@@ -204,16 +204,17 @@ export async function insertPendingPurchase(
   db: D1Database,
   userId: number,
   source: 'email' | 'image',
-  extracted: ExtractedOrder
+  extracted: ExtractedOrder,
+  isPremium: boolean
 ): Promise<number> {
   const fields = await buildPendingPurchaseFields(extracted);
 
-  // 가격 인상 감지: 같은 이름의 활성 정기배송/구독이 이미 있고, 이번에 추출한 금액이 그때와
-  // 다르면 matched_purchase_id/previous_amount를 채운다 — 신규 항목이거나 금액이 그대로면 둘 다
-  // null로 남아 지금까지와 동일하게(그냥 확인 대기 항목으로) 동작한다.
+  // 가격 인상 감지(프리미엄 전용): 같은 이름의 활성 정기배송/구독이 이미 있고, 이번에 추출한
+  // 금액이 그때와 다르면 matched_purchase_id/previous_amount를 채운다 — 신규 항목이거나 금액이
+  // 그대로면, 또는 무료 플랜이면 둘 다 null로 남아 그냥 확인 대기 항목으로만 동작한다.
   let matchedPurchaseId: number | null = null;
   let previousAmount: number | null = null;
-  if (isRecurringType(fields.type) && extracted.itemName && fields.amount !== null) {
+  if (isPremium && isRecurringType(fields.type) && extracted.itemName && fields.amount !== null) {
     const existing = await findMatchingActivePurchase(db, userId, fields.type, extracted.itemName);
     if (existing && existing.amount !== null && existing.amount !== fields.amount) {
       matchedPurchaseId = existing.id;

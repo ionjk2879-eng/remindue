@@ -63,7 +63,7 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
     return;
   }
 
-  await insertPendingPurchase(env.DB, user.id, 'email', extracted);
+  await insertPendingPurchase(env.DB, user.id, 'email', extracted, user.is_premium === 1);
 
   console.log(`[email-intake] 확인 대기 항목 추가 (수신자: ${user.email}, 상품명: ${extracted.itemName ?? '(없음)'})`);
 }

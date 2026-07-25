@@ -173,6 +173,21 @@ export default function PricingPage() {
             <td>X</td>
             <td>O</td>
           </tr>
+          <tr>
+            <td>AI 소비 매니저</td>
+            <td>X</td>
+            <td>O</td>
+          </tr>
+          <tr>
+            <td>가격 인상 감지</td>
+            <td>X</td>
+            <td>O</td>
+          </tr>
+          <tr>
+            <td>해외 결제 환율 반영</td>
+            <td>O</td>
+            <td>O</td>
+          </tr>
         </tbody>
       </table>
     </div>

@@ -137,6 +137,9 @@ const FAQ: FaqCategory[] = [
               <tr><td>CSV/PDF 내보내기</td><td>X</td><td>O</td></tr>
               <tr><td>가족/구성원 공유</td><td>X</td><td>O</td></tr>
               <tr><td>이력 보관(아카이브)</td><td>X</td><td>O</td></tr>
+              <tr><td>AI 소비 매니저</td><td>X</td><td>O</td></tr>
+              <tr><td>가격 인상 감지</td><td>X</td><td>O</td></tr>
+              <tr><td>해외 결제 환율 반영</td><td>O</td><td>O</td></tr>
             </tbody>
           </table>
         ),

@@ -1202,22 +1202,32 @@ export default function DashboardPage() {
           </button>
           {/* 인상 감지/절약 제안 둘 다 "평소엔 숨겨져 있다가 있을 때만 뜨는" 방식이면 사용자가 그런
               기능이 있는지조차 모르기 쉬워서, 값이 0이어도(비어있어도) 상시 표시한다. */}
-          <button
-            type="button"
-            className="summary-board__tile summary-board__tile--price-change summary-board__tile--clickable"
-            onClick={() => setShowPriceStatusDetail((v) => !v)}
-            aria-expanded={showPriceStatusDetail}
-          >
-            <span className="summary-board__icon" aria-hidden="true">⚠</span>
-            <div className="summary-board__text">
-              <span className="summary-board__label">가격 인상</span>
-              <span className="summary-board__value mono">
-                {priceChangeCount}
-                <span className="summary-board__unit">건</span>
-              </span>
-            </div>
-            <span className="summary-board__chevron" aria-hidden="true">{showPriceStatusDetail ? '▲' : '▾'}</span>
-          </button>
+          {isPremium ? (
+            <button
+              type="button"
+              className="summary-board__tile summary-board__tile--price-change summary-board__tile--clickable"
+              onClick={() => setShowPriceStatusDetail((v) => !v)}
+              aria-expanded={showPriceStatusDetail}
+            >
+              <span className="summary-board__icon" aria-hidden="true">⚠</span>
+              <div className="summary-board__text">
+                <span className="summary-board__label">가격 인상 감지</span>
+                <span className="summary-board__value mono">
+                  {priceChangeCount}
+                  <span className="summary-board__unit">건</span>
+                </span>
+              </div>
+              <span className="summary-board__chevron" aria-hidden="true">{showPriceStatusDetail ? '▲' : '▾'}</span>
+            </button>
+          ) : (
+            <Link to="/pricing" className="summary-board__tile summary-board__tile--price-change summary-board__tile--clickable">
+              <span className="summary-board__icon" aria-hidden="true">⚠</span>
+              <div className="summary-board__text">
+                <span className="summary-board__label">가격 인상 감지</span>
+                <span className="summary-board__ai-cta">🔒 프리미엄 전용</span>
+              </div>
+            </Link>
+          )}
           <button
             type="button"
             className="summary-board__tile summary-board__tile--savings summary-board__tile--clickable"
@@ -1492,7 +1502,20 @@ export default function DashboardPage() {
 
       {/* 월/연 예상지출 상세 패널 바로 아래가 기본 위치 — 예전엔 소비요약 타일 줄 맨 끝에
           있어서, 저 상세를 펼치면 그 위에 걸쳐 있는 게 어색했다. */}
-      {purchasesLoaded && purchases.length > 0 && (
+      {purchasesLoaded && purchases.length > 0 && !isPremium && (
+        <Link
+          to="/pricing"
+          className="ai-summary-section summary-board__tile summary-board__tile--ai-summary summary-board__tile--clickable"
+        >
+          <span className="summary-board__icon" aria-hidden="true">🤖</span>
+          <div className="summary-board__text">
+            <span className="summary-board__label">AI 소비 매니저</span>
+            <span className="summary-board__ai-cta">🔒 프리미엄으로 업그레이드하면 이용할 수 있어요</span>
+          </div>
+        </Link>
+      )}
+
+      {purchasesLoaded && purchases.length > 0 && isPremium && (
         <button
           type="button"
           className="ai-summary-section summary-board__tile summary-board__tile--ai-summary summary-board__tile--clickable"

@@ -104,6 +104,20 @@ These are gated on `isPremium`, all checked at the call site (not inside
 5. **Family/member sharing** — see `## Sharing` below.
 6. **Archive (이력 보관)** — see `## Archive` below.
 7. **Custom confirmation-nudge advance days** — see `## Confirmation nudges` below.
+8. **AI 소비 매니저** — the dashboard's AI spending-brief tile (`handleAiSummary`
+   in `DashboardPage.tsx`, `POST /api/ai-summary/spending-summary` in
+   `routes/ai-summary.ts`). Free users see a locked tile linking to `/pricing`
+   instead of a clickable button; the backend route independently checks
+   `is_premium` too (throws `PaymentRequiredError`) since the frontend gate alone
+   isn't enough for a directly-called API.
+9. **가격 인상 감지 (price-increase detection)** — comparing an email-extracted
+   price against the matching active item's stored price
+   (`findMatchingActivePurchase` in `lib/pending-purchase-intake.ts`) only runs
+   for premium users; `insertPendingPurchase` takes an `isPremium` param and
+   free users' pending rows always get `matched_purchase_id = null`. Note this
+   is narrower than "email auto-registration" itself (#1 above) — extraction,
+   FX conversion, brand/category detection all stay free-tier; only the
+   price-comparison step is gated.
 
 (A "놓친 배송 감지" / missed-delivery-detection feature used to be premium
 benefit #2 — it compared computed delivery rounds against
