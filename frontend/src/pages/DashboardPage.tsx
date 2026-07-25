@@ -801,6 +801,12 @@ export default function DashboardPage() {
 
   const handleIgnorePending = async (id: number) => {
     await ignorePendingPurchase(id);
+    // 지금 등록 폼에 띄워놓고 보던(확인 후 바로 등록으로 연 그) 확인 대기 항목을 무시한 거라면
+    // 폼도 같이 닫는다 — 이미 없어진 대기 항목의 내용이 입력창에 그대로 남아있으면 안 되니까.
+    // 지금 보고 있는 것과 "다른" 대기 항목을 무시한 거라면 폼은 그대로 둔다.
+    if (pendingConfirmId === id) {
+      resetForm();
+    }
     await loadPending();
   };
 
