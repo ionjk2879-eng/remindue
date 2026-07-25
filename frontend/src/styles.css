@@ -2035,6 +2035,32 @@ button.summary-board__tile:hover {
   align-self: flex-end;
 }
 
+/* 대시보드 수동 등록 폼 — 앱 전역 .field의 밑줄(border-bottom) 대신 문의 게시판/설정과 같은
+   플랫한 배경 틴트 스타일로 통일한다. */
+.register-form input,
+.register-form select,
+.register-form textarea {
+  background: var(--paper);
+  border: none;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 0.92rem;
+  color: var(--ink);
+  transition: box-shadow 0.15s ease;
+}
+
+.register-form input::placeholder {
+  color: var(--placeholder);
+}
+
+.register-form input:focus,
+.register-form select:focus,
+.register-form textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--hairline-strong);
+}
+
 .register-form__hint {
   margin-top: 8px;
   font-size: 0.8rem;
@@ -2761,12 +2787,44 @@ button.summary-board__tile:hover {
   cursor: pointer;
 }
 
-/* 예고 알림 시점처럼 단일 선택(라디오)인 경우 선택된 칩을 시각적으로 강조한다. */
+/* 선택된 칩을 시각적으로 강조한다. */
 .notification-day-option--active {
   background: var(--neutral-bg);
   border-color: var(--ink);
   color: var(--ink);
   font-weight: 700;
+}
+
+/* 알림 시점(체크박스, 다중 선택)과 예고 알림 시점(라디오, 단일 선택)이 기능은 다르지만
+   같은 동그라미 표시로 보이게 브라우저 기본 모양(네모 체크/원형 점) 대신 통일된 스타일을 입힌다. */
+.notification-day-option input[type='checkbox'],
+.notification-day-option input[type='radio'] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--hairline-strong);
+  background: var(--paper-card);
+  flex-shrink: 0;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.notification-day-option input[type='checkbox']:checked,
+.notification-day-option input[type='radio']:checked {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+.notification-day-option input[type='checkbox']:checked::after,
+.notification-day-option input[type='radio']:checked::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--paper-card);
 }
 
 .invite-form {

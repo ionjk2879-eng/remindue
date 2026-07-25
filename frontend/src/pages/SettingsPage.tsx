@@ -305,7 +305,10 @@ export default function SettingsPage() {
             </div>
           ) : (
             <>
-              <p className="settings-section__hint">D-day가 며칠 남았을 때 알림을 받을지 골라주세요.</p>
+              <p className="settings-section__hint">
+                등록한 모든 항목(반품기한·A/S보증·정기배송·정기구독)의 기한이 며칠 남았을 때
+                요약 알림을 받을지 골라주세요.
+              </p>
               <div className="notification-day-options">
                 {NOTIFICATION_DAY_OPTIONS.map((day) => (
                   <label
@@ -334,8 +337,9 @@ export default function SettingsPage() {
       <section className="settings-section">
         <h2>확인이 필요한 항목 — 예고 알림 시점</h2>
         <p className="settings-section__hint">
-          정기구독·배송 결제/배송 며칠 전에 "곧 결제/배송돼요" 예고 알림을 받을지예요. (당일 유지
-          확인, 1일 후·1주일 후 재확인 알림은 시점이 고정이고 이 예고 알림만 바꿀 수 있어요.)
+          위 알림 시점과는 달라요 — 정기구독·배송 결제/배송이 며칠 앞으로 다가오면 "계속 이용
+          중이신가요?" 하고 미리 확인을 요청하는 알림이에요. (당일 유지 확인, 1일 후·1주일 후
+          재확인 알림은 시점이 고정이고 이 예고 시점만 바꿀 수 있어요.)
         </p>
         {isPremium ? (
           advanceDays === null ? (

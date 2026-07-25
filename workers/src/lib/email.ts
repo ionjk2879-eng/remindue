@@ -316,10 +316,11 @@ export function buildConfirmationNudgeEmailHtml(
 ): string {
   const messages: string[] = [];
 
-  for (const { itemName, type, advanceDays } of advance) {
-    const verb = type === 'RECURRING_DELIVERY' ? '배송' : '자동 결제';
+  for (const { itemName, type } of advance) {
+    // "정기배송이"/"자동 결제가"처럼 명사에 따라 조사가 달라지는 걸 피하려고 항상 "일정이"로 고정.
+    const noun = type === 'RECURRING_DELIVERY' ? '정기배송' : '자동 결제';
     messages.push(
-      `🔔 ${advanceDays}일 후 ${escapeHtml(itemName)}가 ${verb}됩니다.<br/>${verb} 후 "유지하기"를 눌러 이번 회차를 확인해 주세요.`
+      `🔔 ${escapeHtml(itemName)}, 곧 ${noun} 일정이 있어요.<br/>계속 이용 중이시면 미리 "유지하기"를 눌러 이번 회차를 확인해 주세요.`
     );
   }
 
