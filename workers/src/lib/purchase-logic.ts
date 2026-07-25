@@ -4,16 +4,19 @@
 // receipt), which drifts away from the vendor's real schedule after any late delivery.
 // This now anchors to baseDate as a fixed recurring schedule instead (see computeDeadline).
 //
-// RECURRING_DELIVERY got a second anchor field on top of that (expected_delivery_date,
-// migrations/0031): a vendor's delivery cycle is phased off the *first delivery* date, not
-// the signup/order date (signing up mid-cycle doesn't shift the vendor's fixed weekly/monthly
-// rhythm). expectedDeliveryDate ?? baseDate is the anchor for RECURRING_DELIVERY specifically;
-// SUBSCRIPTION keeps baseDate-only, unchanged. This does NOT reintroduce the lastDeliveredDate
-// drift bug above — expectedDeliveryDate only ever moves when the user explicitly answers "did
-// it arrive, and which day" (arrival-confirm.ts), never from silently logging a click/cron tick.
+// GENERAL/RECURRING_DELIVERY got a second anchor field on top of that (expected_delivery_date,
+// migrations/0031): "도착(예정)일" — a vendor's recurring delivery cycle is phased off the
+// *first delivery* date, not the signup/order date (signing up mid-cycle doesn't shift the
+// vendor's fixed weekly/monthly rhythm); a one-off GENERAL purchase's return/warranty windows
+// legally start from when you *received* it, not when you paid. expectedDeliveryDate ?? baseDate
+// is the shared anchor rule for both (arrivalAnchor below) — SUBSCRIPTION keeps baseDate-only,
+// unchanged, since there's no physical delivery to anchor on. This does NOT reintroduce the
+// lastDeliveredDate drift bug above — expectedDeliveryDate only ever moves when the user
+// explicitly answers "did it arrive, and which day" (arrival-confirm.ts), never from silently
+// logging a click/cron tick.
 
 import { addDays, addMonths, daysBetween, nextFixedDayOfMonth, parseDateOnly, todayDateOnly } from './date';
-import { isRecurringType, usesArrivalAnchor, type PurchaseRow, type PurchaseType } from '../types';
+import { isRecurringType, usesArrivalDate, type PurchaseRow, type PurchaseType } from '../types';
 
 export const DEFAULT_WARRANTY_MONTHS = 12;
 export const DEFAULT_RETURN_DEADLINE_DAYS = 7;
@@ -26,9 +29,13 @@ type DeadlineInput = Pick<
   'type' | 'base_date' | 'warranty_months' | 'return_deadline_days' | 'interval_days' | 'schedule_type' | 'fixed_day_of_month' | 'expected_delivery_date'
 >;
 
-/** RECURRING_DELIVERY만 expectedDeliveryDate를 앵커로 쓴다(usesArrivalAnchor) — 그 외(SUBSCRIPTION)는 baseDate 그대로. */
-function scheduleAnchor(row: Pick<DeadlineInput, 'type' | 'base_date' | 'expected_delivery_date'>): string {
-  return usesArrivalAnchor(row.type as PurchaseType) ? (row.expected_delivery_date ?? row.base_date) : row.base_date;
+/**
+ * GENERAL/RECURRING_DELIVERY는 expectedDeliveryDate(있으면)를 앵커로 쓰고, 없으면 baseDate로
+ * 폴백한다(usesArrivalDate). SUBSCRIPTION은 실물 배송이 없어 baseDate 그대로. 도착 확인 알림
+ * (arrival-confirm.ts)도 "오늘이 이 앵커 날짜인가"로 발송 대상을 판단하므로 이 함수를 그대로 쓴다.
+ */
+export function arrivalAnchor(row: Pick<DeadlineInput, 'type' | 'base_date' | 'expected_delivery_date'>): string {
+  return usesArrivalDate(row.type as PurchaseType) ? (row.expected_delivery_date ?? row.base_date) : row.base_date;
 }
 
 export interface DeadlineResult {
@@ -52,24 +59,27 @@ export interface DeadlineInstance extends DeadlineResult {
 export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
   switch (row.type as PurchaseType) {
     case 'GENERAL': {
+      // 반품기한/A·S보증 모두 "받은 날"부터 세는 게 맞다 — expected_delivery_date(도착일)가
+      // 있으면 그걸, 없으면(수동 등록 등으로 미기재) base_date(구매일)로 폴백한다.
+      const anchor = arrivalAnchor(row);
       const instances: DeadlineInstance[] = [];
       if (row.return_deadline_days !== null) {
-        instances.push({ kind: 'RETURN', deadline: addDays(row.base_date, row.return_deadline_days), deliveryRound: null });
+        instances.push({ kind: 'RETURN', deadline: addDays(anchor, row.return_deadline_days), deliveryRound: null });
       }
       if (row.warranty_months !== null) {
-        instances.push({ kind: 'WARRANTY', deadline: addMonths(row.base_date, row.warranty_months), deliveryRound: null });
+        instances.push({ kind: 'WARRANTY', deadline: addMonths(anchor, row.warranty_months), deliveryRound: null });
       }
       // 둘 다 비어있는 건 정상적으론 없어야 하지만(등록 폼이 반품기한을 항상 기본값과 함께 보냄),
       // 방어적으로 반품기한 기본값(7일) 하나는 남겨서 기한이 아예 없는 항목이 생기지 않게 한다.
       if (instances.length === 0) {
-        instances.push({ kind: 'RETURN', deadline: addDays(row.base_date, DEFAULT_RETURN_DEADLINE_DAYS), deliveryRound: null });
+        instances.push({ kind: 'RETURN', deadline: addDays(anchor, DEFAULT_RETURN_DEADLINE_DAYS), deliveryRound: null });
       }
       return instances;
     }
     case 'RECURRING_DELIVERY':
     case 'SUBSCRIPTION': {
       const scheduleType = row.schedule_type ?? 'INTERVAL';
-      const anchor = scheduleAnchor(row);
+      const anchor = arrivalAnchor(row);
 
       if (scheduleType === 'FIXED_DAY') {
         // 매월 고정일 방식: 오늘 이후 가장 가까운 fixedDayOfMonth 날짜를 다음 일정으로 삼는다.
@@ -145,8 +155,9 @@ export function isValidArrivalDaysAgo(value: unknown): value is ArrivalDaysAgo {
 }
 
 /**
- * RECURRING_DELIVERY 전용 — "오늘 받으셨나요?"에 "받았어요"로 답했을 때, 그 실제 도착일을
- * 계산한다. 이 값이 새 expected_delivery_date(앵커)가 되어 이후 회차가 여기서부터 다시 계산된다.
+ * GENERAL/RECURRING_DELIVERY 전용 — "오늘 받으셨나요?"에 "받았어요"로 답했을 때, 그 실제 도착일을
+ * 계산한다. 이 값이 새 expected_delivery_date(앵커)가 된다 — RECURRING_DELIVERY는 이후 회차가
+ * 여기서부터 다시 계산되고, GENERAL은 반품기한·A/S보증 기산일이 이 날짜로 확정된다.
  */
 export function resolveArrivalDate(daysAgo: ArrivalDaysAgo): string {
   return addDays(todayDateOnly(), -daysAgo);

@@ -1304,6 +1304,15 @@ export default function DashboardPage() {
               첫 배송 예정일: 2026-07-28
             </span>
           </p>
+          <p className="forwarding-banner__recurring-hint">
+            📦 <strong>일반 배송(1회성 구매)을 등록하는 경우</strong>
+            <br />
+            메일 내용에 <strong>예상 도착일</strong>만 적어 보내주시면(배송 주기는 필요 없어요) 그
+            날짜를 기준으로 반품기한(7일)·A/S 보증(1년)을 계산해드려요. 도착일은 월일만 적어도(예:
+            8월 26일, 826) 올해로 알아서 인식돼요.
+            <br />
+            <span className="mono">예상 도착일: 8월 26일</span>
+          </p>
           <p className="forwarding-banner__privacy">
             🔒 전달하신 이메일은 상품명·날짜 추출을 위해 Claude API(Anthropic)로 처리되며, 처리 후
             원본은 저장되지 않습니다.
@@ -2103,6 +2112,13 @@ export default function DashboardPage() {
                 <p className="field__hint">
                   비워두면 구매일을 기준으로 계산해요. 스토어가 안내한(또는 원하는) 첫 배송 도착일을
                   적으면 이후 회차가 그 날짜 기준으로 반복돼요.
+                </p>
+              )}
+              {type === 'GENERAL' && (
+                <p className="field__hint">
+                  비워두면 구매일을 기준으로 계산해요. 적으면 반품기한(7일)·A/S 보증(1년)을 이
+                  날짜부터 계산해드려요 — 자세한 환불 가능 날짜와 A/S 보증 만료일은 구매하신
+                  스토어의 상세정보를 꼭 확인해주세요.
                 </p>
               )}
             </div>

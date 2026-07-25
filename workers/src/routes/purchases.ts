@@ -46,7 +46,8 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
     throw new BadRequestError('expectedDeliveryDate는 yyyy-MM-dd 형식이어야 합니다');
   }
   // SUBSCRIPTION은 실물 배송이 없어 도착일 개념 자체가 없다 — 값이 와도 저장하지 않는다.
-  // GENERAL은 순수 정보용(계산에 영향 없음), RECURRING_DELIVERY는 스케줄 앵커로 실제 쓰인다.
+  // GENERAL은 반품기한·A/S보증 기산일로, RECURRING_DELIVERY는 배송 사이클 앵커로 실제 쓰인다
+  // (둘 다 purchase-logic.ts computeDeadlines의 arrivalAnchor).
   const expectedDeliveryDate = body.type !== 'SUBSCRIPTION' ? (body.expectedDeliveryDate ?? null) : null;
   // 카테고리는 이제 모든 구매 유형에 적용된다.
   const category = body.category && PURCHASE_CATEGORIES.includes(body.category) ? body.category : null;

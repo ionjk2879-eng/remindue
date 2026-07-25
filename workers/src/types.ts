@@ -9,19 +9,22 @@ export const PURCHASE_CATEGORIES: readonly PurchaseCategory[] = ['SOFTWARE', 'AI
 
 /** RECURRING_DELIVERY(실물 정기배송)와 SUBSCRIPTION(디지털 정기구독)은 라벨/색상, 스케줄 방식
  *  선택(INTERVAL/FIXED_DAY)·회차·확인 버튼 등은 완전히 동일하다 — 이 둘을 묶어 판단할 때는
- *  항상 이 헬퍼를 쓴다. 단, 스케줄의 "앵커 날짜"만은 다르다 — usesArrivalAnchor 참고. */
+ *  항상 이 헬퍼를 쓴다. 단, 스케줄의 "앵커 날짜"만은 다르다 — usesArrivalDate 참고. */
 export function isRecurringType(type: PurchaseType): boolean {
   return type === 'RECURRING_DELIVERY' || type === 'SUBSCRIPTION';
 }
 
 /**
- * RECURRING_DELIVERY만 true — 실물 배송이라 스토어가 정한(또는 유저가 정한) "최초 도착(예정)일"이
- * 배송 사이클의 위상 기준점이고, base_date(구매/신청일)와는 별개다(구매 시점은 배송 주기와 무관한
- * 날일 수 있다). SUBSCRIPTION은 실물 배송 개념이 없어 여전히 base_date가 유일한 앵커다.
+ * GENERAL/RECURRING_DELIVERY만 true(=SUBSCRIPTION만 false) — 실물이 배송되는 두 타입은 스토어가
+ * 정한(또는 유저가 정한) "도착(예정)일"이 실질적인 기산점이고, base_date(구매/신청일)와는 별개다.
+ * RECURRING_DELIVERY는 이 날짜가 배송 사이클의 위상 기준점(구매 시점은 주기와 무관한 날일 수
+ * 있다), GENERAL은 반품기한(7일)·A/S 보증(1년) 기산점(보통 "받은 날"부터 세지 "결제한 날"부터
+ * 세지 않는다)으로 각각 다르게 쓰이지만, 앵커 자체(expected_delivery_date ?? base_date)는 같은
+ * 규칙이다. SUBSCRIPTION은 실물 배송 개념이 없어 여전히 base_date가 유일한 기준이다.
  * purchase-logic.ts computeDeadlines와 도착 확인 알림(arrival-confirm.ts) 대상 판정이 이 값을 쓴다.
  */
-export function usesArrivalAnchor(type: PurchaseType): boolean {
-  return type === 'RECURRING_DELIVERY';
+export function usesArrivalDate(type: PurchaseType): boolean {
+  return type !== 'SUBSCRIPTION';
 }
 
 // D1 row shape (snake_case columns from migrations/0001_init.sql)
@@ -42,11 +45,13 @@ export interface PurchaseRow {
   fixed_day_of_month: number | null;
   last_delivered_date: string | null;
   /**
-   * RECURRING_DELIVERY 전용 스케줄 앵커(usesArrivalAnchor) — "최초 도착(예정)일". NULL이면
-   * base_date(구매일)가 대신 앵커 역할을 한다(기존 행 호환). 도착 확인 알림에서 "받았어요 + N일
-   * 전"을 답하면 그 실제 도착일로 갱신되어 이후 회차가 그 날짜 기준으로 재정렬된다 — 이건 예전에
-   * 제거된 "last_delivered_date 기준 드리프트"(파일 상단 주석 참고)와 다르다: 여기서는 침묵이나
-   * 버튼 클릭 시점이 아니라 사용자가 명시적으로 답한 "실제 도착일"만 앵커를 옮긴다.
+   * GENERAL/RECURRING_DELIVERY 전용 도착(예정)일 앵커(usesArrivalDate). NULL이면 base_date(구매일)가
+   * 대신 앵커 역할을 한다(기존 행 호환). RECURRING_DELIVERY는 배송 사이클의 위상 기준점, GENERAL은
+   * 반품기한(7일)·A/S 보증(1년) 기산점으로 쓰인다(purchase-logic.ts computeDeadlines). 도착 확인
+   * 알림에서 "받았어요 + N일 전"을 답하면 그 실제 도착일로 갱신된다 — 이건 예전에 제거된
+   * "last_delivered_date 기준 드리프트"(파일 상단 주석 참고)와 다르다: 여기서는 침묵이나 버튼
+   * 클릭 시점이 아니라 사용자가 명시적으로 답한 "실제 도착일"만 앵커를 옮긴다. SUBSCRIPTION은
+   * 항상 NULL(실물 배송이 없어 도착일 개념 자체가 없다).
    */
   expected_delivery_date: string | null;
   /** "오늘 받으셨나요?" 알림에서 "아직요"를 누르면 내일 날짜가 채워져 하루 뒤 재발송 대상이 된다.
@@ -222,8 +227,8 @@ export interface PurchaseResponse {
   intervalDays: number | null;
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
-  /** RECURRING_DELIVERY 전용 스케줄 앵커("최초 도착(예정)일") — usesArrivalAnchor 참고. 그 외
-   *  타입/미지정이면 null(그런 경우 baseDate가 대신 앵커로 쓰인다). */
+  /** GENERAL/RECURRING_DELIVERY 전용 도착(예정)일 앵커 — usesArrivalDate 참고. SUBSCRIPTION/미지정이면
+   *  null(그런 경우 baseDate가 대신 앵커로 쓰인다). */
   expectedDeliveryDate: string | null;
   lastDeliveredDate: string | null;
   /** "가장 급한" 기한 — GENERAL이고 반품기한/A·S보증 둘 다 있으면 그 중 더 이른(지나지 않았다면
@@ -299,7 +304,7 @@ export interface PurchaseRequestBody {
   intervalDays?: number | null;
   scheduleType?: ScheduleType;
   fixedDayOfMonth?: number | null;
-  /** RECURRING_DELIVERY 전용 — usesArrivalAnchor 참고. 그 외 타입이면 무시된다. */
+  /** GENERAL/RECURRING_DELIVERY 전용 — usesArrivalDate 참고. SUBSCRIPTION이면 무시된다. */
   expectedDeliveryDate?: string | null;
   category?: PurchaseCategory | null;
   brand?: string | null;
