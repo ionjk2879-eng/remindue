@@ -1404,24 +1404,75 @@ button.summary-board__tile:hover {
 }
 
 .landing__guide {
-  max-width: 640px;
+  max-width: 680px;
   margin: 100px auto 0;
 }
 
-.landing__steps {
-  list-style: none;
-  margin: 36px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 44px;
+.landing__carousel {
+  margin-top: 36px;
 }
 
-.landing__step {
+.landing__carousel-row {
   display: flex;
-  gap: 18px;
+  align-items: center;
+  gap: 10px;
+}
+
+.landing__carousel-arrow {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--hairline);
+  background: var(--paper-card);
+  color: var(--ink);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.landing__carousel-arrow:hover:not(:disabled) {
+  border-color: var(--hairline-strong);
+  box-shadow: var(--shadow-rest);
+}
+
+.landing__carousel-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.landing__carousel-track {
+  flex: 1 1 auto;
+  display: flex;
   align-items: flex-start;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  transition: height 0.25s ease;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  min-width: 0;
+}
+
+.landing__carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.landing__slide {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
   text-align: left;
+  padding: 2px 4px;
+}
+
+.landing__step-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
 }
 
 .landing__step-num {
@@ -1439,27 +1490,21 @@ button.summary-board__tile:hover {
   font-size: 0.95rem;
 }
 
-.landing__step-body {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
 .landing__step-title {
-  font-size: 1.05rem;
-  margin: 0 0 6px;
+  font-size: 1.1rem;
+  margin: 0;
   word-break: keep-all;
 }
 
 .landing__step-desc {
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   line-height: 1.55;
   color: var(--ink-soft);
-  margin: 0 0 16px;
+  margin: 0 0 20px;
   word-break: keep-all;
 }
 
 .landing__step-img-wrap {
-  max-width: 420px;
   border-radius: var(--radius-card);
   border: 1px solid var(--hairline);
   box-shadow: var(--shadow-lift);
@@ -1475,28 +1520,70 @@ button.summary-board__tile:hover {
 .landing__stamps-row {
   display: flex;
   align-items: flex-end;
-  gap: 18px;
+  justify-content: center;
+  gap: 24px;
+  padding: 12px 0;
 }
 
 .landing__stamps-row img {
-  width: 86px;
+  width: 130px;
   height: auto;
   flex: 0 0 auto;
 }
 
+.landing__carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.landing__carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: var(--hairline-strong);
+  padding: 0;
+  cursor: pointer;
+}
+
+.landing__carousel-dot--active {
+  background: var(--ink);
+  width: 22px;
+  border-radius: 4px;
+}
+
 .landing__dashboard-peek {
-  max-width: 640px;
+  max-width: 800px;
   margin: 100px auto 0;
   text-align: center;
 }
 
-.landing__dashboard-peek img {
-  display: block;
-  width: 100%;
-  margin: 24px auto 0;
+.landing__summary-preview {
+  margin-top: 24px;
+  padding: 18px;
   border-radius: var(--radius-card);
   border: 1px solid var(--hairline);
   box-shadow: var(--shadow-lift);
+  background: var(--paper);
+  text-align: left;
+}
+
+.landing__summary-preview .summary-board {
+  margin-bottom: 0;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.landing__summary-preview .summary-board__label {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: keep-all;
+}
+
+.landing__summary-preview .summary-board__unit {
+  word-break: keep-all;
 }
 
 .landing__disclaimer {
@@ -1534,16 +1621,20 @@ button.summary-board__tile:hover {
     margin-top: 70px;
   }
 
-  .landing__step {
-    flex-direction: column;
+  .landing__carousel-arrow {
+    display: none;
   }
 
-  .landing__step-img-wrap {
-    max-width: 100%;
+  .landing__stamps-row {
+    gap: 14px;
   }
 
   .landing__stamps-row img {
-    width: 70px;
+    width: 90px;
+  }
+
+  .landing__summary-preview {
+    padding: 12px;
   }
 }
 
