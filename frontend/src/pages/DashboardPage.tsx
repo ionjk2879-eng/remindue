@@ -194,11 +194,11 @@ const CATEGORY_LABEL: Record<PurchaseCategory, string> = {
 
 const CATEGORY_ICON: Record<PurchaseCategory, string> = {
   SOFTWARE: '💻',
-  AI: '🤖',
+  AI: '✨',
   ENTERTAINMENT: '🎬',
-  SHOPPING: '🛒',
+  SHOPPING: '🛍️',
   FOOD: '🍽️',
-  CREATOR_SUPPORT: '💝',
+  CREATOR_SUPPORT: '🎁',
   CLOUD: '☁️',
   OTHER: '📦',
 };
