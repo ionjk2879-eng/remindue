@@ -886,6 +886,9 @@ export default function DashboardPage() {
       category,
       brand: brand.trim() || null,
       brandDomain: brand.trim() ? brandDomain : null,
+      originalAmount,
+      originalCurrency,
+      exchangeRate,
     };
     const confirmingPendingId = pendingConfirmId;
     try {
