@@ -89,9 +89,10 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
 
   const scrollToIndex = (index: number) => {
     const track = trackRef.current;
-    const slide = track?.children[index];
-    if (track && slide instanceof HTMLElement) {
-      track.scrollTo({ left: slide.offsetLeft, behavior: 'smooth' });
+    if (track) {
+      // 각 슬라이드는 flex: 0 0 100%라 index * clientWidth가 항상 정확한 위치다.
+      // slide.offsetLeft는 track에 position이 없어 엉뚱한 조상 기준으로 계산되어 어긋난다.
+      track.scrollTo({ left: index * track.clientWidth, behavior: 'smooth' });
     }
     setActive(index);
   };
