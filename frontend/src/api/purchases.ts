@@ -35,6 +35,11 @@ export async function discardPurchase(id: number) {
   await apiClient.post(`/purchases/${id}/discard`);
 }
 
+/** "지난 항목" 탭의 "전체 삭제" — 여러 건을 한 번에 discard. */
+export async function discardAllPurchases(ids: number[]) {
+  await apiClient.post('/purchases/discard-all', { ids });
+}
+
 export async function markDelivered(id: number) {
   const { data } = await apiClient.post<Purchase>(`/purchases/${id}/mark-delivered`);
   return data;

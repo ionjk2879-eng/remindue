@@ -388,4 +388,25 @@ purchases.post('/:id/discard', async (c) => {
   return c.body(null, 204);
 });
 
+/** "지난 항목" 탭의 "전체 삭제" — POST /:id/discard의 일괄 처리 버전(confirm-all과 동일한 패턴). */
+purchases.post('/discard-all', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const body = await c.req.json<{ ids?: number[] }>().catch(() => ({}) as { ids?: number[] });
+  const ids = Array.isArray(body.ids) ? body.ids.filter((id) => Number.isInteger(id)) : [];
+  if (ids.length === 0) throw new BadRequestError('ids는 1개 이상의 정수 배열이어야 합니다');
+
+  const owned: PurchaseRow[] = [];
+  for (const id of ids) {
+    owned.push(await getOwnedPurchase(c.env.DB, user.id, id));
+  }
+
+  await c.env.DB.batch(
+    owned.map((row) =>
+      c.env.DB.prepare(`UPDATE purchases SET discarded_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`).bind(row.id)
+    )
+  );
+
+  return c.body(null, 204);
+});
+
 export default purchases;

@@ -8,6 +8,7 @@ import {
   updatePurchase,
   deletePurchase,
   discardPurchase,
+  discardAllPurchases,
   markDelivered,
   confirmAllDelivered,
   discontinuePurchase,
@@ -194,11 +195,11 @@ const CATEGORY_LABEL: Record<PurchaseCategory, string> = {
 
 const CATEGORY_ICON: Record<PurchaseCategory, string> = {
   SOFTWARE: '💻',
-  AI: '✨',
+  AI: '🤖',
   ENTERTAINMENT: '🎬',
-  SHOPPING: '🛍️',
+  SHOPPING: '🛒',
   FOOD: '🍽️',
-  CREATOR_SUPPORT: '🎁',
+  CREATOR_SUPPORT: '💝',
   CLOUD: '☁️',
   OTHER: '📦',
 };
@@ -327,6 +328,16 @@ function missedRoundsFor(p: Purchase): number {
   return Math.max(0, confirmableRounds - p.deliveryConfirmCount);
 }
 
+/**
+ * "지난 항목" 판정 — GENERAL은 dDay<0(반품기한·A/S보증 다 지남)이면 해당된다. 정기배송/구독은
+ * computeDeadline이 매일 오늘 기준으로 다음 회차를 다시 계산해서 dDay가 사실상 음수로 남지
+ * 않으므로(자동으로 다음 회차로 넘어감), dDay만으로는 "갱신 안 됨"을 못 잡아낸다 —
+ * discontinuedAt("유지 안 함")이 유일하게 믿을 수 있는 신호다.
+ */
+function isOverdue(p: Purchase): boolean {
+  return p.dDay < 0 || (isRecurringType(p.type) && p.discontinuedAt !== null);
+}
+
 /** yyyy-MM-dd 문자열 기준으로 오늘까지 며칠 지났는지 — "몇 개월째 이용 중"류 표시에 쓴다. */
 function daysSinceBaseDate(baseDate: string): number {
   const start = new Date(`${baseDate}T00:00:00`).getTime();
@@ -434,7 +445,7 @@ export default function DashboardPage() {
   /** 종류 필터가 'ALL'이 아닐 때만 노출되는 2차 필터 — 'UNCATEGORIZED'는 category가 null인 항목. */
   const [filterCategory, setFilterCategory] = useState<'ALL' | 'UNCATEGORIZED' | PurchaseCategory>('ALL');
   const [purchasesPage, setPurchasesPage] = useState(1);
-  const [view, setView] = useState<'ACTIVE' | 'ARCHIVED' | 'SHARED'>('ACTIVE');
+  const [view, setView] = useState<'ACTIVE' | 'OVERDUE' | 'ARCHIVED' | 'SHARED'>('ACTIVE');
   const [archivedPurchases, setArchivedPurchases] = useState<Purchase[]>([]);
   const [acceptedShares, setAcceptedShares] = useState<SharedAccess[]>([]);
   const [selectedShareId, setSelectedShareId] = useState<number | null>(null);
@@ -861,6 +872,20 @@ export default function DashboardPage() {
     await loadSpendHistory();
   };
 
+  /** "지난 항목" 탭의 "전체 삭제" — 지금 그 탭에 보이는 항목 전부를 한 번에 삭제(취소 아님, 지출은 남음). */
+  const handleDiscardAll = async () => {
+    if (overdueItems.length === 0) return;
+    if (
+      !window.confirm(
+        `지난 항목 ${overdueItems.length}건을 한 번에 삭제할까요? 목록에서는 빠지지만, 이미 발생한 지출은 통계에 그대로 남아요.`
+      )
+    )
+      return;
+    await discardAllPurchases(overdueItems.map((p) => p.id));
+    await load();
+    await loadSpendHistory();
+  };
+
   const handleMarkDelivered = async (id: number) => {
     await markDelivered(id);
     await load();
@@ -1093,16 +1118,20 @@ export default function DashboardPage() {
     (p) => !priceChangePurchaseIds.has(p.id) && !reviewCandidateIds.has(p.id)
   );
 
+  /** "내 목록"(전체)은 지난 항목을 제외한다 — 지난 항목은 별도 탭(OVERDUE)에 모아둔다. */
+  const overdueItems = purchases.filter(isOverdue);
+  const nonOverduePurchases = purchases.filter((p) => !isOverdue(p));
+
   /** 이 종류(filterType) 안에 실제로 존재하는 카테고리만 2차 필터 칩으로 노출한다(빈 칩 방지). */
   const categoryFilterOptions: ('UNCATEGORIZED' | PurchaseCategory)[] =
     filterType === 'ALL'
       ? []
       : [
-          ...PURCHASE_CATEGORIES.filter((c) => purchases.some((p) => p.type === filterType && p.category === c)),
-          ...(purchases.some((p) => p.type === filterType && p.category === null) ? (['UNCATEGORIZED'] as const) : []),
+          ...PURCHASE_CATEGORIES.filter((c) => nonOverduePurchases.some((p) => p.type === filterType && p.category === c)),
+          ...(nonOverduePurchases.some((p) => p.type === filterType && p.category === null) ? (['UNCATEGORIZED'] as const) : []),
         ];
 
-  const displayedPurchases = purchases.filter((p) => {
+  const displayedPurchases = nonOverduePurchases.filter((p) => {
     if (filterType !== 'ALL' && p.type !== filterType) return false;
     if (filterCategory === 'ALL') return true;
     if (filterCategory === 'UNCATEGORIZED') return p.category === null;
@@ -2081,6 +2110,9 @@ export default function DashboardPage() {
         <button type="button" className={`view-tabs__btn${view === 'ACTIVE' ? ' view-tabs__btn--active' : ''}`} onClick={() => setView('ACTIVE')}>
           내 목록
         </button>
+        <button type="button" className={`view-tabs__btn${view === 'OVERDUE' ? ' view-tabs__btn--active' : ''}`} onClick={() => setView('OVERDUE')}>
+          지난 항목{overdueItems.length > 0 && <span className="mono"> {overdueItems.length}</span>}
+        </button>
         <button type="button" className={`view-tabs__btn${view === 'ARCHIVED' ? ' view-tabs__btn--active' : ''}`} onClick={() => setView('ARCHIVED')}>
           보관함
         </button>
@@ -2109,7 +2141,8 @@ export default function DashboardPage() {
         <>
           <div className="type-filter" role="tablist" aria-label="종류별 필터">
             {FILTER_OPTIONS.map((opt) => {
-              const count = opt.key === 'ALL' ? purchases.length : purchases.filter((p) => p.type === opt.key).length;
+              const count =
+                opt.key === 'ALL' ? nonOverduePurchases.length : nonOverduePurchases.filter((p) => p.type === opt.key).length;
               return (
                 <button
                   type="button"
@@ -2237,10 +2270,90 @@ export default function DashboardPage() {
           </div>
 
           {purchases.length === 0 && <p className="empty-state">등록된 항목이 없습니다.</p>}
-          {purchases.length > 0 && displayedPurchases.length === 0 && (
+          {purchases.length > 0 && nonOverduePurchases.length === 0 && (
+            <p className="empty-state">전부 지난 항목으로 옮겨갔어요 — "지난 항목" 탭에서 확인하세요.</p>
+          )}
+          {nonOverduePurchases.length > 0 && displayedPurchases.length === 0 && (
             <p className="empty-state">해당 종류의 항목이 없습니다.</p>
           )}
           <Pagination page={safePurchasesPage} totalPages={purchasesTotalPages} onPageChange={setPurchasesPage} />
+        </>
+      )}
+
+      {view === 'OVERDUE' && (
+        <>
+          <p className="register-form__hint" style={{ marginBottom: 14 }}>
+            반품기한·A/S보증이 다 지난 일반구매, "유지 안 함"으로 표시한 정기배송·구독이 여기
+            모여요 — 내 목록(전체)에는 안 보이지만 삭제하기 전까지는 계속 여기서 확인할 수 있고,
+            삭제해도 이미 발생한 지출은 통계에 남아요.
+          </p>
+          {overdueItems.length > 0 && (
+            <button type="button" className="btn btn-sm btn-outline" style={{ marginBottom: 14 }} onClick={handleDiscardAll}>
+              전체 삭제 ({overdueItems.length}건)
+            </button>
+          )}
+          <div className="ticket-list">
+            {overdueItems.map((p) => (
+              <div className="ticket-card" key={p.id}>
+                <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
+                <div className="ticket-card__body">
+                  <div className="ticket-card__type-row">
+                    <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
+                    {renderCategoryBadge(p)}
+                  </div>
+                  <div className="ticket-card__heading">
+                    {p.brand && <BrandAvatar brand={p.brand} brandDomain={p.brandDomain} />}
+                    <div className="ticket-card__heading-text">
+                      {p.brand && <span className="brand-kicker">{p.brand}</span>}
+                      <h3 className="ticket-card__title">{p.itemName}</h3>
+                    </div>
+                  </div>
+                  {isRecurringType(p.type) && p.deliveryRound !== null ? (
+                    <p className="ticket-card__deadline">
+                      다음 일정: <span className="mono">{p.deliveryRound}회차</span>
+                      {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
+                        ? ` · 매월 ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
+                        : ` (${formatShortDate(p.deadline)})`}
+                    </p>
+                  ) : (
+                    renderGeneralDeadlineLines(p)
+                  )}
+                  {p.amount !== null && (
+                    <p className="ticket-card__amount mono">
+                      {p.amount.toLocaleString('ko-KR')}원
+                      <FxHint originalAmount={p.originalAmount} originalCurrency={p.originalCurrency} exchangeRate={p.exchangeRate} />
+                    </p>
+                  )}
+                  <div className="ticket-card__actions">
+                    {isRecurringType(p.type) && p.discontinuedAt !== null && (
+                      <button className="btn-text" onClick={() => handleMarkDelivered(p.id)}>
+                        유지하기(재개)
+                      </button>
+                    )}
+                    <button className="btn-text" onClick={() => handleEditClick(p)}>
+                      수정
+                    </button>
+                    {isPremium && (
+                      <button className="btn-text" onClick={() => handleArchive(p.id)}>
+                        보관
+                      </button>
+                    )}
+                    <button className="btn-text" onClick={() => handleDiscard(p.id)}>
+                      삭제
+                    </button>
+                    <button className="btn-text" onClick={() => handleDelete(p.id)}>
+                      취소
+                    </button>
+                  </div>
+                </div>
+                <div className="ticket-card__perforation" aria-hidden="true" />
+                <div className="ticket-card__stub">
+                  <StampBadge dDay={p.dDay} seed={p.id} />
+                </div>
+              </div>
+            ))}
+          </div>
+          {overdueItems.length === 0 && <p className="empty-state">지난 항목이 없습니다.</p>}
         </>
       )}
 
