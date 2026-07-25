@@ -2196,6 +2196,30 @@ export default function DashboardPage() {
         )}
         {isRecurringType(type) && (
           <div className="register-form__row">
+            {scheduleType === 'INTERVAL' && (
+              <div className="field field--narrow">
+                <label htmlFor="intervalDays">주기(일)</label>
+                <input
+                  id="intervalDays"
+                  type="number"
+                  value={intervalDays}
+                  onChange={(e) => setIntervalDays(e.target.value)}
+                />
+              </div>
+            )}
+            {scheduleType === 'FIXED_DAY' && (
+              <div className="field field--narrow">
+                <label htmlFor="fixedDayOfMonth">매월 몇 일</label>
+                <input
+                  id="fixedDayOfMonth"
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={fixedDayOfMonth}
+                  onChange={(e) => setFixedDayOfMonth(e.target.value)}
+                />
+              </div>
+            )}
             <div className="field field--schedule">
               <span className="field__static-label">스케줄 방식</span>
               <div className="schedule-radio-group">
@@ -2221,38 +2245,9 @@ export default function DashboardPage() {
                 </label>
               </div>
             </div>
-            {scheduleType === 'INTERVAL' && (
-              <div className="field field--narrow">
-                <label htmlFor="intervalDays">주기(일)</label>
-                <input
-                  id="intervalDays"
-                  type="number"
-                  value={intervalDays}
-                  onChange={(e) => setIntervalDays(e.target.value)}
-                />
-              </div>
-            )}
-            {scheduleType === 'FIXED_DAY' && (
-              <div className="field field--narrow">
-                <label htmlFor="fixedDayOfMonth">매월 몇 일</label>
-                <input
-                  id="fixedDayOfMonth"
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={fixedDayOfMonth}
-                  onChange={(e) => setFixedDayOfMonth(e.target.value)}
-                />
-              </div>
-            )}
           </div>
         )}
 
-        {type === 'RECURRING_DELIVERY' && editingId === null && (
-          <p className="register-form__hint">
-            생수·밀키트·사료처럼 실물이 정기적으로 배송되는 항목이에요.
-          </p>
-        )}
         {type === 'SUBSCRIPTION' && editingId === null && (
           <p className="register-form__hint">
             넷플릭스·도메인/호스팅 갱신·멤버십처럼 실물 배송 없이 정기결제되는 항목이에요.
