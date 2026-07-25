@@ -23,6 +23,14 @@ export function sanitizeFixedDayOfMonth(day: number | null): number | null {
   return typeof day === 'number' && Number.isInteger(day) && day >= 1 && day <= 31 ? day : null;
 }
 
+/** yyyy-MM-dd 문자열에서 "일"만 뽑아낸다 — SUBSCRIPTION의 애매한 주기를 FIXED_DAY 기본값으로
+ *  되돌릴 때 어떤 날짜든(보통 주문일) 있으면 그 일자를 고정일 추정치로 쓴다. */
+export function dayOfMonthFrom(dateStr: string | null): number | null {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const day = Number(dateStr.slice(8, 10));
+  return day >= 1 && day <= 31 ? day : null;
+}
+
 /** AI가 준 금액이 비정상(음수·소수 등)이면 null로 되돌린다 — 0은 실제로 무료/이벤트 배송일 수 있어 유효하게 둔다. */
 export function sanitizeAmount(amount: number | null): number | null {
   return typeof amount === 'number' && Number.isInteger(amount) && amount >= 0 ? amount : null;
@@ -139,22 +147,38 @@ export async function buildPendingPurchaseFields(extracted: ExtractedOrder): Pro
   const sanitizedFixedDay =
     requestedScheduleType === 'FIXED_DAY' ? sanitizeFixedDayOfMonth(extracted.fixedDayOfMonth) : null;
 
-  // FIXED_DAY인데 fixedDayOfMonth가 sanitize에서 걸러졌으면(모델 오류) INTERVAL 추정치로 폴백한다 —
-  // 이 시점 이후로는 scheduleType이 확정값이다.
-  const scheduleType: 'INTERVAL' | 'FIXED_DAY' = requestedScheduleType === 'FIXED_DAY' && sanitizedFixedDay === null
+  // FIXED_DAY인데 fixedDayOfMonth가 sanitize에서 걸러졌으면(모델 오류) 일단 INTERVAL로 내려간다 —
+  // 바로 아래 SUBSCRIPTION 기본값 보정에서 다시 FIXED_DAY로 바뀔 수 있다.
+  let scheduleType: 'INTERVAL' | 'FIXED_DAY' = requestedScheduleType === 'FIXED_DAY' && sanitizedFixedDay === null
     ? 'INTERVAL'
     : requestedScheduleType;
-  const fixedDayOfMonth = scheduleType === 'FIXED_DAY' ? sanitizedFixedDay : null;
+  let fixedDayOfMonth = scheduleType === 'FIXED_DAY' ? sanitizedFixedDay : null;
 
   // INTERVAL로 확정됐는데 intervalDays가 없으면 — 원본에 주기가 전혀 없었다는 뜻이므로 30일
   // 기본 추정치로 채우고 scheduleEstimated=1로 표시한다. AI가 이미 scheduleEstimated=true를 준
   // 경우, 또는 FIXED_DAY에서 방금 폴백해온 경우도 여기서 함께 추정치 취급된다.
-  const intervalDays = isRecurringType(type) && scheduleType === 'INTERVAL' ? extracted.intervalDays ?? DEFAULT_INTERVAL_DAYS : null;
-  const scheduleEstimated: 0 | 1 =
+  let intervalDays = isRecurringType(type) && scheduleType === 'INTERVAL' ? extracted.intervalDays ?? DEFAULT_INTERVAL_DAYS : null;
+  let scheduleEstimated: 0 | 1 =
     isRecurringType(type) &&
     (extracted.scheduleEstimated || (scheduleType === 'INTERVAL' && extracted.intervalDays === null))
       ? 1
       : 0;
+
+  // SUBSCRIPTION 기본값 — 대부분의 정기구독은 결제일 기준 매월 특정일 고정 결제 방식을 쓴다
+  // (사용자 입장에서 가장 직관적이라 실사용 사례 대다수가 이 패턴이다). 그런데 위에서 주기가
+  // "모호한 추정치"(30일)로 남았다면, 프롬프트 지시만 믿지 않고 서버에서 한 번 더 FIXED_DAY로
+  // 밀어준다 — 이메일에서 뽑아낸 날짜(주문일)의 "일"을 그대로 고정일로 쓴다. 프롬프트가 이 케이스를
+  // 놓치더라도(모델이 매번 지시를 따르리라 보장할 수 없다) 항상 이 기본값이 적용되게 하기 위함.
+  // 이메일에 쓸 만한 날짜조차 없으면(orderDate도 null) 어쩔 수 없이 기존 INTERVAL=30 추정치로 남는다.
+  if (type === 'SUBSCRIPTION' && scheduleType === 'INTERVAL' && scheduleEstimated === 1) {
+    const fallbackDay = dayOfMonthFrom(extracted.orderDate);
+    if (fallbackDay !== null) {
+      scheduleType = 'FIXED_DAY';
+      fixedDayOfMonth = fallbackDay;
+      intervalDays = null;
+      scheduleEstimated = 1;
+    }
+  }
 
   const brand = typeof extracted.brand === 'string' && extracted.brand.trim() ? extracted.brand.trim() : null;
 
