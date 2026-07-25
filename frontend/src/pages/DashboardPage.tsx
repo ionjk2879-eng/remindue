@@ -2080,7 +2080,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="field">
+          <div className="field field--wide">
             <label htmlFor="itemName">항목명</label>
             <input
               id="itemName"
