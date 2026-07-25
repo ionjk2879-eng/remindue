@@ -2085,11 +2085,36 @@ button.summary-board__tile:hover {
   white-space: nowrap;
 }
 
-.schedule-radio input[type="radio"] {
-  accent-color: var(--primary);
+/* notification-day-option과 같은 동그라미 표시로 통일한다 — accent-color: var(--primary)는
+   --primary가 정의된 적이 없어서 실제로는 브라우저 기본색(파란색)으로 보이던 죽은 코드였다. */
+.schedule-radio input[type="radio"],
+.schedule-radio input[type="checkbox"] {
+  appearance: none;
   width: 16px;
   height: 16px;
+  margin: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--hairline-strong);
+  background: var(--paper-card);
+  flex-shrink: 0;
   cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.schedule-radio input[type="radio"]:checked,
+.schedule-radio input[type="checkbox"]:checked {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+.schedule-radio input[type="radio"]:checked::after,
+.schedule-radio input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--paper-card);
 }
 
 /* --------------------------------------------------------------------------
