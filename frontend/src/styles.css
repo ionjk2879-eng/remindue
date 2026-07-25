@@ -2248,7 +2248,7 @@ button.summary-board__tile:hover {
   background: var(--paper-card);
   border: 1px solid var(--hairline);
   border-radius: var(--radius-card);
-  padding: 18px 20px;
+  padding: 16px 18px;
   margin-bottom: 28px;
   box-shadow: var(--shadow-rest);
 }
@@ -2259,7 +2259,7 @@ button.summary-board__tile:hover {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-soft);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .register-form__toggle {
@@ -2300,7 +2300,7 @@ button.summary-board__tile:hover {
  */
 .register-form__row {
   display: flex;
-  gap: 14px;
+  gap: 10px;
   flex-wrap: wrap;
   /* flex-start(위쪽 정렬)로 둬야 field__hint(도착일 필드 아래 안내문)처럼 일부 필드만 세로로
      더 길어져도 다른 필드의 라벨·입력창 위치가 같은 줄에서 밀려나지 않는다. */
@@ -2308,7 +2308,7 @@ button.summary-board__tile:hover {
 }
 
 .register-form__row + .register-form__row {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .register-form__row .field {
@@ -2321,6 +2321,12 @@ button.summary-board__tile:hover {
      110px였을 때는 이 옵션 텍스트가 화살표 아이콘과 겹쳐 보였다. */
   flex: 0 1 170px;
   min-width: 150px;
+}
+
+/* 금액 — 숫자만 들어가는 좁은 입력이라 다른 narrow 필드(select 등)만큼 폭이 필요 없다. */
+.register-form__row .field--amount {
+  flex: 0 1 110px;
+  min-width: 90px;
 }
 
 /* 항목명 — 같은 줄엔 이제 "종류"뿐이라 남는 폭을 전부 가져가게 둔다. */
@@ -2370,7 +2376,7 @@ button.summary-board__tile:hover {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-top: 20px;
+  margin-top: 14px;
 }
 
 /* 대시보드 수동 등록 폼 — 앱 전역 .field의 밑줄(border-bottom) 대신 문의 게시판/설정과 같은
@@ -2400,7 +2406,7 @@ button.summary-board__tile:hover {
 }
 
 .register-form__hint {
-  margin-top: 16px;
+  margin-top: 12px;
   font-size: 0.8rem;
   color: var(--ink-soft);
   line-height: 1.6;

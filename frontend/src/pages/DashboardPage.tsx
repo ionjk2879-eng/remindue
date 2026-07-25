@@ -2132,7 +2132,7 @@ export default function DashboardPage() {
 
         {/* 금액 + 카테고리 — 모든 종류에 공통인 일반 필드. */}
         <div className="register-form__row">
-          <div className="field field--narrow">
+          <div className="field field--amount">
             <label htmlFor="amount">금액(원)</label>
             <input
               id="amount"
