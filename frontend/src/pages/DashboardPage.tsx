@@ -519,6 +519,28 @@ export default function DashboardPage() {
     setPendingItems(data.items);
   };
 
+  /**
+   * 등록/수정 응답으로 이미 받은 최신 Purchase를 캐시·상태에 바로 반영한다 — 등록·수정 직후
+   * load()/loadSpendHistory()로 목록 전체를 다시 GET하지 않아도 되게 해서(서버가 이미 정확한
+   * 값을 돌려줬으니 다시 물어볼 필요가 없다) 등록 체감 속도를 올린다. 새 항목이면 추가 후
+   * dDay 기준으로 재정렬(서버 목록 조회와 같은 정렬 규칙), 기존 항목이면 해당 id만 교체한다.
+   */
+  const applyPurchaseUpsert = (purchase: Purchase) => {
+    setPurchases((prev) => {
+      const exists = prev.some((p) => p.id === purchase.id);
+      const next = (exists ? prev.map((p) => (p.id === purchase.id ? purchase : p)) : [...prev, purchase]).sort(
+        (a, b) => a.dDay - b.dDay
+      );
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    setSpendHistoryPurchases((prev) =>
+      prev.some((p) => p.id === purchase.id) ? prev.map((p) => (p.id === purchase.id ? purchase : p)) : [...prev, purchase]
+    );
+  };
+
   const loadArchived = async () => {
     const data = await fetchPurchases({ archived: true });
     setArchivedPurchases(data);
@@ -807,7 +829,9 @@ export default function DashboardPage() {
     if (pendingConfirmId === id) {
       resetForm();
     }
-    await loadPending();
+    // 서버가 이미 처리를 끝냈으니 목록을 통째로 다시 GET(loadPending)하지 않고 그 항목만 바로 빼서
+    // 체감 속도를 올린다.
+    setPendingItems((items) => items.filter((item) => item.id !== id));
   };
 
   /** 가격 인상 감지 카드의 "가격 반영" — 새 항목을 만들지 않고 매칭된 기존 항목의 금액만 갱신한다. */
@@ -899,19 +923,21 @@ export default function DashboardPage() {
     const confirmingPendingId = pendingConfirmId;
     try {
       if (editingId !== null) {
-        await updatePurchase(editingId, input);
+        const updated = await updatePurchase(editingId, input);
+        applyPurchaseUpsert(updated);
       } else {
-        await createPurchase(input);
+        // 등록과 "확인 대기 처리"는 서로 독립적인 호출이라 동시에 보낸다(순차 대기 X) —
+        // 응답으로 이미 최신 Purchase를 받으므로 이후 목록 재조회(load 등)도 생략한다.
+        const [created] = await Promise.all([
+          createPurchase(input),
+          confirmingPendingId !== null ? confirmPendingPurchase(confirmingPendingId) : Promise.resolve(),
+        ]);
+        applyPurchaseUpsert(created);
         if (confirmingPendingId !== null) {
-          await confirmPendingPurchase(confirmingPendingId);
+          setPendingItems((items) => items.filter((item) => item.id !== confirmingPendingId));
         }
       }
       resetForm();
-      await load();
-      await loadSpendHistory();
-      if (confirmingPendingId !== null) {
-        await loadPending();
-      }
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 402) {
         setErrorMessage(err.response.data?.message ?? '무료 플랜 등록 개수를 초과했습니다.');
