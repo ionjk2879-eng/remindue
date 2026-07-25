@@ -185,9 +185,12 @@ const EXTRACTION_SCHEMA = {
         'estimatedType이 RECURRING_DELIVERY 또는 SUBSCRIPTION일 때만 의미 있다. ' +
         '"매월 N일", "매월 N일에 자동결제", "every month on the Nth" 처럼 달력의 특정 날짜(1~31)가 고정된 방식이거나, ' +
         'RECURRING_DELIVERY에서 사용자가 직접 적은 "고정 N일"/"매월 N일 고정"(며칠마다가 아니라 매월 특정일에 고정으로 오는 정기배송) 표기가 있으면 FIXED_DAY. ' +
-        '해외 SaaS/Stripe식 영수증처럼 "Paid <Month> <Day>, <Year>" + 청구 기간 "<Mon Day> – <Mon Day>, <Year>"이 ' +
-        '한 달 간격이고 시작일=결제일이면(예: "Paid June 18, 2026" + "Jun 18 – Jul 18, 2026") 이것도 FIXED_DAY다 ' +
-        '(30일 근사치로 뭉개면 안 됨 — 달마다 일수가 달라 누적 오차가 생긴다). ' +
+        '"매월 N일"이라고 명시하지 않아도, 결제 관련 날짜 2개(결제일-다음 결제 예정일, 또는 ' +
+        '청구 기간의 시작-종료일)가 한 달 간격이고 같은 일(day)이면 FIXED_DAY다 — "이용기간"이 ' +
+        '결제일 당일부터인지 다음 날부터인지는 서비스마다 달라 무시하고, 실제 결제 이벤트 날짜끼리만 ' +
+        '비교해라(예: "결제일 2026.07.09" + "다음 결제 예정일 2026.08.09" → fixedDayOfMonth=9. ' +
+        '"Paid June 18, 2026" + "Jun 18 – Jul 18, 2026" → fixedDayOfMonth=18). ' +
+        '30일 근사치로 뭉개면 안 됨 — 달마다 일수가 달라 누적 오차가 생긴다. ' +
         '"매월"(일 미지정), "4주마다", "30일마다", "매주" 등 간격(일수) 기반이면 INTERVAL. ' +
         'RECURRING_DELIVERY/SUBSCRIPTION이 아니거나 판단 불가능하면 INTERVAL(기본값).',
     },
@@ -333,15 +336,24 @@ fixedDayOfMonth=N, intervalDays=null, scheduleEstimated=false
 예시: "15일에 청구됩니다" + 월 단위 구독 → FIXED_DAY, fixedDayOfMonth=15
 예시: "고정 20일" → FIXED_DAY, fixedDayOfMonth=20
 
-**해외 SaaS/스트라이프(Stripe)식 영수증 — "Paid <Month> <Day>, <Year>" + 청구 기간
-"<Mon Day> – <Mon Day>, <Year>"도 FIXED_DAY 신호다**: "매월 N일"이라고 명시적으로 안 써 있어도,
-결제일과 청구 기간의 시작일이 같은 날짜(일)이고 기간이 정확히 한 달 간격이면(예: 시작 6/18,
-종료 7/18) 매달 그 날짜에 결제되는 고정 주기라는 뜻이다 → scheduleType=FIXED_DAY,
-fixedDayOfMonth=그 날짜, intervalDays=null. INTERVAL(30일 근사치)로 대충 처리하지 마라 — 30일은
-실제 매월 날짜와 조금씩 어긋나서(2월은 28일, 31일까지 있는 달도 있음) 여러 달 누적되면 실제
-결제일과 계산값이 벌어진다.
-예시: "Paid June 18, 2026" + "Jun 18 – Jul 18, 2026" → FIXED_DAY, fixedDayOfMonth=18
-(intervalDays=30이 아니다).
+**"결제일"이라고 명시적으로 안 써 있어도, 결제(예정) 관련 날짜 2개가 한 달 간격 + 같은 일(day)이면
+FIXED_DAY다 — 이게 가장 신뢰할 수 있는 신호다.** 구독 영수증은 "매월 N일"이라고 대놓고 말하는
+대신 결제일/다음 결제일, 또는 "이용기간"(서비스 사용 구간) 같은 표현으로 대신하는 경우가 많고,
+이 "이용기간"이 결제일과 같은 날 시작하는지 다음 날부터 시작하는지는 서비스마다 다르다 — 그 차이는
+무시하고, 아래처럼 실제 "결제" 이벤트에 해당하는 날짜들만 비교해라:
+- **결제일 vs 다음 결제 예정일**을 직접 준 경우 → 그 둘을 비교. 한 달 간격 + 같은 일이면 FIXED_DAY.
+  예시(한국어 정기결제 영수증): "결제일 2026.07.09" + "다음 결제 예정일 2026.08.09" → FIXED_DAY,
+  fixedDayOfMonth=9. ("이용기간 2026.07.10~2026.08.09"처럼 이용기간이 결제일 다음 날부터
+  시작해도 상관없다 — 결제일 자체끼리 비교했으므로 무관하다.)
+- **"Paid <Date>" + 청구 기간(period) "<시작> – <종료>"**만 주어진 경우(다음 결제일이 따로 없음)
+  → 청구 기간의 시작일과 종료일을 비교(둘 다 결제 이벤트를 감싸는 날짜라 한 달 간격이면 그대로
+  고정 주기 신호). 이때 결제일(Paid 날짜)은 보통 기간 시작일과 같지만, 그것도 서비스마다 다를 수
+  있으니 몇 일에 결제했는지보다 기간의 시작–종료 날짜 자체(같은 일, 한 달 간격)를 근거로 삼아라.
+  예시(Stripe식 해외 SaaS): "Paid June 18, 2026" + "Jun 18 – Jul 18, 2026" → FIXED_DAY,
+  fixedDayOfMonth=18.
+판단되면 scheduleType=FIXED_DAY, fixedDayOfMonth=그 날짜, intervalDays=null.
+INTERVAL(30일 근사치)로 뭉개지 마라 — 30일은 실제 매월 날짜와 조금씩 어긋나서(2월은 28일, 31일
+까지 있는 달도 있음) 여러 달 누적되면 실제 결제일과 계산값이 벌어진다.
 
 **INTERVAL 판단**: 간격 기반 (일/주/월/년 단위 간격) → scheduleType=INTERVAL, fixedDayOfMonth=null
 intervalDays 변환 기준:
