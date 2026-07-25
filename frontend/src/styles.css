@@ -2311,6 +2311,21 @@ button.summary-board__tile:hover {
   margin-top: 12px;
 }
 
+/*
+ * 날짜 줄은 두 칸(구매일 쪽/도착일 쪽)이 각자 세로로 한 단씩 더 쌓인다 — 왼쪽 칸은 구매일 아래
+ * 금액+카테고리, 오른쪽 칸은 도착일 아래 안내 힌트(정기배송/일반구매마다 문구 길이가 다르다).
+ * 칸 내부 간격(gap)을 두 칸 다 똑같이 주면, 힌트가 몇 줄이든 상관없이 "금액/카테고리 줄"이
+ * "힌트 문구"와 같은 높이에서 시작한다 — 도착일 필드 하나에 힌트까지 다 들어있던 예전 구조에서는
+ * 그만큼 구매일 쪽 아래에 빈 공간이 남았었다.
+ */
+.register-form__col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1 1 200px;
+  min-width: 170px;
+}
+
 .register-form__row .field {
   flex: 1 1 140px;
   min-width: 120px;

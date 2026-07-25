@@ -2094,25 +2094,60 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 날짜 두 개(구매일/시작일 + 예상 도착일) — 나란히 같은 폭으로. 도착일 힌트는 이 줄
-            안에서만 세로로 늘어나고 다른 줄에는 영향을 주지 않는다(줄이 분리되어 있으므로). */}
+        {/*
+          왼쪽 칸: 구매일/시작일 → 그 아래 금액+카테고리. 오른쪽 칸: 예상 도착일 → 그 아래 힌트
+          문구(정기배송/일반구매마다 문구 길이가 다르다). 두 칸을 나란한 세로 스택으로 두면, 힌트가
+          몇 줄이든 상관없이 "구매일 아래 금액/카테고리"가 "도착일 아래 힌트"와 같은 높이에서
+          시작한다(register-form__col의 gap이 두 칸에서 동일하고, 위쪽 아이템 높이도 같으므로) —
+          예전엔 도착일+힌트가 한 필드 통째로 있어서 그 옆(구매일 쪽) 아래에 빈 공간이 생겼었다.
+          SUBSCRIPTION은 오른쪽 칸(도착일) 자체가 없어서 왼쪽 칸만 폭을 넓게 채운다.
+        */}
         <div className="register-form__row">
-          <div className="field field--date">
-            <label htmlFor="baseDate">
-              {type === 'SUBSCRIPTION' ? '시작일' : '구매일'}
-            </label>
-            <input id="baseDate" type="date" value={baseDate} onChange={(e) => setBaseDate(e.target.value)} required />
+          <div className="register-form__col">
+            <div className="field field--date">
+              <label htmlFor="baseDate">
+                {type === 'SUBSCRIPTION' ? '시작일' : '구매일'}
+              </label>
+              <input id="baseDate" type="date" value={baseDate} onChange={(e) => setBaseDate(e.target.value)} required />
+            </div>
+
+            <div className="register-form__row">
+              <div className="field field--amount">
+                <label htmlFor="amount">금액(원)</label>
+                <input
+                  id="amount"
+                  type="number"
+                  min={0}
+                  placeholder="선택 입력"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </div>
+
+              <div className="field field--narrow">
+                <label htmlFor="category">카테고리</label>
+                <select id="category" value={category} onChange={(e) => setCategory(e.target.value as PurchaseCategory)}>
+                  {PURCHASE_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {CATEGORY_ICON[c]} {CATEGORY_LABEL[c]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           {type !== 'SUBSCRIPTION' && (
-            <div className="field field--date">
-              <label htmlFor="expectedDeliveryDate">예상 도착일{type === 'RECURRING_DELIVERY' ? ' (배송 주기 기준일)' : ''}</label>
-              <input
-                id="expectedDeliveryDate"
-                type="date"
-                value={expectedDeliveryDate}
-                onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-              />
+            <div className="register-form__col">
+              <div className="field field--date">
+                <label htmlFor="expectedDeliveryDate">예상 도착일{type === 'RECURRING_DELIVERY' ? ' (배송 주기 기준일)' : ''}</label>
+                <input
+                  id="expectedDeliveryDate"
+                  type="date"
+                  value={expectedDeliveryDate}
+                  onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+                />
+              </div>
               {type === 'RECURRING_DELIVERY' && (
                 <p className="field__hint">
                   비워두면 구매일을 기준으로 계산해요. 스토어가 안내한(또는 원하는) 첫 배송 도착일을
@@ -2128,32 +2163,6 @@ export default function DashboardPage() {
               )}
             </div>
           )}
-        </div>
-
-        {/* 금액 + 카테고리 — 모든 종류에 공통인 일반 필드. */}
-        <div className="register-form__row">
-          <div className="field field--amount">
-            <label htmlFor="amount">금액(원)</label>
-            <input
-              id="amount"
-              type="number"
-              min={0}
-              placeholder="선택 입력"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-
-          <div className="field field--narrow">
-            <label htmlFor="category">카테고리</label>
-            <select id="category" value={category} onChange={(e) => setCategory(e.target.value as PurchaseCategory)}>
-              {PURCHASE_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {CATEGORY_ICON[c]} {CATEGORY_LABEL[c]}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {/* 종류별 전용 필드 — GENERAL은 반품기한·A/S, 정기배송/구독은 스케줄 방식·주기. 둘 다
