@@ -2045,12 +2045,12 @@ button.summary-board__tile:hover {
   background: var(--paper-card);
   border: 1px dashed var(--hairline-strong);
   border-radius: var(--radius-sm);
-  padding: 12px 18px;
+  padding: 14px 18px;
   margin-bottom: 22px;
 }
 
 .forwarding-banner__label {
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--ink-soft);
@@ -2060,17 +2060,28 @@ button.summary-board__tile:hover {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 4px;
+  margin-top: 8px;
   flex-wrap: wrap;
 }
 
+/* 한눈에 알아보고 바로 복사할 수 있게 — 주소를 눈에 띄는 "코드 배지" 형태로 키웠다. */
 .forwarding-banner__address {
-  font-size: 0.92rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: var(--ink);
+  background: var(--paper);
+  border: 1.5px solid var(--hairline-strong);
+  border-radius: 8px;
+  padding: 8px 14px;
   min-width: 0;
   overflow-wrap: break-word;
   word-break: break-all;
+}
+
+/* 주소 옆 "복사" — 가장 하고 싶은 행동이라 눈에 띄는 버튼으로, "재생성"(btn-text 그대로)보다
+   우선순위를 높였다. */
+.forwarding-banner__copy {
+  flex-shrink: 0;
 }
 
 .forwarding-banner__hint {

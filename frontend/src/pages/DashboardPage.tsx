@@ -1311,8 +1311,8 @@ export default function DashboardPage() {
           <span className="forwarding-banner__label">📧 주문확인 메일 자동 등록 주소</span>
           <div className="forwarding-banner__row">
             <span className="mono forwarding-banner__address">{forwardingEmail}</span>
-            <button type="button" className="btn-text" onClick={handleCopyForwardingEmail}>
-              {addressCopied ? '복사됨' : '복사'}
+            <button type="button" className="btn btn-sm forwarding-banner__copy" onClick={handleCopyForwardingEmail}>
+              {addressCopied ? '복사됨 ✓' : '📋 복사'}
             </button>
             <button type="button" className="btn-text" onClick={handleRegenerateForwardingAddress} disabled={regenerating}>
               {regenerating ? '재생성 중...' : '재생성'}
