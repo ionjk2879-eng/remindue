@@ -185,6 +185,9 @@ const EXTRACTION_SCHEMA = {
         'estimatedType이 RECURRING_DELIVERY 또는 SUBSCRIPTION일 때만 의미 있다. ' +
         '"매월 N일", "매월 N일에 자동결제", "every month on the Nth" 처럼 달력의 특정 날짜(1~31)가 고정된 방식이거나, ' +
         'RECURRING_DELIVERY에서 사용자가 직접 적은 "고정 N일"/"매월 N일 고정"(며칠마다가 아니라 매월 특정일에 고정으로 오는 정기배송) 표기가 있으면 FIXED_DAY. ' +
+        '해외 SaaS/Stripe식 영수증처럼 "Paid <Month> <Day>, <Year>" + 청구 기간 "<Mon Day> – <Mon Day>, <Year>"이 ' +
+        '한 달 간격이고 시작일=결제일이면(예: "Paid June 18, 2026" + "Jun 18 – Jul 18, 2026") 이것도 FIXED_DAY다 ' +
+        '(30일 근사치로 뭉개면 안 됨 — 달마다 일수가 달라 누적 오차가 생긴다). ' +
         '"매월"(일 미지정), "4주마다", "30일마다", "매주" 등 간격(일수) 기반이면 INTERVAL. ' +
         'RECURRING_DELIVERY/SUBSCRIPTION이 아니거나 판단 불가능하면 INTERVAL(기본값).',
     },
@@ -329,6 +332,16 @@ fixedDayOfMonth=N, intervalDays=null, scheduleEstimated=false
 예시: "매월 1일 자동결제됩니다" → FIXED_DAY, fixedDayOfMonth=1
 예시: "15일에 청구됩니다" + 월 단위 구독 → FIXED_DAY, fixedDayOfMonth=15
 예시: "고정 20일" → FIXED_DAY, fixedDayOfMonth=20
+
+**해외 SaaS/스트라이프(Stripe)식 영수증 — "Paid <Month> <Day>, <Year>" + 청구 기간
+"<Mon Day> – <Mon Day>, <Year>"도 FIXED_DAY 신호다**: "매월 N일"이라고 명시적으로 안 써 있어도,
+결제일과 청구 기간의 시작일이 같은 날짜(일)이고 기간이 정확히 한 달 간격이면(예: 시작 6/18,
+종료 7/18) 매달 그 날짜에 결제되는 고정 주기라는 뜻이다 → scheduleType=FIXED_DAY,
+fixedDayOfMonth=그 날짜, intervalDays=null. INTERVAL(30일 근사치)로 대충 처리하지 마라 — 30일은
+실제 매월 날짜와 조금씩 어긋나서(2월은 28일, 31일까지 있는 달도 있음) 여러 달 누적되면 실제
+결제일과 계산값이 벌어진다.
+예시: "Paid June 18, 2026" + "Jun 18 – Jul 18, 2026" → FIXED_DAY, fixedDayOfMonth=18
+(intervalDays=30이 아니다).
 
 **INTERVAL 판단**: 간격 기반 (일/주/월/년 단위 간격) → scheduleType=INTERVAL, fixedDayOfMonth=null
 intervalDays 변환 기준:

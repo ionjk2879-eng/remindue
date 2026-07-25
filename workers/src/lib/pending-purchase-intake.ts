@@ -66,6 +66,25 @@ export function sanitizeOriginalAmount(currency: string | null, amount: number |
 }
 
 /**
+ * Frankfurter(api.frankfurter.dev)에 환율 하나를 물어본다. dateStr을 생략하면(또는 그 날짜에
+ * 데이터가 없어 빈 배열이 오면) 최신 환율로 폴백한다 — 이 API는 date 파라미터를 아예 생략해야
+ * "최신"으로 취급하고, 예전에 여기서 쓰던 literal 문자열 "latest"를 date에 넣으면 422(invalid
+ * date)로 거절당해 환율 조회 자체가 실패했었다(주문일을 못 뽑아낸 이메일마다 환산이 조용히
+ * 실패하던 원인). 미래 날짜처럼 그 날짜에 데이터가 없는 경우도 200과 함께 빈 배열이 와서, 이때도
+ * 최신 환율로 다시 시도한다.
+ */
+async function fetchKrwRate(currency: string, dateStr?: string): Promise<number | null> {
+  const url = dateStr
+    ? `https://api.frankfurter.dev/v2/rates?date=${dateStr}&base=${currency}&quotes=KRW`
+    : `https://api.frankfurter.dev/v2/rates?base=${currency}&quotes=KRW`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = await res.json<Array<{ rate?: number }>>();
+  const rate = data[0]?.rate;
+  return typeof rate === 'number' && Number.isFinite(rate) && rate > 0 ? rate : null;
+}
+
+/**
  * Frankfurter(ECB 공시환율 기반, 무료·API 키 불필요)로 결제일 기준 원화 환산 금액을 구한다.
  * "7달러=7원"처럼 잘못 저장하는 걸 막기 위한 핵심 로직 — 네트워크 실패·미지원 통화 등 어떤
  * 이유로든 실패하면 null을 돌려주고, 호출부가 amount=null(미확인)로 안전하게 폴백한다.
@@ -75,15 +94,10 @@ export async function convertToKrw(
   originalAmount: number,
   orderDate: string | null
 ): Promise<{ amountKrw: number; rate: number } | null> {
-  const datePart = orderDate && /^\d{4}-\d{2}-\d{2}$/.test(orderDate) ? orderDate : 'latest';
   try {
-    const res = await fetch(
-      `https://api.frankfurter.dev/v2/rates?date=${datePart}&base=${currency}&quotes=KRW`
-    );
-    if (!res.ok) return null;
-    const data = await res.json<Array<{ rate?: number }>>();
-    const rate = data[0]?.rate;
-    if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) return null;
+    const hasValidDate = orderDate !== null && /^\d{4}-\d{2}-\d{2}$/.test(orderDate);
+    const rate = (hasValidDate ? await fetchKrwRate(currency, orderDate!) : null) ?? (await fetchKrwRate(currency));
+    if (rate === null) return null;
     return { amountKrw: Math.round(originalAmount * rate), rate };
   } catch {
     return null;
