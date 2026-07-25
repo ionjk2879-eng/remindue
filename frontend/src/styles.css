@@ -2291,15 +2291,24 @@ button.summary-board__tile:hover {
   line-height: 1;
 }
 
+/*
+ * 등록 폼은 "종류+항목명" / "날짜 2개" / "금액+카테고리" / "종류별 전용 필드" 순서로 여러 개의
+ * register-form__row가 세로로 쌓이는 구조다(DashboardPage.tsx) — 예전엔 이 전부가 필드 개수가
+ * 다른 하나의 flex-wrap 줄에 뒤섞여 있어서(정기배송/구독/일반구매마다 필드 조합이 다르다 보니)
+ * 종류에 따라 줄바꿈 지점이 들쭉날쭉하고 항목명 폭도 좁아졌다. 의미 단위로 줄을 미리 나눠두면
+ * 어떤 종류를 선택해도 같은 자리(날짜 줄, 금액/카테고리 줄 등)에 필드가 나온다.
+ */
 .register-form__row {
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
   /* flex-start(위쪽 정렬)로 둬야 field__hint(도착일 필드 아래 안내문)처럼 일부 필드만 세로로
-     더 길어져도 다른 필드의 라벨·입력창 위치가 같은 줄에서 밀려나지 않는다. flex-end였을 때는
-     같은 줄에 있는 짧은 필드가 옆의 긴(힌트 붙은) 필드 바닥에 맞춰져 라벨/입력창이 서로 다른
-     높이에서 시작하는 것처럼 어긋나 보였다. */
+     더 길어져도 다른 필드의 라벨·입력창 위치가 같은 줄에서 밀려나지 않는다. */
   align-items: flex-start;
+}
+
+.register-form__row + .register-form__row {
+  margin-top: 16px;
 }
 
 .register-form__row .field {
@@ -2314,16 +2323,23 @@ button.summary-board__tile:hover {
   min-width: 150px;
 }
 
-/* 항목명 — 다른 좁은 필드들과 같은 줄에 있다 보니 기본 .field 폭으로는 긴 상품명이 잘려 보였다.
-   같은 줄의 나머지 필드보다 더 많은 여유 폭을 가져가게 기본 필드보다 넓은 flex-grow/최소폭을 준다. */
+/* 항목명 — 같은 줄엔 이제 "종류"뿐이라 남는 폭을 전부 가져가게 둔다. */
 .register-form__row .field--wide {
-  flex: 2 1 240px;
+  flex: 3 1 240px;
   min-width: 220px;
 }
 
 .register-form__row .field--date {
-  flex: 0 1 180px;
+  /* 날짜 줄엔 최대 2개(구매일/시작일 + 예상 도착일)뿐이라 균등하게 반반 나눠 가지면서 늘어난다. */
+  flex: 1 1 200px;
   min-width: 170px;
+}
+
+/* 정기배송/구독의 "스케줄 방식" 라디오 그룹 — 옵션 문구가 길어서(매월 특정일 고정) narrow보다
+   넉넉한 폭이 필요하다. */
+.register-form__row .field--schedule {
+  flex: 1 1 260px;
+  min-width: 240px;
 }
 
 .field__hint {
@@ -2333,18 +2349,28 @@ button.summary-board__tile:hover {
   line-height: 1.4;
 }
 
-/* register-form__hint가 필드들과 같은 flex-wrap 줄 안에 섞여 있으면(종류를 설명하는 안내문 등)
-   남는 폭만큼만 차지하다 다른 필드와 어중간하게 겹쳐 보였다 — 항상 자기 줄을 통째로 차지하도록
-   강제 줄바꿈시킨다. 폼 바깥의 legend(register-form__hint--legend)에는 영향 없다(row의 자식일
-   때만 적용). */
-.register-form__row > .register-form__hint {
-  flex-basis: 100%;
+/* .field label(체크박스/라디오 그룹 위 캡션)과 똑같은 스타일이지만, htmlFor로 특정 입력 하나를
+   가리킬 수 없는(체크박스 1개 또는 라디오 여러 개를 아우르는) 자리라 <label> 대신 <span>을 쓴다. */
+.field__static-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
 
-.register-form__row .btn {
-  flex: 0 0 auto;
-  height: 38px;
-  align-self: flex-end;
+/* 체크박스 한 줄(전자제품이에요)이 field__static-label 캡션 아래, 다른 필드의 입력창과 같은
+   높이(위아래 padding 8px 기준 ~34px)에서 시작하도록 맞춘다 — 캡션 없이 체크박스만 있을 때는
+   내용물 높이(20px 안팎)만 차지해서 옆 입력창보다 위로 붕 떠 보였다. */
+.schedule-radio--field {
+  min-height: 34px;
+}
+
+.register-form__actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 20px;
 }
 
 /* 대시보드 수동 등록 폼 — 앱 전역 .field의 밑줄(border-bottom) 대신 문의 게시판/설정과 같은
@@ -2374,7 +2400,7 @@ button.summary-board__tile:hover {
 }
 
 .register-form__hint {
-  margin-top: 8px;
+  margin-top: 16px;
   font-size: 0.8rem;
   color: var(--ink-soft);
   line-height: 1.6;
@@ -3626,9 +3652,14 @@ button.summary-board__tile:hover {
     min-width: 0;
   }
 
-  .register-form__row .btn {
-    align-self: stretch;
+  .register-form__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .register-form__actions .btn {
     height: auto;
+    padding: 10px 0;
   }
 
   .ticket-card {

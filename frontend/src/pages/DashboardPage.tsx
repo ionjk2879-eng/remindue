@@ -2067,6 +2067,7 @@ export default function DashboardPage() {
         <p className="register-form__title">
           {editingId !== null ? '항목 수정' : pendingConfirmId !== null ? '확인 대기 항목 등록' : '새 항목 등록'}
         </p>
+        {/* 종류 + 항목명 — 이 폼의 "제목"에 해당하는 두 필드라 한 줄에서 항목명이 남는 폭을 다 가져간다. */}
         <div className="register-form__row">
           <div className="field field--narrow">
             <label htmlFor="type">종류</label>
@@ -2091,7 +2092,11 @@ export default function DashboardPage() {
               required
             />
           </div>
+        </div>
 
+        {/* 날짜 두 개(구매일/시작일 + 예상 도착일) — 나란히 같은 폭으로. 도착일 힌트는 이 줄
+            안에서만 세로로 늘어나고 다른 줄에는 영향을 주지 않는다(줄이 분리되어 있으므로). */}
+        <div className="register-form__row">
           <div className="field field--date">
             <label htmlFor="baseDate">
               {type === 'SUBSCRIPTION' ? '시작일' : '구매일'}
@@ -2123,7 +2128,10 @@ export default function DashboardPage() {
               )}
             </div>
           )}
+        </div>
 
+        {/* 금액 + 카테고리 — 모든 종류에 공통인 일반 필드. */}
+        <div className="register-form__row">
           <div className="field field--narrow">
             <label htmlFor="amount">금액(원)</label>
             <input
@@ -2136,86 +2144,6 @@ export default function DashboardPage() {
             />
           </div>
 
-          {type === 'GENERAL' && (
-            <>
-              <div className="field field--narrow">
-                <label htmlFor="returnDeadlineDays">반품기한(일)</label>
-                <input
-                  id="returnDeadlineDays"
-                  type="number"
-                  value={returnDeadlineDays}
-                  onChange={(e) => setReturnDeadlineDays(e.target.value)}
-                />
-              </div>
-              <label className="schedule-radio">
-                <input
-                  type="checkbox"
-                  checked={isElectronics}
-                  onChange={(e) => setIsElectronics(e.target.checked)}
-                />
-                전자제품이에요 (A/S 보증도 추적)
-              </label>
-              {isElectronics && (
-                <div className="field field--narrow">
-                  <label htmlFor="warrantyMonths">보증(개월)</label>
-                  <input
-                    id="warrantyMonths"
-                    type="number"
-                    value={warrantyMonths}
-                    onChange={(e) => setWarrantyMonths(e.target.value)}
-                  />
-                </div>
-              )}
-            </>
-          )}
-          {isRecurringType(type) && (
-            <div className="schedule-radio-group">
-              <label className="schedule-radio">
-                <input
-                  type="radio"
-                  name="scheduleType"
-                  value="INTERVAL"
-                  checked={scheduleType === 'INTERVAL'}
-                  onChange={() => setScheduleType('INTERVAL')}
-                />
-                N일마다
-              </label>
-              <label className="schedule-radio">
-                <input
-                  type="radio"
-                  name="scheduleType"
-                  value="FIXED_DAY"
-                  checked={scheduleType === 'FIXED_DAY'}
-                  onChange={() => setScheduleType('FIXED_DAY')}
-                />
-                매월 특정일 고정
-              </label>
-            </div>
-          )}
-          {isRecurringType(type) && scheduleType === 'INTERVAL' && (
-            <div className="field field--narrow">
-              <label htmlFor="intervalDays">주기(일)</label>
-              <input
-                id="intervalDays"
-                type="number"
-                value={intervalDays}
-                onChange={(e) => setIntervalDays(e.target.value)}
-              />
-            </div>
-          )}
-          {isRecurringType(type) && scheduleType === 'FIXED_DAY' && (
-            <div className="field field--narrow">
-              <label htmlFor="fixedDayOfMonth">매월 몇 일</label>
-              <input
-                id="fixedDayOfMonth"
-                type="number"
-                min={1}
-                max={31}
-                value={fixedDayOfMonth}
-                onChange={(e) => setFixedDayOfMonth(e.target.value)}
-              />
-            </div>
-          )}
           <div className="field field--narrow">
             <label htmlFor="category">카테고리</label>
             <select id="category" value={category} onChange={(e) => setCategory(e.target.value as PurchaseCategory)}>
@@ -2226,17 +2154,112 @@ export default function DashboardPage() {
               ))}
             </select>
           </div>
-          {type === 'RECURRING_DELIVERY' && editingId === null && (
-            <p className="register-form__hint">
-              생수·밀키트·사료처럼 실물이 정기적으로 배송되는 항목이에요.
-            </p>
-          )}
-          {type === 'SUBSCRIPTION' && editingId === null && (
-            <p className="register-form__hint">
-              넷플릭스·도메인/호스팅 갱신·멤버십처럼 실물 배송 없이 정기결제되는 항목이에요.
-            </p>
-          )}
+        </div>
 
+        {/* 종류별 전용 필드 — GENERAL은 반품기한·A/S, 정기배송/구독은 스케줄 방식·주기. 둘 다
+            체크박스/라디오 그룹에 field와 같은 캡션을 얹어서(field__static-label) 옆의 입력창과
+            라벨 높이·베이스라인이 어긋나지 않게 맞춘다. */}
+        {type === 'GENERAL' && (
+          <div className="register-form__row">
+            <div className="field field--narrow">
+              <label htmlFor="returnDeadlineDays">반품기한(일)</label>
+              <input
+                id="returnDeadlineDays"
+                type="number"
+                value={returnDeadlineDays}
+                onChange={(e) => setReturnDeadlineDays(e.target.value)}
+              />
+            </div>
+            <div className="field field--narrow">
+              <span className="field__static-label">전자제품</span>
+              <label className="schedule-radio schedule-radio--field">
+                <input
+                  type="checkbox"
+                  checked={isElectronics}
+                  onChange={(e) => setIsElectronics(e.target.checked)}
+                />
+                A/S 보증도 추적
+              </label>
+            </div>
+            {isElectronics && (
+              <div className="field field--narrow">
+                <label htmlFor="warrantyMonths">보증(개월)</label>
+                <input
+                  id="warrantyMonths"
+                  type="number"
+                  value={warrantyMonths}
+                  onChange={(e) => setWarrantyMonths(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {isRecurringType(type) && (
+          <div className="register-form__row">
+            <div className="field field--schedule">
+              <span className="field__static-label">스케줄 방식</span>
+              <div className="schedule-radio-group">
+                <label className="schedule-radio">
+                  <input
+                    type="radio"
+                    name="scheduleType"
+                    value="INTERVAL"
+                    checked={scheduleType === 'INTERVAL'}
+                    onChange={() => setScheduleType('INTERVAL')}
+                  />
+                  N일마다
+                </label>
+                <label className="schedule-radio">
+                  <input
+                    type="radio"
+                    name="scheduleType"
+                    value="FIXED_DAY"
+                    checked={scheduleType === 'FIXED_DAY'}
+                    onChange={() => setScheduleType('FIXED_DAY')}
+                  />
+                  매월 특정일 고정
+                </label>
+              </div>
+            </div>
+            {scheduleType === 'INTERVAL' && (
+              <div className="field field--narrow">
+                <label htmlFor="intervalDays">주기(일)</label>
+                <input
+                  id="intervalDays"
+                  type="number"
+                  value={intervalDays}
+                  onChange={(e) => setIntervalDays(e.target.value)}
+                />
+              </div>
+            )}
+            {scheduleType === 'FIXED_DAY' && (
+              <div className="field field--narrow">
+                <label htmlFor="fixedDayOfMonth">매월 몇 일</label>
+                <input
+                  id="fixedDayOfMonth"
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={fixedDayOfMonth}
+                  onChange={(e) => setFixedDayOfMonth(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {type === 'RECURRING_DELIVERY' && editingId === null && (
+          <p className="register-form__hint">
+            생수·밀키트·사료처럼 실물이 정기적으로 배송되는 항목이에요.
+          </p>
+        )}
+        {type === 'SUBSCRIPTION' && editingId === null && (
+          <p className="register-form__hint">
+            넷플릭스·도메인/호스팅 갱신·멤버십처럼 실물 배송 없이 정기결제되는 항목이에요.
+          </p>
+        )}
+
+        <div className="register-form__actions">
           <button type="submit" className="btn">
             {editingId !== null ? '수정 완료' : '등록'}
           </button>
