@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { BadRequestError } from '../lib/errors';
 import { consumeActionToken } from '../lib/action-tokens';
-import { confirmReceiptToday, InvalidPurchaseOperationError } from '../lib/purchase-logic';
+import { addDays, todayDateOnly } from '../lib/date';
+import { confirmReceiptToday, isValidArrivalDaysAgo, resolveArrivalDate, InvalidPurchaseOperationError } from '../lib/purchase-logic';
 import type { Env, PurchaseRow, PushSubscriptionRequestBody, UserRow } from '../types';
 
 const push = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
@@ -95,6 +96,66 @@ push.post('/confirm-action', async (c) => {
       WHERE id = ?`
   )
     .bind(today, purchaseId)
+    .run();
+
+  return c.body(null, 204);
+});
+
+/**
+ * "오늘 주문하신 물건이 오셨나요?" 알림의 "아직요" — 인증 없이 토큰만으로 처리(위 confirm-action과
+ * 같은 이유). 내일 다시 물어보도록 arrival_check_snoozed_until을 채운다. 스케줄 자체(도착 앵커)는
+ * 건드리지 않는다 — 아직 도착 여부를 모르니 추정치를 그대로 둔다.
+ */
+push.post('/snooze-arrival', async (c) => {
+  const body = await c.req.json<{ token?: string }>().catch(() => ({}) as { token?: string });
+  if (!body.token) {
+    throw new BadRequestError('token은 필수입니다');
+  }
+
+  const purchaseId = await consumeActionToken(c.env.DB, body.token);
+  if (purchaseId === null) {
+    throw new BadRequestError('유효하지 않거나 이미 사용된 토큰입니다');
+  }
+
+  const tomorrow = addDays(todayDateOnly(), 1);
+  await c.env.DB.prepare(
+    `UPDATE purchases SET arrival_check_snoozed_until = ?, updated_at = datetime('now') WHERE id = ?`
+  )
+    .bind(tomorrow, purchaseId)
+    .run();
+
+  return c.body(null, 204);
+});
+
+/**
+ * "오늘 주문하신 물건이 오셨나요?" 알림의 "받았어요" 후속 — 며칠 전에 받았는지(0/1/2일 전) 답하면
+ * 그 실제 도착일을 새 expected_delivery_date(스케줄 앵커)로 확정한다. 액션 버튼 하나로 끝낼 수
+ * 없는 후속 질문이라(오늘/하루전/이틀전 3지선다), 알림 탭 시 대시보드가 열리고 거기서 이 토큰과
+ * 함께 이 엔드포인트를 부른다 — 그래도 인증은 요구하지 않는다(토큰 소유 자체가 권한이라는 같은
+ * 원칙, 알림을 탭한 직후엔 세션이 아직 안 살아있을 수도 있어서).
+ */
+push.post('/confirm-arrival', async (c) => {
+  const body = await c.req.json<{ token?: string; daysAgo?: number }>().catch(() => ({}) as { token?: string; daysAgo?: number });
+  if (!body.token) {
+    throw new BadRequestError('token은 필수입니다');
+  }
+  if (!isValidArrivalDaysAgo(body.daysAgo)) {
+    throw new BadRequestError('daysAgo는 0, 1, 2 중 하나여야 합니다');
+  }
+
+  const purchaseId = await consumeActionToken(c.env.DB, body.token);
+  if (purchaseId === null) {
+    throw new BadRequestError('유효하지 않거나 이미 사용된 토큰입니다');
+  }
+
+  const arrivalDate = resolveArrivalDate(body.daysAgo);
+  await c.env.DB.prepare(
+    `UPDATE purchases
+        SET expected_delivery_date = ?, last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
+            discontinued_at = NULL, arrival_check_snoozed_until = NULL, updated_at = datetime('now')
+      WHERE id = ?`
+  )
+    .bind(arrivalDate, arrivalDate, purchaseId)
     .run();
 
   return c.body(null, 204);

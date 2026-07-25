@@ -2079,6 +2079,24 @@ button.summary-board__tile:hover {
   color: var(--ink-soft);
 }
 
+.forwarding-banner__recurring-hint {
+  margin-top: 8px;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  background: var(--amber-bg);
+  border: 1px dashed var(--stamp-amber);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+.forwarding-banner__recurring-hint .mono {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.76rem;
+  color: var(--ink);
+}
+
 .forwarding-banner__privacy {
   margin-top: 6px;
   font-size: 0.74rem;
@@ -2295,6 +2313,13 @@ button.summary-board__tile:hover {
 .register-form__row .field--date {
   flex: 0 1 160px;
   min-width: 150px;
+}
+
+.field__hint {
+  margin-top: 4px;
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+  line-height: 1.4;
 }
 
 .register-form__row .btn {
@@ -3782,6 +3807,17 @@ button.summary-board__tile:hover {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.arrival-modal__choices {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.arrival-modal__choices .btn {
+  width: 100%;
 }
 
 /* --------------------------------------------------------------------------

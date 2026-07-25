@@ -21,6 +21,8 @@ export interface Purchase {
   intervalDays: number | null;
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
+  /** RECURRING_DELIVERY 전용 스케줄 앵커("최초 도착(예정)일") — 없으면(null) baseDate가 대신 앵커로 쓰인다. */
+  expectedDeliveryDate: string | null;
   lastDeliveredDate: string | null;
   /** "가장 급한" 기한 — GENERAL이고 반품기한/A·S보증 둘 다 있으면 더 급한 쪽. */
   deadline: string;
@@ -64,6 +66,8 @@ export interface PurchaseInput {
   intervalDays?: number;
   scheduleType?: ScheduleType;
   fixedDayOfMonth?: number | null;
+  /** RECURRING_DELIVERY 전용 — 스케줄 앵커. GENERAL은 정보용으로만 저장되고 계산엔 영향 없다. */
+  expectedDeliveryDate?: string | null;
   category?: PurchaseCategory | null;
   brand?: string | null;
   brandDomain?: string | null;

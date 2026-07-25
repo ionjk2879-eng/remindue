@@ -42,6 +42,12 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
   if (!body.baseDate || !/^\d{4}-\d{2}-\d{2}$/.test(body.baseDate)) {
     throw new BadRequestError('baseDate는 yyyy-MM-dd 형식이어야 합니다');
   }
+  if (body.expectedDeliveryDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(body.expectedDeliveryDate)) {
+    throw new BadRequestError('expectedDeliveryDate는 yyyy-MM-dd 형식이어야 합니다');
+  }
+  // SUBSCRIPTION은 실물 배송이 없어 도착일 개념 자체가 없다 — 값이 와도 저장하지 않는다.
+  // GENERAL은 순수 정보용(계산에 영향 없음), RECURRING_DELIVERY는 스케줄 앵커로 실제 쓰인다.
+  const expectedDeliveryDate = body.type !== 'SUBSCRIPTION' ? (body.expectedDeliveryDate ?? null) : null;
   // 카테고리는 이제 모든 구매 유형에 적용된다.
   const category = body.category && PURCHASE_CATEGORIES.includes(body.category) ? body.category : null;
   const brand = typeof body.brand === 'string' && body.brand.trim() ? body.brand.trim() : null;
@@ -62,6 +68,7 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
     intervalDays: body.intervalDays ?? null,
     scheduleType: body.scheduleType ?? 'INTERVAL',
     fixedDayOfMonth: body.fixedDayOfMonth ?? null,
+    expectedDeliveryDate,
     category,
     brand: brand,
     brandDomain: sanitizeBrandDomain(brand, body.brandDomain ?? null),
@@ -154,8 +161,8 @@ purchases.post('/', async (c) => {
 
   const insert = await c.env.DB.prepare(
     `INSERT INTO purchases
-       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, last_delivered_date, category, brand, brand_domain, original_amount, original_currency, exchange_rate)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, expected_delivery_date, last_delivered_date, category, brand, brand_domain, original_amount, original_currency, exchange_rate)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       user.id,
@@ -169,6 +176,7 @@ purchases.post('/', async (c) => {
       body.intervalDays,
       body.scheduleType,
       body.fixedDayOfMonth,
+      body.expectedDeliveryDate,
       lastDeliveredDate,
       body.category,
       body.brand,
@@ -196,7 +204,8 @@ purchases.put('/:id', async (c) => {
     `UPDATE purchases
         SET type = ?, item_name = ?, base_date = ?, amount = ?, memo = ?,
             warranty_months = ?, return_deadline_days = ?, interval_days = ?,
-            schedule_type = ?, fixed_day_of_month = ?, category = ?, brand = ?, brand_domain = ?,
+            schedule_type = ?, fixed_day_of_month = ?, expected_delivery_date = ?,
+            category = ?, brand = ?, brand_domain = ?,
             original_amount = ?, original_currency = ?, exchange_rate = ?,
             updated_at = datetime('now')
       WHERE id = ?`
@@ -212,6 +221,7 @@ purchases.put('/:id', async (c) => {
       body.intervalDays,
       body.scheduleType,
       body.fixedDayOfMonth,
+      body.expectedDeliveryDate,
       body.category,
       body.brand,
       body.brandDomain,

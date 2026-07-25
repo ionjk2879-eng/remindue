@@ -3,9 +3,17 @@
 // version anchored to lastDeliveredDate (rolling from whenever the user last confirmed
 // receipt), which drifts away from the vendor's real schedule after any late delivery.
 // This now anchors to baseDate as a fixed recurring schedule instead (see computeDeadline).
+//
+// RECURRING_DELIVERY got a second anchor field on top of that (expected_delivery_date,
+// migrations/0031): a vendor's delivery cycle is phased off the *first delivery* date, not
+// the signup/order date (signing up mid-cycle doesn't shift the vendor's fixed weekly/monthly
+// rhythm). expectedDeliveryDate ?? baseDate is the anchor for RECURRING_DELIVERY specifically;
+// SUBSCRIPTION keeps baseDate-only, unchanged. This does NOT reintroduce the lastDeliveredDate
+// drift bug above — expectedDeliveryDate only ever moves when the user explicitly answers "did
+// it arrive, and which day" (arrival-confirm.ts), never from silently logging a click/cron tick.
 
 import { addDays, addMonths, daysBetween, nextFixedDayOfMonth, parseDateOnly, todayDateOnly } from './date';
-import { isRecurringType, type PurchaseRow, type PurchaseType } from '../types';
+import { isRecurringType, usesArrivalAnchor, type PurchaseRow, type PurchaseType } from '../types';
 
 export const DEFAULT_WARRANTY_MONTHS = 12;
 export const DEFAULT_RETURN_DEADLINE_DAYS = 7;
@@ -13,7 +21,15 @@ export const DEFAULT_INTERVAL_DAYS = 30;
 /** 무료 플랜(is_premium=0)이 등록할 수 있는 최대 항목 개수. 프리미엄은 무제한. */
 export const FREE_PLAN_MAX_PURCHASES = 5;
 
-type DeadlineInput = Pick<PurchaseRow, 'type' | 'base_date' | 'warranty_months' | 'return_deadline_days' | 'interval_days' | 'schedule_type' | 'fixed_day_of_month'>;
+type DeadlineInput = Pick<
+  PurchaseRow,
+  'type' | 'base_date' | 'warranty_months' | 'return_deadline_days' | 'interval_days' | 'schedule_type' | 'fixed_day_of_month' | 'expected_delivery_date'
+>;
+
+/** RECURRING_DELIVERY만 expectedDeliveryDate를 앵커로 쓴다(usesArrivalAnchor) — 그 외(SUBSCRIPTION)는 baseDate 그대로. */
+function scheduleAnchor(row: Pick<DeadlineInput, 'type' | 'base_date' | 'expected_delivery_date'>): string {
+  return usesArrivalAnchor(row.type as PurchaseType) ? (row.expected_delivery_date ?? row.base_date) : row.base_date;
+}
 
 export interface DeadlineResult {
   deadline: string;
@@ -53,27 +69,28 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
     case 'RECURRING_DELIVERY':
     case 'SUBSCRIPTION': {
       const scheduleType = row.schedule_type ?? 'INTERVAL';
+      const anchor = scheduleAnchor(row);
 
       if (scheduleType === 'FIXED_DAY') {
         // 매월 고정일 방식: 오늘 이후 가장 가까운 fixedDayOfMonth 날짜를 다음 일정으로 삼는다.
-        // 회차: 구독 시작월(baseDate 기준)부터 다음 일정까지 몇 달이 지났는지 + 1.
+        // 회차: 시작월(anchor 기준)부터 다음 일정까지 몇 달이 지났는지 + 1.
         const fixedDay = row.fixed_day_of_month ?? 1;
         const deadline = nextFixedDayOfMonth(fixedDay, todayDateOnly());
-        const base = parseDateOnly(row.base_date);
+        const base = parseDateOnly(anchor);
         const next = parseDateOnly(deadline);
         const monthsElapsed = (next.year - base.year) * 12 + (next.month - base.month);
         return [{ kind: 'SCHEDULE', deadline, deliveryRound: monthsElapsed + 1 }];
       }
 
-      // INTERVAL(기본): baseDate + intervalDays*k 방식.
-      // 회차: 1회차 = baseDate(k=0), n회차 = baseDate + (n-1)*intervalDays.
+      // INTERVAL(기본): anchor + intervalDays*k 방식.
+      // 회차: 1회차 = anchor(k=0), n회차 = anchor + (n-1)*intervalDays.
       const interval = row.interval_days ?? DEFAULT_INTERVAL_DAYS;
-      const daysSinceStart = daysBetween(row.base_date, todayDateOnly());
+      const daysSinceStart = daysBetween(anchor, todayDateOnly());
       const cyclesElapsed = Math.max(0, Math.ceil(daysSinceStart / interval));
       return [
         {
           kind: 'SCHEDULE',
-          deadline: addDays(row.base_date, interval * cyclesElapsed),
+          deadline: addDays(anchor, interval * cyclesElapsed),
           deliveryRound: cyclesElapsed + 1,
         },
       ];
@@ -116,6 +133,23 @@ export function confirmReceiptToday(type: PurchaseType): string {
     throw new InvalidPurchaseOperationError('정기구독·배송 항목에서만 회차 확인을 할 수 있습니다');
   }
   return todayDateOnly();
+}
+
+/** "받았어요" 답변의 daysAgo 선택지 — 도착 확인 알림이 뜬 당일(0)/하루 전(1)/이틀 전(2)만 받는다.
+ *  그 이상은 물어보지 않는다(늦게 확인하는 사람도 보통 이 안에서 답한다 — arrival-confirm.ts). */
+export const ARRIVAL_DAYS_AGO_OPTIONS = [0, 1, 2] as const;
+export type ArrivalDaysAgo = (typeof ARRIVAL_DAYS_AGO_OPTIONS)[number];
+
+export function isValidArrivalDaysAgo(value: unknown): value is ArrivalDaysAgo {
+  return typeof value === 'number' && (ARRIVAL_DAYS_AGO_OPTIONS as readonly number[]).includes(value);
+}
+
+/**
+ * RECURRING_DELIVERY 전용 — "오늘 받으셨나요?"에 "받았어요"로 답했을 때, 그 실제 도착일을
+ * 계산한다. 이 값이 새 expected_delivery_date(앵커)가 되어 이후 회차가 여기서부터 다시 계산된다.
+ */
+export function resolveArrivalDate(daysAgo: ArrivalDaysAgo): string {
+  return addDays(todayDateOnly(), -daysAgo);
 }
 
 export class InvalidPurchaseOperationError extends Error {}

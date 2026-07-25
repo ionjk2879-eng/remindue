@@ -10,6 +10,7 @@ import { addDays, todayDateOnly } from '../lib/date';
 import { runWeeklyDigest } from '../lib/weekly-digest';
 import { runDailyDigest } from '../lib/digest';
 import { runConfirmationNudge } from '../lib/confirmation-nudge';
+import { runArrivalConfirm } from '../lib/arrival-confirm';
 import { runBillingRenewals, runPremiumExpirySweep } from '../lib/billing-renewal';
 import { sendPush } from '../lib/push';
 import type { Env, PushSubscriptionRow, UserRow } from '../types';
@@ -131,6 +132,19 @@ dev.post('/run-confirmation-nudge', async (c) => {
   }
 
   const result = await runConfirmationNudge(c.env);
+  return c.json(result);
+});
+
+/**
+ * runArrivalConfirm("오늘 오셨나요?" 도착 확인 알림)을 즉시 실행한다 — dDay===0 조건이 실제
+ * 오늘 날짜에 걸린 RECURRING_DELIVERY 항목이 있는 모든 사용자에게 실제 알림을 발송한다.
+ */
+dev.post('/run-arrival-confirm', async (c) => {
+  if (c.env.ENVIRONMENT !== 'development') {
+    throw new NotFoundError('Not Found');
+  }
+
+  const result = await runArrivalConfirm(c.env);
   return c.json(result);
 });
 

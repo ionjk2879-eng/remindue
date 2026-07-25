@@ -74,7 +74,16 @@ const EXTRACTION_SCHEMA = {
     expectedDeliveryDate: {
       anyOf: [{ type: 'string' }, { type: 'null' }],
       description:
-        'yyyy-MM-dd 형식. 정기배송·구독이면 "다음 배송일", "다음 결제일", "갱신일", "만료일", "다음 청구일" 중 가장 명확한 날짜를 최우선으로 추출. 일반 주문이면 예상 도착일. 명시되지 않으면 null.',
+        'yyyy-MM-dd 형식.\n' +
+        'RECURRING_DELIVERY(실물 정기배송)면: 메일 본문에 사용자가 직접 적어 넣은 "첫 배송 예정일"/' +
+        '"예상 도착일"이 있으면 그 값을 무조건 최우선으로 쓴다(스토어 확인 메일에는 배송 주기가 거의 ' +
+        '안 적혀 있어서, 사용자가 전달 시 직접 남긴 값이 유일한 근거인 경우가 많다) — 이 값은 배송 ' +
+        '사이클이 반복되는 위상 기준점("최초 도착일")이라 "다음 배송일"과 의미가 다르다. 사용자가 ' +
+        '적어 넣지 않았다면 스토어 본문의 "다음 배송일"/"예상 도착일"로 대체.\n' +
+        'SUBSCRIPTION(디지털 정기구독)이면: "다음 결제일", "갱신일", "만료일", "다음 청구일" 중 ' +
+        '가장 명확한 날짜.\n' +
+        'GENERAL(일반 구매)이면: 예상 도착일.\n' +
+        '명시되지 않으면 null.',
     },
     estimatedType: {
       anyOf: [{ type: 'string', enum: ['GENERAL', 'RECURRING_DELIVERY', 'SUBSCRIPTION'] }, { type: 'null' }],
@@ -150,7 +159,10 @@ const EXTRACTION_SCHEMA = {
       anyOf: [{ type: 'integer' }, { type: 'null' }],
       description:
         'estimatedType이 RECURRING_DELIVERY 또는 SUBSCRIPTION이고 scheduleType=INTERVAL일 때만 채운다: 배송·결제·갱신 주기를 일수(정수)로 변환.\n' +
-        '변환 기준: "매주"=7, "격주"=14, "3주마다"=21, "4주마다"/"28일마다"=28, ' +
+        'RECURRING_DELIVERY면 스토어 본문보다 사용자가 직접 적어 넣은 "배송 주기: N주" 표기를 최우선으로 ' +
+        '쓴다(예: "배송 주기: 4주"→28, "배송주기 2주"→14, "격주 배송"→14) — 실제 스토어 메일엔 주기가 ' +
+        '거의 명시돼 있지 않다.\n' +
+        '변환 기준: "매주"=7, "격주"=14, "N주"/"N주마다"=N*7(예: "3주"=21, "4주"=28), ' +
         '"매월"/"한달마다"/"30일마다"=30, "6주마다"=42, "2달마다"/"격월"=60, ' +
         '"분기마다"/"3달마다"=90, "연간"/"매년"/"1년마다"=365.\n' +
         '주기가 "매월 자동결제됩니다"처럼 모호하게만 언급되고 정확한 날짜/주기 표기가 없으면 30(한 달 기본 추정치)을 넣고 scheduleEstimated=true로 표시해라.\n' +
@@ -278,6 +290,15 @@ RECURRING_DELIVERY/SUBSCRIPTION이거나 가전제품이 아니면 false.
 ## 4단계: 스케줄 방식 판단 (scheduleType) + 주기 추출 (intervalDays / fixedDayOfMonth / scheduleEstimated)
 RECURRING_DELIVERY 또는 SUBSCRIPTION으로 판단했을 때:
 
+**RECURRING_DELIVERY 전용 — 사용자가 직접 적어 넣은 값이 최우선**: 실제 스토어 주문확인 메일에는
+배송 주기가 거의 명시되어 있지 않다. 그래서 이 서비스는 사용자에게 전달(포워딩) 시 메일 본문에
+"배송 주기: N주"와 "첫 배송 예정일"(또는 "예상 도착일")을 직접 적어 넣도록 안내한다. 이렇게
+사용자가 직접 남긴 표기가 있으면, 스토어 원문의 다른 어떤 표현보다도 최우선으로 그 값을 쓴다.
+예시: "배송 주기: 4주\n첫 배송 예정일: 2026-07-28" → intervalDays=28, scheduleType=INTERVAL,
+scheduleEstimated=false, expectedDeliveryDate="2026-07-28".
+예시: "배송주기 2주 / 예상 도착일 826" → intervalDays=14, expectedDeliveryDate는 5단계 날짜 표기
+규칙대로 해석.
+
 **FIXED_DAY 판단**: "매월 N일", "매월 N일에 자동결제", "every month on the Nth" 등 달력의
 특정 날짜가 고정된 경우 → scheduleType=FIXED_DAY, fixedDayOfMonth=N, intervalDays=null, scheduleEstimated=false
 예시: "매월 1일 자동결제됩니다" → FIXED_DAY, fixedDayOfMonth=1
@@ -303,10 +324,16 @@ intervalDays 변환 기준:
 
 ## 5단계: 날짜 추출
 - orderDate: 주문일/구독 신청일/결제일 (yyyy-MM-dd)
-- expectedDeliveryDate: RECURRING_DELIVERY/SUBSCRIPTION이면 "다음 배송일", "다음 결제일", "갱신일", "만료일",
-  "다음 청구일" 중 가장 명확한 날짜를 최우선으로 추출. 일반 주문이면 예상 도착일.
+- expectedDeliveryDate: RECURRING_DELIVERY면 사용자가 직접 적은 "첫 배송 예정일"/"예상 도착일"을
+  최우선(4단계 참고), 없으면 스토어 본문의 "다음 배송일"/"예상 도착일". SUBSCRIPTION이면 "다음
+  결제일", "갱신일", "만료일", "다음 청구일" 중 가장 명확한 날짜. GENERAL이면 예상 도착일.
   next billing date, renewal date, expiry date 같은 영문 표현도 해당.
 - 명시되지 않은 날짜는 추측하지 말고 null로 남겨라. 날짜는 반드시 yyyy-MM-dd로 변환.
+- **날짜 표기 형식이 다양할 수 있다(특히 사용자가 직접 적어 넣는 예상 도착일)**: "8월 26일",
+  "8/26", "08-26", "0826", "826"(월일 붙여 쓴 표기, 826→8월26일) 등 연도 없이 월일만 적힌 경우
+  전부 이 메일을 받은 시점의 현재 연도로 간주해서 yyyy-MM-dd로 변환해라(예: 현재 연도가 2026이면
+  "826"→"2026-08-26"). "2026-08-26"처럼 연도가 이미 명시돼 있으면 그 값을 그대로 쓴다. 3~4자리
+  숫자만 있고 월일로 해석이 애매하면(예: 13개월 같은 불가능한 값) null로 남겨라.
 
 ## 6단계: 반품기한 추출 (GENERAL만 실질적으로 의미 있음)
 반품/교환 가능 기한이 구체적인 숫자 또는 날짜로 명시된 경우에만 foundExplicitDeadline=true.

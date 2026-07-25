@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import { confirmArrival } from '../api/push';
 import {
   fetchPurchases,
   fetchPurchasesForSpendHistory,
@@ -352,6 +353,13 @@ function spendCutoffDate(p: Purchase): string | null {
   return dates.length === 0 ? null : dates.sort()[0];
 }
 
+/** purchase-logic.ts의 scheduleAnchor와 동일한 규칙(서버에 그 함수가 없어 프론트에서 복제) —
+ *  RECURRING_DELIVERY만 expectedDeliveryDate를 앵커로 쓰고(없으면 baseDate로 폴백),
+ *  SUBSCRIPTION/GENERAL은 항상 baseDate. */
+function scheduleAnchorDate(p: Purchase): string {
+  return p.type === 'RECURRING_DELIVERY' ? p.expectedDeliveryDate ?? p.baseDate : p.baseDate;
+}
+
 /**
  * 정기배송/구독이 특정 연/월에 실제로 결제·배송되는 날짜들(yyyy-MM-dd) — FIXED_DAY는 시작월
  * 이후로 그 달의 고정일 하루(월말보다 큰 날짜면 말일로 보정), INTERVAL은 주기에 따라 그 달에
@@ -361,7 +369,8 @@ function spendCutoffDate(p: Purchase): string | null {
  */
 function occurrenceDatesInMonth(p: Purchase, year: number, month: number): string[] {
   if (!isRecurringType(p.type)) return [];
-  const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
+  const anchorDate = scheduleAnchorDate(p);
+  const [baseYear, baseMonth] = anchorDate.split('-').map(Number);
   const pad = (n: number) => String(n).padStart(2, '0');
   const cutoff = spendCutoffDate(p);
 
@@ -379,7 +388,7 @@ function occurrenceDatesInMonth(p: Purchase, year: number, month: number): strin
   const monthEndExclusive = new Date(
     month === 12 ? `${year + 1}-01-01T00:00:00` : `${year}-${pad(month + 1)}-01T00:00:00`
   ).getTime();
-  const baseTime = new Date(`${p.baseDate}T00:00:00`).getTime();
+  const baseTime = new Date(`${anchorDate}T00:00:00`).getTime();
   if (baseTime >= monthEndExclusive) return [];
 
   const stepMs = interval * 86_400_000;
@@ -424,6 +433,9 @@ export default function DashboardPage() {
   const [type, setType] = useState<PurchaseType>('GENERAL');
   const [itemName, setItemName] = useState('');
   const [baseDate, setBaseDate] = useState('');
+  /** RECURRING_DELIVERY 전용 스케줄 앵커("최초 도착(예정)일") — 비워두면 baseDate가 대신 앵커로
+   *  쓰인다(서버 fallback). GENERAL도 입력 가능하지만 정보용일 뿐 계산에 영향 없다. */
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [amount, setAmount] = useState('');
   /** GENERAL 전용 — 체크하면 A/S 보증(개월) 필드가 추가로 노출되고 반품기한과 함께 등록된다. */
   const [isElectronics, setIsElectronics] = useState(false);
@@ -468,6 +480,15 @@ export default function DashboardPage() {
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
   const itemNameInputRef = useRef<HTMLInputElement>(null);
+
+  // "오늘 주문하신 물건이 오셨나요?" 푸시 알림의 "받았어요"를 탭하면 대시보드가
+  // ?confirmArrival=<토큰>으로 열린다(arrival-confirm.ts) — 액션 버튼 하나로 끝낼 수 없는
+  // "며칠 전에 받았는지" 후속 질문을 여기 모달로 띄운다.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const confirmArrivalToken = searchParams.get('confirmArrival');
+  const [arrivalConfirmSubmitting, setArrivalConfirmSubmitting] = useState(false);
+  const [arrivalConfirmError, setArrivalConfirmError] = useState<string | null>(null);
+  const [arrivalConfirmDone, setArrivalConfirmDone] = useState(false);
 
   const cacheKey = `purchases_cache_${nickname ?? 'anon'}`;
 
@@ -682,6 +703,7 @@ export default function DashboardPage() {
     setType('GENERAL');
     setItemName('');
     setBaseDate('');
+    setExpectedDeliveryDate('');
     setAmount('');
     setIsElectronics(false);
     setWarrantyMonths('12');
@@ -705,6 +727,7 @@ export default function DashboardPage() {
     setType(p.type);
     setItemName(p.itemName);
     setBaseDate(p.baseDate);
+    setExpectedDeliveryDate(p.expectedDeliveryDate ?? '');
     setAmount(p.amount !== null ? String(p.amount) : '');
     setIsElectronics(p.warrantyMonths !== null);
     setWarrantyMonths(String(p.warrantyMonths ?? 12));
@@ -738,12 +761,15 @@ export default function DashboardPage() {
     setItemName(item.itemName ?? '');
     setAmount(item.amount !== null ? String(item.amount) : '');
     if (isRecurringType(item.type)) {
-      // baseDate("시작일")는 항상 이미 벌어진 기준일이어야 회차·이번 달 지출 계산이 맞는다 —
+      // baseDate("구매일")는 항상 이미 벌어진 기준일이어야 이번 달 지출 계산이 맞는다 —
       // orderDate(이번 결제/신청이 실제로 일어난 날)를 우선하고, 그게 없을 때만 미래 예정일인
-      // expectedDeliveryDate("다음" 배송·결제일)로 대체한다. 반대로 하면 "이미 결제된 이번
-      // 회차"가 baseDate로 안 잡혀서 회차가 다음 회차 기준 1회차로 리셋되고, 이번 달 지출
-      // 계산에서도 빠지는 문제가 있었다.
+      // expectedDeliveryDate로 대체한다.
       setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
+      // RECURRING_DELIVERY만 별도 스케줄 앵커를 쓴다 — AI가 추출한(또는 사용자가 메일에 직접
+      // 적어 넣은) "첫 배송 예정일"을 그대로 프리필한다. SUBSCRIPTION은 baseDate 하나로 충분하다.
+      if (item.type === 'RECURRING_DELIVERY') {
+        setExpectedDeliveryDate(item.expectedDeliveryDate ?? '');
+      }
       const st = item.scheduleType ?? 'INTERVAL';
       setScheduleType(st);
       if (st === 'FIXED_DAY' && item.fixedDayOfMonth !== null) {
@@ -754,6 +780,8 @@ export default function DashboardPage() {
       setCategory(item.category ?? 'OTHER');
     } else {
       setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
+      // GENERAL도 도착일을 정보용으로 같이 프리필한다(계산엔 영향 없음).
+      setExpectedDeliveryDate(item.expectedDeliveryDate ?? '');
       if (item.returnDeadlineDays !== null) setReturnDeadlineDays(String(item.returnDeadlineDays));
       // AI가 전자제품으로 감지했으면(looksLikeElectronics) 반품기한과 별개로 A/S 보증기간도
       // 같이 프리필한다 — "전자제품 등록 시 환불+A/S 한번에" 요청의 자동화 경로.
@@ -809,6 +837,37 @@ export default function DashboardPage() {
     }
   };
 
+  const closeArrivalConfirmModal = () => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('confirmArrival');
+        return next;
+      },
+      { replace: true }
+    );
+    setArrivalConfirmDone(false);
+    setArrivalConfirmError(null);
+  };
+
+  /** daysAgo(0/1/2)를 답하면 그 실제 도착일이 새 스케줄 앵커로 확정된다 — 서버가 이후 회차를 그
+   *  날짜 기준으로 다시 계산한다. */
+  const handleArrivalConfirm = async (daysAgo: 0 | 1 | 2) => {
+    if (!confirmArrivalToken) return;
+    setArrivalConfirmSubmitting(true);
+    setArrivalConfirmError(null);
+    try {
+      await confirmArrival(confirmArrivalToken, daysAgo);
+      setArrivalConfirmDone(true);
+      await load();
+    } catch (err) {
+      console.error(err);
+      setArrivalConfirmError('이미 처리되었거나 만료된 알림이에요.');
+    } finally {
+      setArrivalConfirmSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -817,6 +876,7 @@ export default function DashboardPage() {
       type,
       itemName,
       baseDate,
+      expectedDeliveryDate: type !== 'SUBSCRIPTION' && expectedDeliveryDate.trim() !== '' ? expectedDeliveryDate : null,
       amount: amount.trim() !== '' ? Number(amount) : undefined,
       warrantyMonths: type === 'GENERAL' && isElectronics ? Number(warrantyMonths) : undefined,
       returnDeadlineDays: type === 'GENERAL' ? Number(returnDeadlineDays) : undefined,
@@ -1154,6 +1214,49 @@ export default function DashboardPage() {
   return (
     <div className="dashboard">
       {showOnboarding && <OnboardingOverlay onDone={handleOnboardingDone} />}
+      {confirmArrivalToken && (
+        <div className="onboarding-overlay" role="dialog" aria-modal="true">
+          <div className="onboarding-modal">
+            {arrivalConfirmDone ? (
+              <>
+                <p className="onboarding-modal__title">확인했어요!</p>
+                <p className="onboarding-modal__body">
+                  오늘 날짜를 기준으로 정기배송 사이클을 조정했어요.
+                </p>
+                <div className="onboarding-modal__actions">
+                  <button type="button" className="btn" onClick={closeArrivalConfirmModal}>
+                    닫기
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="onboarding-modal__title">📦 오늘 주문하신 물건이 오셨나요?</p>
+                <p className="onboarding-modal__body">
+                  언제 받으셨는지 알려주시면 이후 배송 주기를 그 날짜 기준으로 다시 계산할게요.
+                </p>
+                {arrivalConfirmError && <p className="form-error">{arrivalConfirmError}</p>}
+                <div className="arrival-modal__choices">
+                  <button type="button" className="btn" disabled={arrivalConfirmSubmitting} onClick={() => handleArrivalConfirm(0)}>
+                    오늘 받았어요
+                  </button>
+                  <button type="button" className="btn" disabled={arrivalConfirmSubmitting} onClick={() => handleArrivalConfirm(1)}>
+                    어제 받았어요
+                  </button>
+                  <button type="button" className="btn" disabled={arrivalConfirmSubmitting} onClick={() => handleArrivalConfirm(2)}>
+                    그저께 받았어요
+                  </button>
+                </div>
+                <div className="onboarding-modal__actions">
+                  <button type="button" className="btn-text" onClick={closeArrivalConfirmModal}>
+                    아직 안 왔어요 / 나중에
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <div className="dashboard-header">
         <h1>
           {isPremium && <PremiumBadge premiumSince={premiumSince} paymentCount={paymentCount} />}
@@ -1182,6 +1285,21 @@ export default function DashboardPage() {
           </div>
           <p className="forwarding-banner__hint">
             쇼핑몰 주문확인 메일을 이 주소로 전달(포워딩)하면 자동으로 아래 "확인 대기" 목록에 올라와요.
+          </p>
+          <p className="forwarding-banner__recurring-hint">
+            📦 <strong>정기배송을 등록하는 경우</strong>
+            <br />
+            메일 내용에 <strong>배송 주기(1·2·3·4주)</strong>와 <strong>첫 배송 예정일</strong>을 함께
+            적어 보내주시면 AI가 이후 결제일과 배송일을 자동으로 관리해요. 실제 스토어 주문확인
+            메일에는 배송 주기가 거의 안 적혀 있어서, 전달하실 때 이 두 가지를 직접 적어주셔야 해요 —
+            주기는 반드시 "N주"(1~4주) 형식으로, 도착일은 월일만 적어도(예: 8월 26일, 826) 올해로
+            알아서 인식돼요.
+            <br />
+            <span className="mono">
+              배송 주기: 4주
+              <br />
+              첫 배송 예정일: 2026-07-28
+            </span>
           </p>
           <p className="forwarding-banner__privacy">
             🔒 전달하신 이메일은 상품명·날짜 추출을 위해 Claude API(Anthropic)로 처리되며, 처리 후
@@ -1964,10 +2082,28 @@ export default function DashboardPage() {
 
           <div className="field field--date">
             <label htmlFor="baseDate">
-              {isRecurringType(type) ? '시작일' : '구매일'}
+              {type === 'SUBSCRIPTION' ? '시작일' : '구매일'}
             </label>
             <input id="baseDate" type="date" value={baseDate} onChange={(e) => setBaseDate(e.target.value)} required />
           </div>
+
+          {type !== 'SUBSCRIPTION' && (
+            <div className="field field--date">
+              <label htmlFor="expectedDeliveryDate">예상 도착일{type === 'RECURRING_DELIVERY' ? ' (배송 주기 기준일)' : ''}</label>
+              <input
+                id="expectedDeliveryDate"
+                type="date"
+                value={expectedDeliveryDate}
+                onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+              />
+              {type === 'RECURRING_DELIVERY' && (
+                <p className="field__hint">
+                  비워두면 구매일을 기준으로 계산해요. 스토어가 안내한(또는 원하는) 첫 배송 도착일을
+                  적으면 이후 회차가 그 날짜 기준으로 반복돼요.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="field field--narrow">
             <label htmlFor="amount">금액(원)</label>

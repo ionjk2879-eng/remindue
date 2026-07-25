@@ -14,6 +14,7 @@ import { HttpError } from './lib/errors';
 import { runDailyDigest } from './lib/digest';
 import { runWeeklyDigest } from './lib/weekly-digest';
 import { runConfirmationNudge } from './lib/confirmation-nudge';
+import { runArrivalConfirm } from './lib/arrival-confirm';
 import { runBillingRenewals, runPremiumExpirySweep } from './lib/billing-renewal';
 import { handleIncomingEmail } from './lib/email-intake';
 import type { Env } from './types';
@@ -90,6 +91,16 @@ export default {
       runConfirmationNudge(env).then((result) => {
         console.log(
           `[confirmation-nudge] 완료 — 대상 사용자 ${result.usersNotified}명, 이메일 ${result.emailsSent}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
+        );
+      })
+    );
+
+    // 정기배송 "오늘 오셨나요?" 도착 확인 — dDay===0 조건이 요일과 무관하게 걸릴 수 있고, "아직요"로
+    // 미룬 항목도 매일 재확인해야 하루 뒤 재발송을 놓치지 않는다(confirmation-nudge와 같은 이유).
+    ctx.waitUntil(
+      runArrivalConfirm(env).then((result) => {
+        console.log(
+          `[arrival-confirm] 완료 — 대상 항목 ${result.itemsAsked}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
         );
       })
     );
