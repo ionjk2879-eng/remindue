@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Logo from '../components/Logo';
@@ -68,71 +68,183 @@ const STEPS: Step[] = [
   },
 ];
 
+const AUTOPLAY_INTERVAL_MS = 4500;
+const SCROLL_SETTLE_MS = 120;
+
 function LandingCarousel({ steps }: { steps: Step[] }) {
+  const total = steps.length;
+  // 앞뒤에 마지막/첫 슬라이드의 클론을 하나씩 붙여서 끝에 닿으면 반대쪽으로 순간 이동시키는
+  // 방식으로 무한 반복처럼 보이게 한다. 실제 DOM 위치(pos)는 1..total이 진짜 슬라이드,
+  // 0과 total+1은 각각 마지막/첫 슬라이드의 클론이다.
+  const extended = [steps[total - 1], ...steps, steps[0]];
+
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+  const posRef = useRef(1);
+  const draggingRef = useRef<{ startX: number; startScrollLeft: number } | null>(null);
+  const autoplayTimerRef = useRef<number | undefined>(undefined);
+  const settleTimerRef = useRef<number | undefined>(undefined);
 
-  const syncHeight = () => {
+  const syncHeight = (pos: number) => {
     const track = trackRef.current;
-    const slide = track?.children[active];
+    const slide = track?.children[pos];
     if (track && slide instanceof HTMLElement) {
       track.style.height = `${slide.offsetHeight}px`;
     }
   };
 
-  useLayoutEffect(syncHeight, [active]);
+  const applyPos = (pos: number, smooth: boolean) => {
+    const track = trackRef.current;
+    if (!track) return;
+    track.scrollTo({ left: pos * track.clientWidth, behavior: smooth ? 'smooth' : 'instant' });
+    posRef.current = pos;
+    setActive(((pos - 1) % total + total) % total);
+    syncHeight(pos);
+  };
 
-  useEffect(() => {
-    window.addEventListener('resize', syncHeight);
-    return () => window.removeEventListener('resize', syncHeight);
-  }, [active]);
+  const restartAutoplay = () => {
+    window.clearInterval(autoplayTimerRef.current);
+    autoplayTimerRef.current = window.setInterval(() => {
+      applyPos(posRef.current + 1, true);
+    }, AUTOPLAY_INTERVAL_MS);
+  };
 
-  const scrollToIndex = (index: number) => {
+  const pauseAutoplay = () => window.clearInterval(autoplayTimerRef.current);
+
+  const goToRealIndex = (index: number) => {
+    applyPos(index + 1, true);
+    restartAutoplay();
+  };
+
+  const next = () => {
+    applyPos(posRef.current + 1, true);
+    restartAutoplay();
+  };
+
+  const prev = () => {
+    applyPos(posRef.current - 1, true);
+    restartAutoplay();
+  };
+
+  // 스크롤이 완전히 멈춘 뒤에만 active를 갱신해 도트가 전환 중간에 깜빡이지 않게 하고,
+  // 클론 위치(0 또는 total+1)에 도달했으면 티 안 나게(behavior:'instant') 반대쪽 진짜
+  // 슬라이드 위치로 순간 이동시켜 계속 같은 방향으로 넘길 수 있게 한다.
+  const handleScroll = () => {
+    window.clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = window.setTimeout(() => {
+      const track = trackRef.current;
+      if (!track || track.clientWidth === 0 || draggingRef.current) return;
+      const pos = Math.round(track.scrollLeft / track.clientWidth);
+      if (pos === 0) {
+        applyPos(total, false);
+      } else if (pos === total + 1) {
+        applyPos(1, false);
+      } else if (pos !== posRef.current) {
+        posRef.current = pos;
+        setActive(((pos - 1) % total + total) % total);
+        syncHeight(pos);
+      }
+    }, SCROLL_SETTLE_MS);
+  };
+
+  const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    pauseAutoplay();
+    if (e.pointerType !== 'mouse') return; // 터치/트랙패드는 네이티브 스크롤+스냅에 맡긴다
+    const track = trackRef.current;
+    if (!track) return;
+    draggingRef.current = { startX: e.clientX, startScrollLeft: track.scrollLeft };
+    track.setPointerCapture(e.pointerId);
+    track.style.scrollSnapType = 'none';
+    track.style.cursor = 'grabbing';
+  };
+
+  const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = draggingRef.current;
+    const track = trackRef.current;
+    if (!drag || !track) return;
+    // scrollLeft 직접 대입이나 behavior:'auto'는 CSS scroll-behavior:smooth를 그대로
+    // 따라가버려서 커서를 못 따라가고 애니메이션으로 지연된다. 'instant'만 CSS를
+    // 무시하고 즉시 반영된다.
+    track.scrollTo({ left: drag.startScrollLeft - (e.clientX - drag.startX), behavior: 'instant' });
+  };
+
+  const endDrag = () => {
+    const track = trackRef.current;
+    if (!draggingRef.current || !track) return;
+    draggingRef.current = null;
+    track.style.scrollSnapType = '';
+    track.style.cursor = '';
+    const nearest = Math.round(track.scrollLeft / track.clientWidth);
+    applyPos(nearest, true);
+    restartAutoplay();
+  };
+
+  useLayoutEffect(() => {
     const track = trackRef.current;
     if (track) {
-      // 각 슬라이드는 flex: 0 0 100%라 index * clientWidth가 항상 정확한 위치다.
-      // slide.offsetLeft는 track에 position이 없어 엉뚱한 조상 기준으로 계산되어 어긋난다.
-      track.scrollTo({ left: index * track.clientWidth, behavior: 'smooth' });
+      // track에 CSS scroll-behavior:smooth가 걸려 있어서 scrollLeft 직접 대입이나
+      // behavior:'auto'는 그 CSS를 그대로 따라가 애니메이션이 돼버린다(스펙상 'auto'는
+      // "CSS에 맡긴다"는 뜻). 'instant'만 CSS와 무관하게 즉시 이동한다.
+      track.scrollTo({ left: track.clientWidth * posRef.current, behavior: 'instant' });
+      syncHeight(posRef.current);
     }
-    setActive(index);
-  };
+    restartAutoplay();
+    return () => {
+      window.clearInterval(autoplayTimerRef.current);
+      window.clearTimeout(settleTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleScroll = () => {
-    const track = trackRef.current;
-    if (!track || track.clientWidth === 0) return;
-    const index = Math.round(track.scrollLeft / track.clientWidth);
-    setActive(Math.min(steps.length - 1, Math.max(0, index)));
-  };
+  useEffect(() => {
+    const handleResize = () => {
+      const track = trackRef.current;
+      if (!track) return;
+      track.scrollTo({ left: track.clientWidth * posRef.current, behavior: 'instant' });
+      syncHeight(posRef.current);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
-    <div className="landing__carousel">
+    <div className="landing__carousel" onMouseEnter={pauseAutoplay} onMouseLeave={restartAutoplay}>
       <div className="landing__carousel-row">
         <button
           type="button"
           className="landing__carousel-arrow landing__carousel-arrow--prev"
-          onClick={() => scrollToIndex(Math.max(0, active - 1))}
-          disabled={active === 0}
+          onClick={prev}
           aria-label="이전 단계"
         >
           ‹
         </button>
-        <div className="landing__carousel-track" ref={trackRef} onScroll={handleScroll}>
-          {steps.map((step, i) => (
-            <div className="landing__slide" key={step.title}>
-              <div className="landing__step-head">
-                <span className="landing__step-num">{i + 1}</span>
-                <h3 className="landing__step-title">{step.title}</h3>
+        <div
+          className="landing__carousel-track"
+          ref={trackRef}
+          onScroll={handleScroll}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        >
+          {extended.map((step, i) => {
+            const realIndex = ((i - 1) % total + total) % total;
+            return (
+              <div className="landing__slide" key={`${step.title}-${i}`} aria-hidden={realIndex !== active}>
+                <div className="landing__step-head">
+                  <span className="landing__step-num">{realIndex + 1}</span>
+                  <h3 className="landing__step-title">{step.title}</h3>
+                </div>
+                <p className="landing__step-desc">{step.desc}</p>
+                {step.content}
               </div>
-              <p className="landing__step-desc">{step.desc}</p>
-              {step.content}
-            </div>
-          ))}
+            );
+          })}
         </div>
         <button
           type="button"
           className="landing__carousel-arrow landing__carousel-arrow--next"
-          onClick={() => scrollToIndex(Math.min(steps.length - 1, active + 1))}
-          disabled={active === steps.length - 1}
+          onClick={next}
           aria-label="다음 단계"
         >
           ›
@@ -144,7 +256,7 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
             type="button"
             key={step.title}
             className={`landing__carousel-dot${i === active ? ' landing__carousel-dot--active' : ''}`}
-            onClick={() => scrollToIndex(i)}
+            onClick={() => goToRealIndex(i)}
             aria-label={`${i + 1}단계로 이동`}
           />
         ))}

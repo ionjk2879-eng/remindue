@@ -1455,10 +1455,19 @@ button.summary-board__tile:hover {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   min-width: 0;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
 }
 
 .landing__carousel-track::-webkit-scrollbar {
   display: none;
+}
+
+.landing__carousel-track img {
+  -webkit-user-drag: none;
+  user-drag: none;
+  pointer-events: none;
 }
 
 .landing__slide {
@@ -1546,6 +1555,7 @@ button.summary-board__tile:hover {
   background: var(--hairline-strong);
   padding: 0;
   cursor: pointer;
+  transition: background-color 0.25s ease, width 0.25s ease;
 }
 
 .landing__carousel-dot--active {
