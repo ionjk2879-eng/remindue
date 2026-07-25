@@ -30,6 +30,16 @@ export default function LandingPage() {
         <Link to="/pricing" className="landing__pricing-link">
           요금제 보기
         </Link>
+
+        <div className="landing__preview">
+          <img
+            src="/landing-preview-cards.png"
+            alt="Remindue 대시보드 예시 — 전자제품 반품기한·A/S 보증, 온라인 주문 반품기한, 정기구독(Netflix, Claude Pro), 정기배송(생수) 카드가 D-day와 함께 나열된 모습"
+            className="landing__preview-img"
+            width={1080}
+            height={1445}
+          />
+        </div>
       </div>
     </div>
   );

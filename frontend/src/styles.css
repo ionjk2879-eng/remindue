@@ -1374,9 +1374,29 @@ button.summary-board__tile:hover {
   color: var(--text);
 }
 
+.landing__preview {
+  max-width: 440px;
+  margin: 40px auto 0;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-lift);
+  overflow: hidden;
+  transform: rotate(-1.2deg);
+}
+
+.landing__preview-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 @media (max-width: 640px) {
   .landing__headline {
     font-size: 1.6rem;
+  }
+
+  .landing__preview {
+    max-width: 300px;
   }
 }
 
