@@ -2017,7 +2017,7 @@ export default function DashboardPage() {
                     </button>
                   ) : (
                     <button type="button" className="btn btn-sm" onClick={() => handlePendingRegisterClick(item)}>
-                      {isRecurringType(item.type) && !item.scheduleEstimated ? '바로 등록' : '확인 후 등록'}
+                      확인 후 바로 등록
                     </button>
                   )}
                   <button type="button" className="btn-text" onClick={() => handleIgnorePending(item.id)}>
