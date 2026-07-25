@@ -2089,9 +2089,16 @@ button.summary-board__tile:hover {
    --primary가 정의된 적이 없어서 실제로는 브라우저 기본색(파란색)으로 보이던 죽은 코드였다. */
 .schedule-radio input[type="radio"],
 .schedule-radio input[type="checkbox"] {
+  -webkit-appearance: none;
   appearance: none;
+  box-sizing: border-box;
   width: 16px;
   height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  max-width: 16px;
+  max-height: 16px;
+  padding: 0;
   margin: 0;
   border-radius: 50%;
   border: 1.5px solid var(--hairline-strong);
@@ -2824,9 +2831,16 @@ button.summary-board__tile:hover {
    같은 동그라미 표시로 보이게 브라우저 기본 모양(네모 체크/원형 점) 대신 통일된 스타일을 입힌다. */
 .notification-day-option input[type='checkbox'],
 .notification-day-option input[type='radio'] {
+  -webkit-appearance: none;
   appearance: none;
+  box-sizing: border-box;
   width: 16px;
   height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  max-width: 16px;
+  max-height: 16px;
+  padding: 0;
   margin: 0;
   border-radius: 50%;
   border: 1.5px solid var(--hairline-strong);
