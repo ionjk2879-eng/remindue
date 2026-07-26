@@ -2648,6 +2648,31 @@ button.summary-board__tile:hover {
   background: var(--paper-card);
 }
 
+/* 정기 항목의 "한 번만 사용"은 단순한 보조 체크박스가 아니라 이후 유지 확인·예상 지출을
+   끄는 선택이라, 문구와 효과가 함께 읽히는 카드형 토글로 표시한다. */
+.one-time-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  max-width: 290px;
+  padding: 8px 10px;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 9px;
+  background: var(--paper);
+  cursor: pointer;
+}
+
+.one-time-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--ink);
+}
+
+.one-time-toggle span { display: grid; gap: 2px; }
+.one-time-toggle strong { font-size: 0.82rem; }
+.one-time-toggle small { color: var(--ink-soft); font-size: 0.72rem; line-height: 1.4; }
+
 /* --------------------------------------------------------------------------
    Ticket-stub cards
    -------------------------------------------------------------------------- */

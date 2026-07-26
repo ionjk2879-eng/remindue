@@ -21,6 +21,8 @@ export interface Purchase {
   intervalDays: number | null;
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
+  /** 정기 항목이지만 최초 1회만 사용. 목록은 유지하고 이후 지출·유지 확인만 제외한다. */
+  isOneTime: boolean;
   /** RECURRING_DELIVERY 전용 스케줄 앵커("최초 도착(예정)일") — 없으면(null) baseDate가 대신 앵커로 쓰인다. */
   expectedDeliveryDate: string | null;
   lastDeliveredDate: string | null;
@@ -67,6 +69,7 @@ export interface PurchaseInput {
   intervalDays?: number;
   scheduleType?: ScheduleType;
   fixedDayOfMonth?: number | null;
+  isOneTime?: boolean;
   /** RECURRING_DELIVERY 전용 — 스케줄 앵커. GENERAL은 정보용으로만 저장되고 계산엔 영향 없다. */
   expectedDeliveryDate?: string | null;
   category?: PurchaseCategory | null;

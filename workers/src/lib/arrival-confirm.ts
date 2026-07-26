@@ -47,7 +47,10 @@ export async function runArrivalConfirm(env: Env): Promise<ArrivalConfirmRunResu
   for (const row of results) {
     // 일반 구매는 입력된 도착 예정일을 한 번만 확인하고, 정기배송은 매 회차의 다음 배송일을
     // 확인한다. 기존에는 정기배송도 최초 앵커 날짜만 봐서 두 번째 회차부터는 질문이 누락됐다.
-    const arrivalDate = row.type === 'RECURRING_DELIVERY' ? computeDeadline(row).deadline : arrivalAnchor(row);
+    // 한 번만 쓰는 정기배송은 최초 도착일만 묻고, 실제 수령일이 기록된 뒤에는 이후 회차를
+    // 만들지 않는다. 목록 보관과 "유지 안 함"은 별개라 row 자체는 그대로 남긴다.
+    if (row.type === 'RECURRING_DELIVERY' && row.is_one_time === 1 && row.last_delivered_date !== null) continue;
+    const arrivalDate = row.type === 'RECURRING_DELIVERY' && row.is_one_time === 0 ? computeDeadline(row).deadline : arrivalAnchor(row);
 
     const isFirstAsk = arrivalDate === today && row.arrival_check_snoozed_until === null;
     const isSnoozedRetry = row.arrival_check_snoozed_until !== null && row.arrival_check_snoozed_until <= today;

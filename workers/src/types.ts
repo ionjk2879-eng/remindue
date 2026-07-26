@@ -43,6 +43,8 @@ export interface PurchaseRow {
   schedule_type: ScheduleType;
   /** FIXED_DAY일 때만 사용: 매월 결제/배송되는 날짜(1~31). */
   fixed_day_of_month: number | null;
+  /** 정기 항목을 한 번만 사용해 보는 경우 1. 목록에는 남지만 이후 회차·유지 확인은 만들지 않는다. */
+  is_one_time: number;
   last_delivered_date: string | null;
   /**
    * GENERAL/RECURRING_DELIVERY 전용 도착(예정)일 앵커(usesArrivalDate). NULL이면 base_date(구매일)가
@@ -227,6 +229,8 @@ export interface PurchaseResponse {
   intervalDays: number | null;
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
+  /** 정기 항목이지만 최초 1회만 사용. 목록은 유지하고 이후 지출·유지 확인만 제외한다. */
+  isOneTime: boolean;
   /** GENERAL/RECURRING_DELIVERY 전용 도착(예정)일 앵커 — usesArrivalDate 참고. SUBSCRIPTION/미지정이면
    *  null(그런 경우 baseDate가 대신 앵커로 쓰인다). */
   expectedDeliveryDate: string | null;
@@ -306,6 +310,7 @@ export interface PurchaseRequestBody {
   intervalDays?: number | null;
   scheduleType?: ScheduleType;
   fixedDayOfMonth?: number | null;
+  isOneTime?: boolean;
   /** GENERAL/RECURRING_DELIVERY 전용 — usesArrivalDate 참고. SUBSCRIPTION이면 무시된다. */
   expectedDeliveryDate?: string | null;
   category?: PurchaseCategory | null;

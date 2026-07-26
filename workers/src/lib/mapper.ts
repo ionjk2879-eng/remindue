@@ -23,6 +23,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     intervalDays: row.interval_days,
     scheduleType: row.schedule_type,
     fixedDayOfMonth: row.fixed_day_of_month,
+    isOneTime: row.is_one_time === 1,
     expectedDeliveryDate: row.expected_delivery_date,
     lastDeliveredDate: row.last_delivered_date,
     arrivalCheckSnoozedUntil: row.arrival_check_snoozed_until,

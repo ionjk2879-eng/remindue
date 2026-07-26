@@ -385,7 +385,9 @@ function missedRoundsFor(p: Purchase): number {
  * discontinuedAt("유지 안 함")이 유일하게 믿을 수 있는 신호다.
  */
 function isOverdue(p: Purchase): boolean {
-  return p.dDay < 0 || (isRecurringType(p.type) && p.discontinuedAt !== null);
+  // 한 번만 사용한 정기 항목은 완료 뒤에도 목록에 남기는 선택이다. 과거 일정이라는 이유만으로
+  // "지난 항목"으로 보내면 이 옵션의 목적과 어긋난다.
+  return (!isRecurringType(p.type) && p.dDay < 0) || (isRecurringType(p.type) && !p.isOneTime && p.discontinuedAt !== null);
 }
 
 /** yyyy-MM-dd 문자열 기준으로 오늘까지 며칠 지났는지 — "몇 개월째 이용 중"류 표시에 쓴다. */
@@ -422,6 +424,12 @@ function occurrenceDatesInMonth(p: Purchase, year: number, month: number): strin
   const [baseYear, baseMonth] = anchorDate.split('-').map(Number);
   const pad = (n: number) => String(n).padStart(2, '0');
   const cutoff = spendCutoffDate(p);
+
+  // "한 번만 사용" 정기 항목은 타입과 목록은 유지하되 최초 일정 한 번만 지출로 잡는다.
+  // 고정일 방식도 최초 앵커 날짜가 실제 사용/결제일이므로 그 날짜를 기준으로 한다.
+  if (p.isOneTime) {
+    return baseYear === year && baseMonth === month && (cutoff === null || anchorDate <= cutoff) ? [anchorDate] : [];
+  }
 
   if (p.scheduleType === 'FIXED_DAY') {
     const started = year > baseYear || (year === baseYear && month >= baseMonth);
@@ -493,6 +501,7 @@ export default function DashboardPage() {
   const [intervalDays, setIntervalDays] = useState('30');
   const [scheduleType, setScheduleType] = useState<ScheduleType>('INTERVAL');
   const [fixedDayOfMonth, setFixedDayOfMonth] = useState('1');
+  const [isOneTime, setIsOneTime] = useState(false);
   const [category, setCategory] = useState<PurchaseCategory>('OTHER');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showPremiumUpsell, setShowPremiumUpsell] = useState(false);
@@ -788,6 +797,7 @@ export default function DashboardPage() {
     setIntervalDays('30');
     setScheduleType('INTERVAL');
     setFixedDayOfMonth('1');
+    setIsOneTime(false);
     setCategory('OTHER');
     setBrand('');
     setBrandDomain(null);
@@ -812,6 +822,7 @@ export default function DashboardPage() {
     setIntervalDays(String(p.intervalDays ?? 30));
     setScheduleType(p.scheduleType ?? 'INTERVAL');
     setFixedDayOfMonth(String(p.fixedDayOfMonth ?? 1));
+    setIsOneTime(p.isOneTime);
     setCategory(p.category ?? 'OTHER');
     setBrand(p.brand ?? '');
     setBrandDomain(p.brandDomain ?? null);
@@ -1006,6 +1017,7 @@ export default function DashboardPage() {
       intervalDays: isRecurringType(type) && scheduleType === 'INTERVAL' ? Number(intervalDays) : undefined,
       scheduleType: isRecurringType(type) ? scheduleType : undefined,
       fixedDayOfMonth: isRecurringType(type) && scheduleType === 'FIXED_DAY' ? Number(fixedDayOfMonth) : undefined,
+      isOneTime: isRecurringType(type) ? isOneTime : false,
       category,
       brand: brand.trim() || null,
       brandDomain: brand.trim() ? brandDomain : null,
@@ -1156,13 +1168,13 @@ export default function DashboardPage() {
   };
 
   const urgent = purchases
-    .filter((p) => isRecurringType(p.type) ? p.dDay === 0 : p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
+    .filter((p) => isRecurringType(p.type) ? !p.isOneTime && p.dDay === 0 : p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
   const urgentAllHandled = urgent.length > 0 && urgent.every(isFullyConfirmed);
 
   /** 프리미엄 알림 기능(주간 요약) — 이번 주(오늘부터 7일 이내) 예정인 정기배송·구독. */
   const weeklyRecurring = purchases
-    .filter((p) => isRecurringType(p.type) && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
+    .filter((p) => isRecurringType(p.type) && !p.isOneTime && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
   /**
    * 배송 예정에는 정기배송뿐 아니라 도착 예정일이 있는 일반 구매도 포함한다.
@@ -1171,12 +1183,14 @@ export default function DashboardPage() {
   const weeklyDeliveries = purchases
     .filter((p) =>
       p.type === 'RECURRING_DELIVERY'
-        ? p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS
+        ? p.isOneTime
+          ? p.lastDeliveredDate === null && p.expectedDeliveryDate !== null && isWithinUpcomingDays(p.expectedDeliveryDate, URGENT_WINDOW_DAYS)
+          : p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS
         : p.type === 'GENERAL' && p.expectedDeliveryDate !== null && isWithinUpcomingDays(p.expectedDeliveryDate, URGENT_WINDOW_DAYS)
     )
     .sort((a, b) => {
-      const aDate = a.type === 'GENERAL' ? a.expectedDeliveryDate! : a.deadline;
-      const bDate = b.type === 'GENERAL' ? b.expectedDeliveryDate! : b.deadline;
+      const aDate = a.type === 'GENERAL' || a.isOneTime ? a.expectedDeliveryDate! : a.deadline;
+      const bDate = b.type === 'GENERAL' || b.isOneTime ? b.expectedDeliveryDate! : b.deadline;
       return aDate.localeCompare(bDate);
     });
   const weeklySubscriptions = weeklyRecurring.filter((p) => p.type === 'SUBSCRIPTION');
@@ -1185,7 +1199,7 @@ export default function DashboardPage() {
   const arrivalChecks = purchases.filter((p) => {
     if (p.type === 'SUBSCRIPTION') return false;
     if (p.arrivalCheckSnoozedUntil !== null) return p.arrivalCheckSnoozedUntil <= today;
-    return p.type === 'GENERAL' ? p.expectedDeliveryDate === today : p.dDay === 0;
+    return p.type === 'GENERAL' ? p.expectedDeliveryDate === today : p.isOneTime ? p.lastDeliveredDate === null && p.expectedDeliveryDate === today : p.dDay === 0;
   });
 
   /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
@@ -1291,7 +1305,7 @@ export default function DashboardPage() {
   const reviewCandidates = purchases
     .filter(
       (p) =>
-        isRecurringType(p.type) &&
+        isRecurringType(p.type) && !p.isOneTime &&
         p.amount !== null &&
         (p.discontinuedAt !== null || missedRoundsFor(p) >= MISSED_ROUNDS_REVIEW_THRESHOLD)
     )
@@ -1311,7 +1325,7 @@ export default function DashboardPage() {
    * 미확인은 여기엔 포함되지만 아직 절약 후보로 올리진 않는다(전체확인/유지 안 함 버튼의 대상).
    */
   const needsConfirmationItems = purchases.filter(
-    (p) => isRecurringType(p.type) && p.discontinuedAt === null && missedRoundsFor(p) >= 1
+    (p) => isRecurringType(p.type) && !p.isOneTime && p.discontinuedAt === null && missedRoundsFor(p) >= 1
   );
 
   /**
@@ -2472,6 +2486,13 @@ export default function DashboardPage() {
                 </label>
               </div>
             </div>
+            <label className="one-time-toggle">
+              <input type="checkbox" checked={isOneTime} onChange={(e) => setIsOneTime(e.target.checked)} />
+              <span>
+                <strong>한 번만 사용</strong>
+                <small>항목은 목록에 남기고, 다음 회차의 유지 확인과 예상 지출은 만들지 않아요.</small>
+              </span>
+            </label>
           </div>
         )}
 
@@ -2630,7 +2651,9 @@ export default function DashboardPage() {
                       <h3 className="ticket-card__title">{p.itemName}</h3>
                     </div>
                   </div>
-                  {isRecurringType(p.type) && p.deliveryRound !== null ? (
+                  {isRecurringType(p.type) && p.isOneTime ? (
+                    <p className="ticket-card__deadline">한 번만 사용 · 이후 유지 확인 및 예상 지출 제외</p>
+                  ) : isRecurringType(p.type) && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
                       {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
@@ -2650,7 +2673,7 @@ export default function DashboardPage() {
                     </p>
                   )}
                   <div className="ticket-card__actions">
-                    {isRecurringType(p.type) && p.dDay <= 0 &&
+                    {isRecurringType(p.type) && !p.isOneTime && p.dDay <= 0 &&
                       (isFullyConfirmed(p) ? (
                         <span className="confirm-badge">✓ 확인완료</span>
                       ) : (
