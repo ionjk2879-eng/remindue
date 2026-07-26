@@ -12,26 +12,34 @@
 
   --stamp-red: #c13b3b;
   --stamp-red-light: #d3665f;
-  --stamp-amber: #b8862e;
-  --stamp-amber-light: #cba24f;
+  /* D-day 긴급 전용 번트 로즈 — 오류/위험 상태의 빨강과 의미를 분리한다. */
+  --stamp-urgent: #B85C6E;
+  --stamp-urgent-light: #D58A99;
+  --stamp-amber: #C49A3C;
+  --stamp-amber-light: #D7B761;
   --safe-teal: #2f6f5e;
   --safe-teal-light: #4c8c7a;
+  /* D-day "여유" 스탬프 전용 세이지 그린 — 일반 성공/안전 안내의 청록과 구분한다. */
+  --stamp-sage: #6A9B7A;
+  --stamp-sage-light: #95B9A0;
   --overdue-grey: #8b8b85;
   --overdue-grey-light: #a7a79f;
 
   /* 종류(type) 색상 — D-day 긴급도 색과는 완전히 분리된 팔레트.
      각 색상은 배지 배경으로도 쓰이므로 -bg(연한 배경)/-border(배지 테두리) 짝을 둔다. */
-  --type-general: #2a5cc4;
-  --type-general-bg: #e6edfb;
-  --type-general-border: #b6cbf3;
+  /* 일반 구매: 슬레이트 블루 / 정기배송: 올리브 그린 / 정기구독: 테라코타.
+     책갈피와 타입 태그가 같은 토큰을 쓰므로 두 요소가 항상 같은 의미로 보인다. */
+  --type-general: #6A7BA8;
+  --type-general-bg: #e9edf7;
+  --type-general-border: #bec8e0;
 
-  --type-recurring: #3f8f3f;
-  --type-recurring-bg: #e5f4e3;
-  --type-recurring-border: #bfe4bb;
+  --type-recurring: #8A9B6A;
+  --type-recurring-bg: #eef2e7;
+  --type-recurring-border: #c9d3b6;
 
-  --type-subscription: #c17817;
-  --type-subscription-bg: #fbf0e0;
-  --type-subscription-border: #edc98e;
+  --type-subscription: #C47B6A;
+  --type-subscription-bg: #f8e9e5;
+  --type-subscription-border: #e5b5aa;
 
   /* 서비스 카테고리 8종 색상 — dataviz 스킬의 검증된 카테고리컬 팔레트(순서 고정, CVD 세이프)를
      그대로 쓴다. 색만으로 구분하지 않도록 배지에는 항상 아이콘+라벨 텍스트를 같이 둔다. */
@@ -73,8 +81,8 @@
   --danger-border: #f1c5c5;
   --safe-bg: #e3f0ec;
   --safe-border: #bfe4d8;
-  --amber-bg: #fbf3e4;
-  --amber-border: #efd9ae;
+  --amber-bg: #f8f1df;
+  --amber-border: #e4cf94;
   --neutral-bg: #efefea;
   --footer-bg: #eeeee8;
   --placeholder: #b3b0a4;
@@ -123,24 +131,28 @@
 
     --stamp-red: #e85d5d;
     --stamp-red-light: #e8837c;
-    --stamp-amber: #d9a648;
-    --stamp-amber-light: #e0bb70;
+    --stamp-urgent: #B85C6E;
+    --stamp-urgent-light: #D58A99;
+    --stamp-amber: #C49A3C;
+    --stamp-amber-light: #D7B761;
     --safe-teal: #4a9483;
     --safe-teal-light: #6bab98;
+    --stamp-sage: #6A9B7A;
+    --stamp-sage-light: #95B9A0;
     --overdue-grey: #a3a39c;
     --overdue-grey-light: #bdbdb5;
 
-    --type-general: #6f95e8;
-    --type-general-bg: #1f2a42;
-    --type-general-border: #3d5580;
+    --type-general: #6A7BA8;
+    --type-general-bg: #252b3b;
+    --type-general-border: #4e5a7d;
 
-    --type-recurring: #6bbf6b;
-    --type-recurring-bg: #1f2f1f;
-    --type-recurring-border: #3a553a;
+    --type-recurring: #8A9B6A;
+    --type-recurring-bg: #2a3023;
+    --type-recurring-border: #556042;
 
-    --type-subscription: #e0a94f;
-    --type-subscription-bg: #332715;
-    --type-subscription-border: #5c4526;
+    --type-subscription: #C47B6A;
+    --type-subscription-bg: #382824;
+    --type-subscription-border: #70483f;
 
     --category-software: #3987e5;
     --category-software-bg: #1b2a3c;
@@ -202,24 +214,28 @@
 
   --stamp-red: #e85d5d;
   --stamp-red-light: #e8837c;
-  --stamp-amber: #d9a648;
-  --stamp-amber-light: #e0bb70;
+  --stamp-urgent: #B85C6E;
+  --stamp-urgent-light: #D58A99;
+  --stamp-amber: #C49A3C;
+  --stamp-amber-light: #D7B761;
   --safe-teal: #4a9483;
   --safe-teal-light: #6bab98;
+  --stamp-sage: #6A9B7A;
+  --stamp-sage-light: #95B9A0;
   --overdue-grey: #a3a39c;
   --overdue-grey-light: #bdbdb5;
 
-  --type-general: #6f95e8;
-  --type-general-bg: #1f2a42;
-  --type-general-border: #3d5580;
+  --type-general: #6A7BA8;
+  --type-general-bg: #252b3b;
+  --type-general-border: #4e5a7d;
 
-  --type-recurring: #6bbf6b;
-  --type-recurring-bg: #1f2f1f;
-  --type-recurring-border: #3a553a;
+  --type-recurring: #8A9B6A;
+  --type-recurring-bg: #2a3023;
+  --type-recurring-border: #556042;
 
-  --type-subscription: #e0a94f;
-  --type-subscription-bg: #332715;
-  --type-subscription-border: #5c4526;
+  --type-subscription: #C47B6A;
+  --type-subscription-bg: #382824;
+  --type-subscription-border: #70483f;
 
   --category-software: #3987e5;
   --category-software-bg: #1b2a3c;
@@ -3074,7 +3090,7 @@ button.summary-board__tile:hover {
 }
 
 .stamp-badge--urgent {
-  background: radial-gradient(circle at 32% 28%, var(--stamp-red-light), var(--stamp-red) 72%);
+  background: radial-gradient(circle at 32% 28%, var(--stamp-urgent-light), var(--stamp-urgent) 72%);
 }
 
 .stamp-badge--soon {
@@ -3082,7 +3098,7 @@ button.summary-board__tile:hover {
 }
 
 .stamp-badge--safe {
-  background: radial-gradient(circle at 32% 28%, var(--safe-teal-light), var(--safe-teal) 72%);
+  background: radial-gradient(circle at 32% 28%, var(--stamp-sage-light), var(--stamp-sage) 72%);
 }
 
 .stamp-badge--overdue {
