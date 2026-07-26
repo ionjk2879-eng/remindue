@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
 import { refreshRecurringFxOnConfirmation } from '../lib/recurring-fx';
-import { FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
+import { computeDDay, computeDeadline, FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
 import { sanitizeBrandDomain, sanitizeCurrency, sanitizeOriginalAmount } from '../lib/pending-purchase-intake';
 import { buildCsv, buildPdf } from '../lib/export';
 import { BadRequestError, ForbiddenError, PaymentRequiredError } from '../lib/errors';
@@ -13,6 +13,18 @@ import type { Env, PurchaseRequestBody, PurchaseRow, UserRow } from '../types';
 
 const purchases = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 purchases.use('*', authMiddleware);
+
+/**
+ * "전체 확인"은 밀린 회차를 한 번에 모두 유지한 것으로 기록한다. 다음 예정 회차는
+ * 확인하지 않은 채 남겨 둬야 하므로, 오늘 회차가 시작되었을 때만 그 회차까지 포함한다.
+ */
+function confirmedRoundsAfterConfirmAll(row: PurchaseRow): number {
+  const { deadline, deliveryRound } = computeDeadline(row);
+  if (deliveryRound === null) return row.delivery_confirm_count;
+
+  const confirmableRounds = computeDDay(deadline) <= 0 ? deliveryRound : deliveryRound - 1;
+  return Math.max(row.delivery_confirm_count, confirmableRounds, 0);
+}
 
 async function getUserByEmail(db: D1Database, email: string): Promise<UserRow> {
   const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>();
@@ -291,8 +303,8 @@ purchases.post('/:id/mark-delivered', async (c) => {
 
 /**
  * "이번 회차 확인"(유지하기)을 여러 건 한 번에 처리 — 확인이 필요한 항목을 하나씩 누르는 게
- * 불편하다는 피드백으로 추가. mark-delivered와 동일한 효과(delivery_confirm_count 증가,
- * discontinued_at 해제)를 배열로 받은 id 전부에 한 번의 배치로 적용한다.
+ * 불편하다는 피드백으로 추가. 밀린 회차가 여러 번이어도 모두 유지한 것으로 처리하고,
+ * 다음 예정 회차만 미확인으로 남긴다.
  */
 purchases.post('/confirm-all', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
@@ -315,10 +327,10 @@ purchases.post('/confirm-all', async (c) => {
     owned.map((row) =>
       c.env.DB.prepare(
         `UPDATE purchases
-            SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
+            SET last_delivered_date = ?, delivery_confirm_count = ?,
                 discontinued_at = NULL, updated_at = datetime('now')
           WHERE id = ?`
-      ).bind(today, row.id)
+      ).bind(today, confirmedRoundsAfterConfirmAll(row), row.id)
     )
   );
   await Promise.all(owned.map((row) => refreshRecurringFxOnConfirmation(c.env.DB, row)));
