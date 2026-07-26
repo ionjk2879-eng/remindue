@@ -1929,36 +1929,54 @@ button.summary-board__tile:hover {
 }
 
 /* --------------------------------------------------------------------------
-   Weekly summary banner ("이번 주 배송 예정" — 프리미엄 알림 기능)
+   Weekly schedule tickets (배송/구독을 별도 티켓으로 표시)
    -------------------------------------------------------------------------- */
 
-.weekly-summary-banner {
-  background: var(--safe-bg);
-  border: 1.5px dashed var(--safe-teal);
-  border-radius: var(--radius-sm);
-  padding: 14px 18px;
+.weekly-summary-tickets {
+  display: grid;
+  gap: 12px;
   margin-bottom: 22px;
 }
 
-.weekly-summary-banner__tag {
-  display: inline-flex;
-  align-items: baseline;
+.weekly-summary-ticket {
+  min-height: 0;
+}
+
+.weekly-summary-ticket:hover {
+  transform: none;
+  box-shadow: var(--shadow-rest);
+}
+
+.weekly-summary-ticket__list {
+  display: grid;
   gap: 6px;
-  font-weight: 800;
-  font-size: 0.82rem;
-  letter-spacing: 0.02em;
-  color: var(--safe-teal);
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.weekly-summary-banner ul {
-  margin: 10px 0 0;
-  padding-left: 18px;
-}
-
-.weekly-summary-banner li {
+.weekly-summary-ticket__list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
   font-size: 0.88rem;
   color: var(--ink);
-  margin-bottom: 3px;
+}
+
+.weekly-summary-ticket__list li span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weekly-summary-ticket__list .mono {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+}
+
+.weekly-summary-ticket__count {
+  font-weight: 800;
+  color: var(--ink-soft);
 }
 
 /* --------------------------------------------------------------------------
