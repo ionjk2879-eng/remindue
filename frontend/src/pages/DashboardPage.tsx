@@ -678,6 +678,27 @@ export default function DashboardPage() {
     loadAcceptedShares();
   }, []);
 
+  // 메일 자동화 주소로 들어온 항목은 서버에서 비동기로 만들어진다. 대시보드를 이미 열어 둔
+  // 사용자도 새로고침할 필요 없이 볼 수 있도록 주기적으로 갱신하고, 앱으로 돌아올 때는 즉시
+  // 다시 조회한다.
+  useEffect(() => {
+    const refreshPending = () => {
+      void loadPending().catch((err) => console.error('확인 대기 목록 갱신 실패', err));
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshPending();
+    };
+
+    const intervalId = window.setInterval(refreshPending, 30_000);
+    window.addEventListener('focus', refreshPending);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshPending);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   useEffect(() => {
     if (view === 'ARCHIVED') loadArchived();
   }, [view]);
