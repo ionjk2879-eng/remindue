@@ -12,7 +12,9 @@ import { extractOrderConfirmation } from './email-extract';
 import { insertPendingPurchase } from './pending-purchase-intake';
 import type { Env, UserRow } from '../types';
 
-const TO_LOCAL_PART_PATTERN = /^([a-z]+)$/i;
+// 신규 토큰은 영문 소문자지만, 기존 계정에는 마이그레이션에서 발급한 16진수 토큰이
+// 남아 있을 수 있다. 숫자를 막으면 그 계정의 정상 수신 주소를 조용히 버리게 된다.
+const TO_LOCAL_PART_PATTERN = /^([a-z0-9]+)$/i;
 
 function extractForwardingToken(toAddress: string): string | null {
   const localPart = toAddress.split('@')[0] ?? '';
