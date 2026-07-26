@@ -1106,8 +1106,6 @@ export default function DashboardPage() {
   const weeklyRecurring = purchases
     .filter((p) => isRecurringType(p.type) && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
-  const weeklyDeliveries = weeklyRecurring.filter((p) => p.type === 'RECURRING_DELIVERY');
-  const weeklySubscriptions = weeklyRecurring.filter((p) => p.type === 'SUBSCRIPTION');
 
   /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
   const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
@@ -1921,53 +1919,18 @@ export default function DashboardPage() {
       )}
 
       {isPremium && weeklyRecurring.length > 0 && (
-        <section className="weekly-summary-tickets" aria-label="이번 주 예정">
-          {weeklyDeliveries.length > 0 && (
-            <div className="weekly-summary-ticket ticket-card">
-              <div className="ticket-card__type-tab ticket-card__type-tab--RECURRING_DELIVERY" aria-hidden="true" />
-              <div className="ticket-card__body">
-                <div className="ticket-card__type-row">
-                  <span className="ticket-card__type ticket-card__type--RECURRING_DELIVERY">이번 주 배송 예정</span>
-                </div>
-                <ul className="weekly-summary-ticket__list">
-                  {weeklyDeliveries.map((p) => (
-                    <li key={p.id}>
-                      <span>{p.itemName}</span>
-                      <span className="mono">{formatShortDate(p.deadline)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="ticket-card__perforation" aria-hidden="true" />
-              <div className="ticket-card__stub" aria-label={`이번 주 배송 예정 ${weeklyDeliveries.length}건`}>
-                <span className="weekly-summary-ticket__count mono">{weeklyDeliveries.length}건</span>
-              </div>
-            </div>
-          )}
-
-          {weeklySubscriptions.length > 0 && (
-            <div className="weekly-summary-ticket ticket-card">
-              <div className="ticket-card__type-tab ticket-card__type-tab--SUBSCRIPTION" aria-hidden="true" />
-              <div className="ticket-card__body">
-                <div className="ticket-card__type-row">
-                  <span className="ticket-card__type ticket-card__type--SUBSCRIPTION">이번 주 구독 예정</span>
-                </div>
-                <ul className="weekly-summary-ticket__list">
-                  {weeklySubscriptions.map((p) => (
-                    <li key={p.id}>
-                      <span>{p.itemName}</span>
-                      <span className="mono">{formatShortDate(p.deadline)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="ticket-card__perforation" aria-hidden="true" />
-              <div className="ticket-card__stub" aria-label={`이번 주 구독 예정 ${weeklySubscriptions.length}건`}>
-                <span className="weekly-summary-ticket__count mono">{weeklySubscriptions.length}건</span>
-              </div>
-            </div>
-          )}
-        </section>
+        <div className="weekly-summary-banner">
+          <span className="weekly-summary-banner__tag">
+            📦 이번 주 배송 예정 <span><span className="mono">{weeklyRecurring.length}</span>건</span>
+          </span>
+          <ul>
+            {weeklyRecurring.map((p) => (
+              <li key={p.id}>
+                {p.itemName} — <span className="mono">{formatShortDate(p.deadline)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* 하나씩 누르는 게 불편하다는 피드백으로 추가한 일괄 확인 패널 — 확인이 안 됐다고 바로
