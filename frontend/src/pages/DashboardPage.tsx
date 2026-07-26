@@ -41,6 +41,46 @@ import Pagination from '../components/Pagination';
 
 const PURCHASES_PAGE_SIZE = 5;
 
+/** 원화 입력값은 화면에서 천 단위로 구분하고, 저장할 때는 쉼표를 제외한 숫자를 사용한다. */
+function formatAmountInput(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  return digits ? Number(digits).toLocaleString('ko-KR') : '';
+}
+
+function parseAmountInput(value: string): number | undefined {
+  const digits = value.replace(/\D/g, '');
+  return digits ? Number(digits) : undefined;
+}
+
+const CURRENCY_UNIT: Record<string, string> = {
+  USD: '달러',
+  JPY: '엔',
+  EUR: '유로',
+  GBP: '파운드',
+  CNY: '위안',
+};
+
+/** 해외 결제는 원본 통화 금액을 한국어 단위로 함께 표시한다. */
+function formatOriginalAmount(amount: number, currency: string): string {
+  const formatted = amount.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  return CURRENCY_UNIT[currency] ? `${formatted}${CURRENCY_UNIT[currency]}` : `${currency} ${formatted}`;
+}
+
+function PurchaseAmount({
+  amount,
+  originalAmount,
+  originalCurrency,
+}: {
+  amount: number;
+  originalAmount: number | null;
+  originalCurrency: string | null;
+}) {
+  if (originalCurrency && originalAmount !== null) {
+    return <>{formatOriginalAmount(originalAmount, originalCurrency)} / {amount.toLocaleString('ko-KR')}원</>;
+  }
+  return <>{amount.toLocaleString('ko-KR')}원</>;
+}
+
 const BRAND_DOMAIN: Record<string, string> = {
   // 한국 쇼핑·커머스
   '네이버': 'naver.com', '네이버쇼핑': 'naver.com', '네이버플러스': 'naver.com',
@@ -120,7 +160,7 @@ function FxHint({
   return (
     <span className="fx-hint mono">
       {' '}
-      ({originalCurrency} {originalAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+      ({formatOriginalAmount(originalAmount, originalCurrency)}
       {exchangeRate !== null && ` · ${exchangeRate.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원`})
     </span>
   );
@@ -750,7 +790,7 @@ export default function DashboardPage() {
     setItemName(p.itemName);
     setBaseDate(p.baseDate);
     setExpectedDeliveryDate(p.expectedDeliveryDate ?? '');
-    setAmount(p.amount !== null ? String(p.amount) : '');
+    setAmount(p.amount !== null ? formatAmountInput(String(p.amount)) : '');
     setIsElectronics(p.warrantyMonths !== null);
     setWarrantyMonths(String(p.warrantyMonths ?? 12));
     setReturnDeadlineDays(String(p.returnDeadlineDays ?? 7));
@@ -781,7 +821,7 @@ export default function DashboardPage() {
     setShowRegisterForm(true);
     setType(item.type);
     setItemName(item.itemName ?? '');
-    setAmount(item.amount !== null ? String(item.amount) : '');
+    setAmount(item.amount !== null ? formatAmountInput(String(item.amount)) : '');
     if (isRecurringType(item.type)) {
       // baseDate("구매일")는 항상 이미 벌어진 기준일이어야 이번 달 지출 계산이 맞는다 —
       // orderDate(이번 결제/신청이 실제로 일어난 날)를 우선하고, 그게 없을 때만 미래 예정일인
@@ -907,7 +947,7 @@ export default function DashboardPage() {
       itemName,
       baseDate,
       expectedDeliveryDate: type !== 'SUBSCRIPTION' && expectedDeliveryDate.trim() !== '' ? expectedDeliveryDate : null,
-      amount: amount.trim() !== '' ? Number(amount) : undefined,
+      amount: parseAmountInput(amount),
       warrantyMonths: type === 'GENERAL' && isElectronics ? Number(warrantyMonths) : undefined,
       returnDeadlineDays: type === 'GENERAL' ? Number(returnDeadlineDays) : undefined,
       intervalDays: isRecurringType(type) && scheduleType === 'INTERVAL' ? Number(intervalDays) : undefined,
@@ -2166,14 +2206,17 @@ export default function DashboardPage() {
         {/* 금액 + 카테고리 — 모든 종류에 공통인 일반 필드. */}
         <div className="register-form__row">
           <div className="field field--amount">
-            <label htmlFor="amount">금액(원)</label>
+            <label htmlFor="amount">
+              금액(원)
+              {originalCurrency && originalAmount !== null && ` (${formatOriginalAmount(originalAmount, originalCurrency)} 결제)`}
+            </label>
             <input
               id="amount"
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
               placeholder="선택 입력"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => setAmount(formatAmountInput(e.target.value))}
             />
           </div>
 
@@ -2438,8 +2481,11 @@ export default function DashboardPage() {
                   )}
                   {p.amount !== null && (
                     <p className="ticket-card__amount mono">
-                      {p.amount.toLocaleString('ko-KR')}원
-                      <FxHint originalAmount={p.originalAmount} originalCurrency={p.originalCurrency} exchangeRate={p.exchangeRate} />
+                      <PurchaseAmount
+                        amount={p.amount}
+                        originalAmount={p.originalAmount}
+                        originalCurrency={p.originalCurrency}
+                      />
                     </p>
                   )}
                   <div className="ticket-card__actions">
@@ -2526,8 +2572,11 @@ export default function DashboardPage() {
                   )}
                   {p.amount !== null && (
                     <p className="ticket-card__amount mono">
-                      {p.amount.toLocaleString('ko-KR')}원
-                      <FxHint originalAmount={p.originalAmount} originalCurrency={p.originalCurrency} exchangeRate={p.exchangeRate} />
+                      <PurchaseAmount
+                        amount={p.amount}
+                        originalAmount={p.originalAmount}
+                        originalCurrency={p.originalCurrency}
+                      />
                     </p>
                   )}
                   <div className="ticket-card__actions">
