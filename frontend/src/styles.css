@@ -2648,6 +2648,47 @@ button.summary-board__tile:hover {
   background: var(--paper-card);
 }
 
+/* 등록 폼의 반복 방식은 별도 제목 없이도 선택지가 의미를 설명하므로, 두 개의 세그먼트 토글로
+   압축한다. 실제 radio를 유지해 키보드·스크린리더 조작도 그대로 지원한다. */
+.schedule-type-toggle {
+  display: inline-flex;
+  align-self: end;
+  overflow: hidden;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 9px;
+  background: var(--paper);
+}
+
+.schedule-type-toggle__option {
+  position: relative;
+  padding: 8px 11px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.schedule-type-toggle__option + .schedule-type-toggle__option {
+  border-left: 1px solid var(--hairline-strong);
+}
+
+.schedule-type-toggle__option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.schedule-type-toggle__option--active {
+  background: var(--ink);
+  color: var(--paper-card);
+}
+
+.schedule-type-toggle__option:has(input:focus-visible) {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
 /* 정기 항목의 "한 번만 사용"은 단순한 보조 체크박스가 아니라 이후 유지 확인·예상 지출을
    끄는 선택이라, 문구와 효과가 함께 읽히는 카드형 토글로 표시한다. */
 .one-time-toggle {

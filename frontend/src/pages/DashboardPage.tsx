@@ -2461,30 +2461,27 @@ export default function DashboardPage() {
                 />
               </div>
             )}
-            <div className="field field--schedule">
-              <span className="field__static-label">스케줄 방식</span>
-              <div className="schedule-radio-group">
-                <label className="schedule-radio">
-                  <input
-                    type="radio"
-                    name="scheduleType"
-                    value="INTERVAL"
-                    checked={scheduleType === 'INTERVAL'}
-                    onChange={() => setScheduleType('INTERVAL')}
-                  />
-                  N일마다
-                </label>
-                <label className="schedule-radio">
-                  <input
-                    type="radio"
-                    name="scheduleType"
-                    value="FIXED_DAY"
-                    checked={scheduleType === 'FIXED_DAY'}
-                    onChange={() => setScheduleType('FIXED_DAY')}
-                  />
-                  매월 특정일 고정
-                </label>
-              </div>
+            <div className="schedule-type-toggle" role="radiogroup" aria-label="스케줄 방식">
+              <label className={`schedule-type-toggle__option${scheduleType === 'INTERVAL' ? ' schedule-type-toggle__option--active' : ''}`}>
+                <input
+                  type="radio"
+                  name="scheduleType"
+                  value="INTERVAL"
+                  checked={scheduleType === 'INTERVAL'}
+                  onChange={() => setScheduleType('INTERVAL')}
+                />
+                N일마다
+              </label>
+              <label className={`schedule-type-toggle__option${scheduleType === 'FIXED_DAY' ? ' schedule-type-toggle__option--active' : ''}`}>
+                <input
+                  type="radio"
+                  name="scheduleType"
+                  value="FIXED_DAY"
+                  checked={scheduleType === 'FIXED_DAY'}
+                  onChange={() => setScheduleType('FIXED_DAY')}
+                />
+                매월 N일 고정
+              </label>
             </div>
             <label className="one-time-toggle">
               <input type="checkbox" checked={isOneTime} onChange={(e) => setIsOneTime(e.target.checked)} />
