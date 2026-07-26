@@ -2447,7 +2447,7 @@ export default function DashboardPage() {
                   )}
                   {item.type === 'GENERAL' && (
                     <p className="pending-card__hint">
-                      이 정보는 AI가 완벽히 인식하지 못할 수 있어요. 직접 입력을 더 추천해요.
+                      환불 및 A/S 정보는 정확히 인식되지 않을 수 있어요. 스토어 페이지에서 직접 확인해 주세요.
                     </p>
                   )}
                   {isRecurringType(item.type) && item.scheduleEstimated && (
