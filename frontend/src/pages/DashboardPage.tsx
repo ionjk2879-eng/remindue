@@ -133,8 +133,6 @@ const BRAND_DOMAIN: Record<string, string> = {
   'Figma': 'figma.com',
   'Patreon': 'patreon.com', '패트리온': 'patreon.com',
   'pixivFANBOX': 'pixiv.net',
-  // 하드웨어·주변기기
-  'MCHOSE': 'mchose.store',
 };
 
 // Clearbit의 무료 로고 API(logo.clearbit.com)가 2025-12-08부로 완전히 종료돼 logo.dev로 교체했다
