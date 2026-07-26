@@ -141,8 +141,10 @@ const LOGO_DEV_TOKEN = import.meta.env.VITE_LOGO_DEV_TOKEN as string | undefined
 
 /** 카드 제목 옆에 크게 붙는 브랜드 로고 아이콘 — 로고가 없으면(맵/AI 둘 다 못 찾음) 아무것도
  *  렌더링하지 않는다(자리 차지 안 함). 브랜드명 자체는 각 카드가 kicker 텍스트로 별도 표시한다. */
-function BrandAvatar({ brand, brandDomain }: { brand: string; brandDomain?: string | null }) {
-  const domain = brandDomain ?? BRAND_DOMAIN[brand] ?? null;
+function BrandAvatar({ brand }: { brand: string }) {
+  // AI가 추출한 임의 도메인을 Logo.dev에 바로 넘기면 공식 도메인이어도 광고 이미지 등 잘못된
+  // 자산이 표시될 수 있다. 실제 로고를 확인해 둔 정적 매핑만 사용한다.
+  const domain = BRAND_DOMAIN[brand] ?? null;
   if (!domain || !LOGO_DEV_TOKEN) return null;
   return (
     <img
@@ -2349,7 +2351,7 @@ export default function DashboardPage() {
               <div className={`pending-card${isPriceChange ? ' pending-card--price-change' : ''}`} key={item.id}>
                 <div className="pending-card__body">
                   <div className="pending-card__heading">
-                    {item.brand && <BrandAvatar brand={item.brand} brandDomain={item.brandDomain} />}
+                    {item.brand && <BrandAvatar brand={item.brand} />}
                     <div className="pending-card__heading-text">
                       {item.brand && <span className="brand-kicker">{item.brand}</span>}
                       <p className="pending-card__name">
@@ -2841,7 +2843,7 @@ export default function DashboardPage() {
                     {renderCategoryBadge(p)}
                   </div>
                   <div className="ticket-card__heading">
-                    {p.brand && <BrandAvatar brand={p.brand} brandDomain={p.brandDomain} />}
+                    {p.brand && <BrandAvatar brand={p.brand} />}
                     <div className="ticket-card__heading-text">
                       {p.brand && <span className="brand-kicker">{p.brand}</span>}
                       <h3 className="ticket-card__title">{p.itemName}</h3>
@@ -2933,7 +2935,7 @@ export default function DashboardPage() {
                     {renderCategoryBadge(p)}
                   </div>
                   <div className="ticket-card__heading">
-                    {p.brand && <BrandAvatar brand={p.brand} brandDomain={p.brandDomain} />}
+                    {p.brand && <BrandAvatar brand={p.brand} />}
                     <div className="ticket-card__heading-text">
                       {p.brand && <span className="brand-kicker">{p.brand}</span>}
                       <h3 className="ticket-card__title">{p.itemName}</h3>
