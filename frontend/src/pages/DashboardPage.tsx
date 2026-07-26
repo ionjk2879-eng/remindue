@@ -231,7 +231,7 @@ const TYPE_SHORT_LABEL: Record<PurchaseType, string> = {
 const PURCHASE_TYPES: PurchaseType[] = ['GENERAL', 'RECURRING_DELIVERY', 'SUBSCRIPTION'];
 
 /** 서비스 카테고리 — 이제 모든 구매 유형에 적용된다. "카테고리별 분석" 보드에서 이 순서대로 노출한다. */
-const PURCHASE_CATEGORIES: PurchaseCategory[] = ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'];
+const PURCHASE_CATEGORIES: PurchaseCategory[] = ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'ELECTRONICS', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'];
 
 const CATEGORY_LABEL: Record<PurchaseCategory, string> = {
   SOFTWARE: '소프트웨어',
@@ -239,6 +239,7 @@ const CATEGORY_LABEL: Record<PurchaseCategory, string> = {
   ENTERTAINMENT: '엔터테인먼트',
   SHOPPING: '쇼핑',
   FOOD: '식품',
+  ELECTRONICS: '전자제품',
   CREATOR_SUPPORT: '크리에이터 후원',
   CLOUD: '클라우드',
   OTHER: '기타',
@@ -250,6 +251,7 @@ const CATEGORY_ICON: Record<PurchaseCategory, string> = {
   ENTERTAINMENT: '🎬',
   SHOPPING: '🛒',
   FOOD: '🍽️',
+  ELECTRONICS: '🔌',
   CREATOR_SUPPORT: '💝',
   CLOUD: '☁️',
   OTHER: '📦',

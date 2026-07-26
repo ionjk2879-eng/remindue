@@ -1,7 +1,7 @@
 export type PurchaseType = 'GENERAL' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION';
 export type ScheduleType = 'INTERVAL' | 'FIXED_DAY';
 /** 서비스 카테고리 — 모든 구매 유형에 적용된다(GENERAL 포함). */
-export type PurchaseCategory = 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER';
+export type PurchaseCategory = 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'ELECTRONICS' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER';
 
 /** RECURRING_DELIVERY(실물 정기배송)와 SUBSCRIPTION(디지털 정기구독)은 라벨/색상만 다르고
  *  스케줄(다음 일정, 회차, 확인 버튼 등)은 완전히 동일하게 동작한다. */

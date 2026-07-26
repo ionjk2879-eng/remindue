@@ -2977,6 +2977,12 @@ button.summary-board__tile:hover {
   border-color: var(--category-food-border);
 }
 
+.ticket-card__category--ELECTRONICS {
+  color: #476a99;
+  background: #edf3fa;
+  border-color: #c3d4e9;
+}
+
 .ticket-card__category--CREATOR_SUPPORT {
   color: var(--category-creator-support);
   background: var(--category-creator-support-bg);

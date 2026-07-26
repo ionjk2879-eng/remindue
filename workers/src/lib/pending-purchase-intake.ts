@@ -36,7 +36,7 @@ export function sanitizeAmount(amount: number | null): number | null {
   return typeof amount === 'number' && Number.isInteger(amount) && amount >= 0 ? amount : null;
 }
 
-/** 카테고리는 이제 모든 구매 유형에 적용된다 — AI가 준 값이 유효한 8종을 벗어나면(모델 오류 등) OTHER로 되돌린다. */
+/** 카테고리는 이제 모든 구매 유형에 적용된다 — AI가 준 값이 유효한 목록을 벗어나면(모델 오류 등) OTHER로 되돌린다. */
 export function sanitizeCategory(category: string | null): PurchaseCategory {
   return PURCHASE_CATEGORIES.includes(category as PurchaseCategory) ? (category as PurchaseCategory) : 'OTHER';
 }

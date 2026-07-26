@@ -26,7 +26,7 @@ export interface ExtractedOrder {
   /** currency가 non-null일 때만 채운다: 원본 외화 결제 금액(소수점 유지, 예: 7.99). currency가 null이면 반드시 null. */
   originalAmount: number | null;
   /** 지출 카테고리 추정 — 모든 구매 유형에 대해 채운다(판단 불가면 OTHER). */
-  category: 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER' | null;
+  category: 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'ELECTRONICS' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER' | null;
   /**
    * estimatedType이 GENERAL일 때만 의미 있다: 냉장고/TV/세탁기/노트북/청소기 등 A/S 보증기간
    * 추적이 중요한 가전제품으로 보이면 true. RECURRING_DELIVERY/SUBSCRIPTION이면 항상 false.
@@ -134,7 +134,7 @@ const EXTRACTION_SCHEMA = {
     },
     category: {
       anyOf: [
-        { type: 'string', enum: ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'] },
+        { type: 'string', enum: ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'ELECTRONICS', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'] },
         { type: 'null' },
       ],
       description:
@@ -144,9 +144,10 @@ const EXTRACTION_SCHEMA = {
         'ENTERTAINMENT: 넷플릭스, 유튜브 프리미엄, 스포티파이, 디즈니플러스, 왓챠 등 영상·음악 스트리밍/OTT.\n' +
         'SHOPPING: 쿠팡 와우, 네이버플러스 멤버십 등 쇼핑 멤버십/정기할인 구독, 일반 쇼핑몰 주문(의류/잡화 등).\n' +
         'FOOD: 생수, 밀키트, 신선식품, 커피, 반찬 등 실물 식품·음료(정기배송이든 일반 주문이든).\n' +
+        'ELECTRONICS: 휴대폰, 노트북, TV, 냉장고, 청소기, 주변기기 등 전자제품·가전제품.\n' +
         'CREATOR_SUPPORT: 유튜브 멤버십, 트위치 구독, 패트리온 등 특정 크리에이터/채널 후원성 결제.\n' +
         'CLOUD: 클라우드 저장공간(구글원, iCloud+, 드롭박스 등) 정기결제.\n' +
-        '위에 뚜렷이 해당하지 않으면 OTHER(가전제품, 사료·화장품 정기배송 등). ' +
+        '위에 뚜렷이 해당하지 않으면 OTHER(사료 등). ' +
         'isOrderConfirmation=false면 반드시 null.',
     },
     looksLikeElectronics: {
@@ -308,9 +309,10 @@ isOrderConfirmation=true일 때, 아래 순서대로 판단한다. 핵심 기준
 - ENTERTAINMENT: 넷플릭스, 유튜브 프리미엄, 스포티파이, 디즈니플러스, 왓챠 등 영상·음악 스트리밍/OTT
 - SHOPPING: 쿠팡 와우, 네이버플러스 멤버십 등 쇼핑 멤버십/정기할인 구독, 일반 쇼핑몰 주문
 - FOOD: 생수, 밀키트, 신선식품, 커피, 반찬 등 실물 식품·음료(정기배송이든 일반 주문이든)
+- ELECTRONICS: 휴대폰, 노트북, TV, 냉장고, 청소기, 주변기기 등 전자제품·가전제품
 - CREATOR_SUPPORT: 유튜브 멤버십, 트위치 구독, 패트리온 등 크리에이터/채널 후원성 결제
 - CLOUD: 클라우드 저장공간(구글원, iCloud+, 드롭박스 등) 정기결제
-- 위에 뚜렷이 해당하지 않으면 OTHER (가전제품, 사료·화장품 정기배송 등)
+- 위에 뚜렷이 해당하지 않으면 OTHER (사료 등)
 isOrderConfirmation=false면 반드시 null.
 
 ## 3-1단계: 전자제품 판단 (looksLikeElectronics) — estimatedType이 GENERAL일 때만
