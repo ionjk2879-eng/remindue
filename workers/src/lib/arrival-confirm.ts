@@ -18,8 +18,8 @@
 // 질문을 모달로 띄운다(routes/push.ts의 confirm-arrival). "아직요"는 그 자리에서 스누즈만 하면
 // 끝나는 단순 액션이라 앱을 열지 않는다(sw.ts).
 
-import { arrivalAnchor, computeDeadline } from './purchase-logic';
-import { todayDateOnly } from './date';
+import { arrivalAnchor, computeDeadline, computePreviousScheduleDeadline } from './purchase-logic';
+import { addDays, todayDateOnly } from './date';
 import { sendPush } from './push';
 import { createActionBatchToken } from './action-tokens';
 import type { Env, PurchaseRow, PushSubscriptionRow } from '../types';
@@ -28,6 +28,50 @@ export interface ArrivalConfirmRunResult {
   itemsAsked: number;
   pushSent: number;
   pushSubscriptionsPruned: number;
+}
+
+/**
+ * KST 날짜가 바뀐 뒤 전날 도착 확인에 응답하지 않은 항목을 "아직요"와 같은 상태로 넘긴다.
+ *
+ * 응답이 없었다고 실제 미도착을 단정해 배송일을 바꾸지는 않는다. 다만 다음 날에도 놓치지
+ * 않도록 snoozed_until을 오늘으로 설정해, 15시 도착 확인 알림과 대시보드에 다시 나타나게 한다.
+ */
+export async function rollOverUnansweredArrivals(env: Env): Promise<number> {
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM purchases
+       WHERE type IN ('RECURRING_DELIVERY', 'GENERAL')
+         AND archived_at IS NULL
+         AND discarded_at IS NULL
+         AND discontinued_at IS NULL
+         AND arrival_check_snoozed_until IS NULL`
+  ).all<PurchaseRow>();
+
+  const today = todayDateOnly();
+  const yesterday = addDays(today, -1);
+  const ids: number[] = [];
+
+  for (const row of results) {
+    let wasDueYesterday = false;
+    if (row.type === 'GENERAL') {
+      wasDueYesterday = row.last_delivered_date === null && arrivalAnchor(row) === yesterday;
+    } else if (row.is_one_time === 1) {
+      wasDueYesterday = row.last_delivered_date === null && arrivalAnchor(row) === yesterday;
+    } else {
+      // 정기배송은 computeDeadline이 항상 오늘 이후 회차를 돌려주므로, 직전 회차를 비교해야 한다.
+      wasDueYesterday = computePreviousScheduleDeadline(row) === yesterday;
+    }
+    if (wasDueYesterday) ids.push(row.id);
+  }
+
+  if (ids.length === 0) return 0;
+  await env.DB.prepare(
+    `UPDATE purchases
+        SET arrival_check_snoozed_until = ?, updated_at = datetime('now')
+      WHERE id IN (${ids.map(() => '?').join(',')})`
+  )
+    .bind(today, ...ids)
+    .run();
+  return ids.length;
 }
 
 export async function runArrivalConfirm(env: Env): Promise<ArrivalConfirmRunResult> {

@@ -14,7 +14,7 @@ import { HttpError } from './lib/errors';
 import { runDailyDigest } from './lib/digest';
 import { runWeeklyDigest } from './lib/weekly-digest';
 import { runConfirmationNudge } from './lib/confirmation-nudge';
-import { runArrivalConfirm } from './lib/arrival-confirm';
+import { rollOverUnansweredArrivals, runArrivalConfirm } from './lib/arrival-confirm';
 import { runBillingRenewals, runPremiumExpirySweep } from './lib/billing-renewal';
 import { handleIncomingEmail } from './lib/email-intake';
 import type { Env } from './types';
@@ -76,6 +76,16 @@ export default {
   // UTC 0시(KST 09:00)는 기존 일일 요약, UTC 6시(KST 15:00)는 배송 도착 확인 전용이다.
   scheduled: async (event, env, ctx) => {
     const scheduledUtcHour = new Date(event.scheduledTime).getUTCHours();
+    // UTC 15시 = KST 자정. 전날 도착 확인에 답하지 않은 건을 "아직요" 상태로 넘겨,
+    // 다음 날 오후 도착 확인 알림에서 다시 물을 수 있게 한다.
+    if (scheduledUtcHour === 15) {
+      ctx.waitUntil(
+        rollOverUnansweredArrivals(env).then((count) => {
+          console.log(`[arrival-confirm-rollover] 무응답 항목 ${count}건을 다음 날 재확인 대상으로 전환`);
+        })
+      );
+      return;
+    }
     if (scheduledUtcHour === 6) {
       ctx.waitUntil(
         runArrivalConfirm(env).then((result) => {

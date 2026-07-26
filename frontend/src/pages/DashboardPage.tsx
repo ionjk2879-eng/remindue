@@ -52,18 +52,28 @@ function parseAmountInput(value: string): number | undefined {
   return digits ? Number(digits) : undefined;
 }
 
-const CURRENCY_UNIT: Record<string, string> = {
-  USD: '달러',
-  JPY: '엔',
-  EUR: '유로',
-  GBP: '파운드',
-  CNY: '위안',
+/** 통화별 현지 표기 순서·소수점 자릿수를 적용할 로캘. */
+const CURRENCY_LOCALE: Record<string, string> = {
+  USD: 'en-US',
+  JPY: 'ja-JP',
+  EUR: 'de-DE',
+  GBP: 'en-GB',
+  CNY: 'zh-CN',
 };
 
-/** 해외 결제는 원본 통화 금액을 한국어 단위로 함께 표시한다. */
+/** 해외 결제는 원본 금액을 "달러/엔" 같은 한글 단위 대신 현지 통화 기호로 표시한다. */
 function formatOriginalAmount(amount: number, currency: string): string {
-  const formatted = amount.toLocaleString('en-US', { maximumFractionDigits: 2 });
-  return CURRENCY_UNIT[currency] ? `${formatted}${CURRENCY_UNIT[currency]}` : `${currency} ${formatted}`;
+  const normalizedCurrency = currency.toUpperCase();
+  try {
+    return new Intl.NumberFormat(CURRENCY_LOCALE[normalizedCurrency] ?? 'en-US', {
+      style: 'currency',
+      currency: normalizedCurrency,
+      currencyDisplay: 'narrowSymbol',
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${amount.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${normalizedCurrency}`;
+  }
 }
 
 function PurchaseAmount({
@@ -308,6 +318,20 @@ function isWithinRecentDays(dateStr: string, days: number): boolean {
   const target = new Date(`${dateStr}T00:00:00+09:00`).getTime();
   const elapsed = Math.round((today - target) / 86_400_000);
   return elapsed >= 0 && elapsed <= days;
+}
+
+/** yyyy-MM-dd에서 날짜를 더하거나 뺀다. 정기 일정의 직전 회차를 계산할 때 쓴다. */
+function shiftDateOnly(dateStr: string, days: number): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+/** 매월 고정일 일정의 바로 전 회차. 월말 고정일도 해당 월의 마지막 날로 맞춘다. */
+function previousFixedScheduleDate(dateStr: string, fixedDay: number): string {
+  const [year, month] = dateStr.split('-').map(Number);
+  const previousMonthIndex = month - 2;
+  const previousMonthLastDay = new Date(Date.UTC(year, previousMonthIndex + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, previousMonthIndex, Math.min(fixedDay, previousMonthLastDay))).toISOString().slice(0, 10);
 }
 
 /**
@@ -1259,6 +1283,12 @@ export default function DashboardPage() {
   // 이력을 한 번 남겨야 사용자가 이번 주에 어떤 구독을 중단했는지 바로 알 수 있다.
   const discontinuedThisWeek = (purchase: Purchase) =>
     purchase.discontinuedAt !== null && isWithinRecentDays(purchase.discontinuedAt.slice(0, 10), URGENT_WINDOW_DAYS);
+  const previousSubscriptionSchedule = (purchase: Purchase) =>
+    purchase.scheduleType === 'FIXED_DAY'
+      ? previousFixedScheduleDate(purchase.deadline, purchase.fixedDayOfMonth ?? 1)
+      : shiftDateOnly(purchase.deadline, -(purchase.intervalDays ?? 30));
+  const discontinuedScheduledThisWeek = (purchase: Purchase) =>
+    purchase.discontinuedAt !== null && isWithinRecentDays(previousSubscriptionSchedule(purchase), URGENT_WINDOW_DAYS);
   const weeklyDeliveryEntries: WeeklyEntry[] = [
     ...weeklyDeliveries.map((purchase) => ({ purchase, completed: completedThisWeek(purchase), completedAt: purchase.lastDeliveredDate })),
     ...purchases
@@ -1277,8 +1307,18 @@ export default function DashboardPage() {
       .filter((purchase) => purchase.type === 'SUBSCRIPTION' && completedThisWeek(purchase) && !weeklySubscriptions.some((item) => item.id === purchase.id))
       .map((purchase) => ({ purchase, completed: true, completedAt: purchase.lastDeliveredDate })),
     ...purchases
-      .filter((purchase) => purchase.type === 'SUBSCRIPTION' && discontinuedThisWeek(purchase) && !completedThisWeek(purchase) && !weeklySubscriptions.some((item) => item.id === purchase.id))
-      .map((purchase) => ({ purchase, completed: true, completedAt: purchase.discontinuedAt!.slice(0, 10) })),
+      .filter(
+        (purchase) =>
+          purchase.type === 'SUBSCRIPTION' &&
+          (discontinuedThisWeek(purchase) || discontinuedScheduledThisWeek(purchase)) &&
+          !completedThisWeek(purchase) &&
+          !weeklySubscriptions.some((item) => item.id === purchase.id),
+      )
+      .map((purchase) => ({
+        purchase,
+        completed: true,
+        completedAt: discontinuedScheduledThisWeek(purchase) ? previousSubscriptionSchedule(purchase) : purchase.discontinuedAt!.slice(0, 10),
+      })),
   ];
   /** 푸시를 놓쳐도 대시보드에서 답할 수 있는 오늘의 도착 확인 항목. */
   const arrivalChecks = purchases.filter((p) => {
