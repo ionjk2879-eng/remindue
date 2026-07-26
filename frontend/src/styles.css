@@ -1940,6 +1940,10 @@ button.summary-board__tile:hover {
   margin-bottom: 22px;
 }
 
+.weekly-summary-banner__section {
+  min-width: 0;
+}
+
 .weekly-summary-banner__tag {
   display: inline-flex;
   align-items: baseline;
@@ -1948,6 +1952,10 @@ button.summary-board__tile:hover {
   font-size: 0.82rem;
   letter-spacing: 0.02em;
   color: var(--safe-teal);
+}
+
+.weekly-summary-banner__tag--subscription {
+  color: var(--stamp-amber);
 }
 
 .weekly-summary-banner ul {
@@ -1959,6 +1967,33 @@ button.summary-board__tile:hover {
   font-size: 0.88rem;
   color: var(--ink);
   margin-bottom: 3px;
+}
+
+.weekly-summary-banner__perforation {
+  position: relative;
+  height: 0;
+  margin: 14px -18px;
+  border-top: 2px dashed var(--safe-teal);
+}
+
+.weekly-summary-banner__perforation::before,
+.weekly-summary-banner__perforation::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface);
+  transform: translateY(-50%);
+}
+
+.weekly-summary-banner__perforation::before {
+  left: -6px;
+}
+
+.weekly-summary-banner__perforation::after {
+  right: -6px;
 }
 
 /* --------------------------------------------------------------------------

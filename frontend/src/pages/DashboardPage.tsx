@@ -1102,10 +1102,12 @@ export default function DashboardPage() {
     .sort((a, b) => a.dDay - b.dDay);
   const urgentAllHandled = urgent.length > 0 && urgent.every(isFullyConfirmed);
 
-  /** 프리미엄 알림 기능(주간 요약) — 정기배송·구독 중 이번 주(오늘부터 7일 이내) 예정인 것만. */
+  /** 프리미엄 알림 기능(주간 요약) — 이번 주(오늘부터 7일 이내) 예정인 정기배송·구독. */
   const weeklyRecurring = purchases
     .filter((p) => isRecurringType(p.type) && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
+  const weeklyDeliveries = weeklyRecurring.filter((p) => p.type === 'RECURRING_DELIVERY');
+  const weeklySubscriptions = weeklyRecurring.filter((p) => p.type === 'SUBSCRIPTION');
 
   /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
   const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
@@ -1920,16 +1922,37 @@ export default function DashboardPage() {
 
       {isPremium && weeklyRecurring.length > 0 && (
         <div className="weekly-summary-banner">
-          <span className="weekly-summary-banner__tag">
-            📦 이번 주 배송 예정 <span><span className="mono">{weeklyRecurring.length}</span>건</span>
-          </span>
-          <ul>
-            {weeklyRecurring.map((p) => (
-              <li key={p.id}>
-                {p.itemName} — <span className="mono">{formatShortDate(p.deadline)}</span>
-              </li>
-            ))}
-          </ul>
+          {weeklyDeliveries.length > 0 && (
+            <section className="weekly-summary-banner__section" aria-labelledby="weekly-delivery-title">
+              <span id="weekly-delivery-title" className="weekly-summary-banner__tag">
+                📦 이번 주 배송 예정 <span><span className="mono">{weeklyDeliveries.length}</span>건</span>
+              </span>
+              <ul>
+                {weeklyDeliveries.map((p) => (
+                  <li key={p.id}>
+                    {p.itemName} — <span className="mono">{formatShortDate(p.deadline)}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {weeklyDeliveries.length > 0 && weeklySubscriptions.length > 0 && (
+            <div className="weekly-summary-banner__perforation" aria-hidden="true" />
+          )}
+          {weeklySubscriptions.length > 0 && (
+            <section className="weekly-summary-banner__section" aria-labelledby="weekly-subscription-title">
+              <span id="weekly-subscription-title" className="weekly-summary-banner__tag weekly-summary-banner__tag--subscription">
+                🔄 이번 주 구독 예정 <span><span className="mono">{weeklySubscriptions.length}</span>건</span>
+              </span>
+              <ul>
+                {weeklySubscriptions.map((p) => (
+                  <li key={p.id}>
+                    {p.itemName} — <span className="mono">{formatShortDate(p.deadline)}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
       )}
 
