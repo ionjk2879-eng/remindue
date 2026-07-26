@@ -292,6 +292,15 @@ function todayDateOnly(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
 }
 
+/** yyyy-MM-dd 날짜가 오늘부터 지정한 일수 안에 있는지(KST 기준) 판별한다. */
+function isWithinUpcomingDays(dateStr: string, days: number): boolean {
+  const today = todayDateOnly();
+  const start = new Date(`${today}T00:00:00+09:00`).getTime();
+  const target = new Date(`${dateStr}T00:00:00+09:00`).getTime();
+  const dDay = Math.round((target - start) / 86_400_000);
+  return dDay >= 0 && dDay <= days;
+}
+
 /**
  * 정기구독·배송이고 오늘 이미 "유지하기"를 눌렀는지. (예전에는 계산상 회차 수와
  * delivery_confirm_count를 비교해서 "놓친 배송"까지 판단했지만, 실제 배송 지연 등으로 오탐이
@@ -1106,7 +1115,21 @@ export default function DashboardPage() {
   const weeklyRecurring = purchases
     .filter((p) => isRecurringType(p.type) && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
-  const weeklyDeliveries = weeklyRecurring.filter((p) => p.type === 'RECURRING_DELIVERY');
+  /**
+   * 배송 예정에는 정기배송뿐 아니라 도착 예정일이 있는 일반 구매도 포함한다.
+   * GENERAL의 deadline은 반품/A·S 기한이라 실제 도착일과 다르므로 expectedDeliveryDate를 따로 본다.
+   */
+  const weeklyDeliveries = purchases
+    .filter((p) =>
+      p.type === 'RECURRING_DELIVERY'
+        ? p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS
+        : p.type === 'GENERAL' && p.expectedDeliveryDate !== null && isWithinUpcomingDays(p.expectedDeliveryDate, URGENT_WINDOW_DAYS)
+    )
+    .sort((a, b) => {
+      const aDate = a.type === 'GENERAL' ? a.expectedDeliveryDate! : a.deadline;
+      const bDate = b.type === 'GENERAL' ? b.expectedDeliveryDate! : b.deadline;
+      return aDate.localeCompare(bDate);
+    });
   const weeklySubscriptions = weeklyRecurring.filter((p) => p.type === 'SUBSCRIPTION');
 
   /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
@@ -1920,7 +1943,7 @@ export default function DashboardPage() {
         </button>
       )}
 
-      {isPremium && weeklyRecurring.length > 0 && (
+      {isPremium && (weeklyDeliveries.length > 0 || weeklySubscriptions.length > 0) && (
         <div className="weekly-summary-banner">
           {weeklyDeliveries.length > 0 && (
             <section className="weekly-summary-banner__section" aria-labelledby="weekly-delivery-title">
@@ -1930,7 +1953,7 @@ export default function DashboardPage() {
               <ul>
                 {weeklyDeliveries.map((p) => (
                   <li key={p.id}>
-                    {p.itemName} — <span className="mono">{formatShortDate(p.deadline)}</span>
+                    {p.itemName} — <span className="mono">{formatShortDate(p.type === 'GENERAL' ? p.expectedDeliveryDate! : p.deadline)}</span>
                   </li>
                 ))}
               </ul>
