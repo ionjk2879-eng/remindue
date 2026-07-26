@@ -26,7 +26,7 @@ export interface ExtractedOrder {
   /** currency가 non-null일 때만 채운다: 원본 외화 결제 금액(소수점 유지, 예: 7.99). currency가 null이면 반드시 null. */
   originalAmount: number | null;
   /** 지출 카테고리 추정 — 모든 구매 유형에 대해 채운다(판단 불가면 OTHER). */
-  category: 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'ELECTRONICS' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER' | null;
+  category: 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'HAIR_BODY' | 'SKINCARE' | 'PET' | 'ELECTRONICS' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER' | null;
   /**
    * estimatedType이 GENERAL일 때만 의미 있다: 냉장고/TV/세탁기/노트북/청소기 등 A/S 보증기간
    * 추적이 중요한 가전제품으로 보이면 true. RECURRING_DELIVERY/SUBSCRIPTION이면 항상 false.
@@ -134,7 +134,7 @@ const EXTRACTION_SCHEMA = {
     },
     category: {
       anyOf: [
-        { type: 'string', enum: ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'ELECTRONICS', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'] },
+        { type: 'string', enum: ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'HAIR_BODY', 'SKINCARE', 'PET', 'ELECTRONICS', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'] },
         { type: 'null' },
       ],
       description:
@@ -142,8 +142,11 @@ const EXTRACTION_SCHEMA = {
         'SOFTWARE: 도메인/호스팅, 소프트웨어·앱 라이선스 등 개발/생산성 도구 정기결제.\n' +
         'AI: Claude, ChatGPT, Gemini 등 AI 챗봇/생성형 AI 서비스 구독.\n' +
         'ENTERTAINMENT: 넷플릭스, 유튜브 프리미엄, 스포티파이, 디즈니플러스, 왓챠 등 영상·음악 스트리밍/OTT.\n' +
-        'SHOPPING: 쿠팡 와우, 네이버플러스 멤버십 등 쇼핑 멤버십/정기할인 구독, 일반 쇼핑몰 주문(의류/잡화 등).\n' +
+        'SHOPPING: 쿠팡 와우, 네이버플러스 멤버십 등 쇼핑 멤버십/정기할인 구독, 일반 쇼핑몰 주문(의류/잡화·건강보조식품·운동용품·헬스장/운동 서비스 등). 건강·운동 관련 결제는 OTHER가 아니라 반드시 SHOPPING.\n' +
         'FOOD: 생수, 밀키트, 신선식품, 커피, 반찬 등 실물 식품·음료(정기배송이든 일반 주문이든).\n' +
+        'HAIR_BODY: 샴푸, 린스, 바디워시, 바디로션, 데오드란트, 두피 케어 등 헤어·바디 케어 제품.\n' +
+        'SKINCARE: 스킨, 토너, 세럼, 크림, 선크림, 클렌저, 마스크팩 등 얼굴 피부 관리 화장품.\n' +
+        'PET: 반려동물 사료, 간식, 모래, 용품, 정기배송 및 반려동물 서비스.\n' +
         'ELECTRONICS: 휴대폰, 노트북, TV, 냉장고, 청소기, 주변기기 등 전자제품·가전제품.\n' +
         'CREATOR_SUPPORT: 유튜브 멤버십, 트위치 구독, 패트리온 등 특정 크리에이터/채널 후원성 결제.\n' +
         'CLOUD: 클라우드 저장공간(구글원, iCloud+, 드롭박스 등) 정기결제.\n' +
@@ -307,8 +310,11 @@ isOrderConfirmation=true일 때, 아래 순서대로 판단한다. 핵심 기준
 - SOFTWARE: 도메인/호스팅, 소프트웨어·앱 라이선스 등 개발/생산성 도구 정기결제
 - AI: Claude, ChatGPT, Gemini 등 AI 챗봇/생성형 AI 서비스 구독
 - ENTERTAINMENT: 넷플릭스, 유튜브 프리미엄, 스포티파이, 디즈니플러스, 왓챠 등 영상·음악 스트리밍/OTT
-- SHOPPING: 쿠팡 와우, 네이버플러스 멤버십 등 쇼핑 멤버십/정기할인 구독, 일반 쇼핑몰 주문
+- SHOPPING: 쿠팡 와우, 네이버플러스 멤버십 등 쇼핑 멤버십/정기할인 구독, 일반 쇼핑몰 주문(의류/잡화·건강보조식품·운동용품·헬스장/운동 서비스 등). 건강·운동 관련 결제는 OTHER가 아니라 반드시 SHOPPING
 - FOOD: 생수, 밀키트, 신선식품, 커피, 반찬 등 실물 식품·음료(정기배송이든 일반 주문이든)
+- HAIR_BODY: 샴푸, 린스, 바디워시, 바디로션, 데오드란트, 두피 케어 등 헤어·바디 케어 제품
+- SKINCARE: 스킨, 토너, 세럼, 크림, 선크림, 클렌저, 마스크팩 등 얼굴 피부 관리 화장품
+- PET: 반려동물 사료, 간식, 모래, 용품, 정기배송 및 반려동물 서비스
 - ELECTRONICS: 휴대폰, 노트북, TV, 냉장고, 청소기, 주변기기 등 전자제품·가전제품
 - CREATOR_SUPPORT: 유튜브 멤버십, 트위치 구독, 패트리온 등 크리에이터/채널 후원성 결제
 - CLOUD: 클라우드 저장공간(구글원, iCloud+, 드롭박스 등) 정기결제

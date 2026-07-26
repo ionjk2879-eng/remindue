@@ -2977,6 +2977,24 @@ button.summary-board__tile:hover {
   border-color: var(--category-food-border);
 }
 
+.ticket-card__category--HAIR_BODY {
+  color: #9b5e3b;
+  background: #fdf1e9;
+  border-color: #efc9b2;
+}
+
+.ticket-card__category--SKINCARE {
+  color: #ad4d7a;
+  background: #fcecf4;
+  border-color: #edbfd3;
+}
+
+.ticket-card__category--PET {
+  color: #667a39;
+  background: #f3f7e8;
+  border-color: #d2dfad;
+}
+
 .ticket-card__category--ELECTRONICS {
   color: #476a99;
   background: #edf3fa;

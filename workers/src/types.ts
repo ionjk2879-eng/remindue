@@ -2,10 +2,10 @@ export type PurchaseType = 'GENERAL' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION';
 export type ScheduleType = 'INTERVAL' | 'FIXED_DAY';
 /** 서비스 카테고리 — 이제 모든 구매 유형에 적용된다(GENERAL 포함). 대시보드의 "카테고리별
  *  분석" 보드 자체는 정기배송/구독 지출 전용으로 남아있지만, 필드는 GENERAL도 채울 수 있다. */
-export type PurchaseCategory = 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'ELECTRONICS' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER';
+export type PurchaseCategory = 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'HAIR_BODY' | 'SKINCARE' | 'PET' | 'ELECTRONICS' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER';
 
 export const PURCHASE_TYPES: readonly PurchaseType[] = ['GENERAL', 'RECURRING_DELIVERY', 'SUBSCRIPTION'];
-export const PURCHASE_CATEGORIES: readonly PurchaseCategory[] = ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'ELECTRONICS', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'];
+export const PURCHASE_CATEGORIES: readonly PurchaseCategory[] = ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'HAIR_BODY', 'SKINCARE', 'PET', 'ELECTRONICS', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'];
 
 /** RECURRING_DELIVERY(실물 정기배송)와 SUBSCRIPTION(디지털 정기구독)은 라벨/색상, 스케줄 방식
  *  선택(INTERVAL/FIXED_DAY)·회차·확인 버튼 등은 완전히 동일하다 — 이 둘을 묶어 판단할 때는
