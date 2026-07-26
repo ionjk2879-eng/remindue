@@ -1969,6 +1969,24 @@ button.summary-board__tile:hover {
   margin-bottom: 3px;
 }
 
+.weekly-summary-banner__item--completed {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.weekly-summary-banner__complete {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: var(--safe-teal);
+  background: var(--safe-bg);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .weekly-summary-banner__perforation {
   position: relative;
   height: 0;

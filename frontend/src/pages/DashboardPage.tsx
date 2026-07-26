@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { confirmArrival, confirmArrivalForPurchase, snoozeArrivalForPurchase } from '../api/push';
+import { confirmArrival, confirmArrivalBatch, confirmArrivalForPurchase, confirmRecurringBatch, snoozeArrivalForPurchase } from '../api/push';
 import {
   fetchPurchases,
   fetchPurchasesForSpendHistory,
@@ -301,6 +301,15 @@ function isWithinUpcomingDays(dateStr: string, days: number): boolean {
   return dDay >= 0 && dDay <= days;
 }
 
+/** 이번 주 보드에서 이미 완료한 회차를 잠시 남겨 둘 범위. 수령/유지 처리를 한 뒤 다음 주기로
+ * 계산이 넘어가도, 사용자는 방금 처리한 항목을 확인할 수 있어야 한다. */
+function isWithinRecentDays(dateStr: string, days: number): boolean {
+  const today = new Date(`${todayDateOnly()}T00:00:00+09:00`).getTime();
+  const target = new Date(`${dateStr}T00:00:00+09:00`).getTime();
+  const elapsed = Math.round((today - target) / 86_400_000);
+  return elapsed >= 0 && elapsed <= days;
+}
+
 /**
  * 정기구독·배송이고 오늘 이미 "유지하기"를 눌렀는지. (예전에는 계산상 회차 수와
  * delivery_confirm_count를 비교해서 "놓친 배송"까지 판단했지만, 실제 배송 지연 등으로 오탐이
@@ -544,6 +553,10 @@ export default function DashboardPage() {
   // "며칠 전에 받았는지" 후속 질문을 여기 모달로 띄운다.
   const [searchParams, setSearchParams] = useSearchParams();
   const confirmArrivalToken = searchParams.get('confirmArrival');
+  const confirmArrivalBatchToken = searchParams.get('confirmArrivalBatch');
+  const confirmArrivalBatchIds = (searchParams.get('confirmArrivalItems') ?? '')
+    .split(',').map(Number).filter((id) => Number.isInteger(id) && id > 0);
+  const confirmRecurringBatchToken = searchParams.get('confirmRecurringBatch');
   const confirmRecurringIds = (searchParams.get('confirmRecurring') ?? '')
     .split(',')
     .map(Number)
@@ -553,6 +566,15 @@ export default function DashboardPage() {
   const [arrivalConfirmDone, setArrivalConfirmDone] = useState(false);
   const [dashboardArrivalSubmittingId, setDashboardArrivalSubmittingId] = useState<number | null>(null);
   const [confirmedRecurringIds, setConfirmedRecurringIds] = useState<number[]>([]);
+  const [arrivalBatchReceived, setArrivalBatchReceived] = useState<{ id: number; daysAgo: 0 | 1 | 2 }[]>([]);
+  const [recurringBatchMaintainedIds, setRecurringBatchMaintainedIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    setArrivalBatchReceived(confirmArrivalBatchIds.map((id) => ({ id, daysAgo: 0 })));
+  }, [confirmArrivalBatchToken, confirmArrivalBatchIds.join(',')]);
+  useEffect(() => {
+    setRecurringBatchMaintainedIds(confirmRecurringIds);
+  }, [confirmRecurringBatchToken, confirmRecurringIds.join(',')]);
 
   const cacheKey = `purchases_cache_${nickname ?? 'anon'}`;
 
@@ -938,6 +960,8 @@ export default function DashboardPage() {
       (prev) => {
         const next = new URLSearchParams(prev);
         next.delete('confirmArrival');
+        next.delete('confirmArrivalBatch');
+        next.delete('confirmArrivalItems');
         return next;
       },
       { replace: true }
@@ -969,6 +993,7 @@ export default function DashboardPage() {
       (prev) => {
         const next = new URLSearchParams(prev);
         next.delete('confirmRecurring');
+        next.delete('confirmRecurringBatch');
         return next;
       },
       { replace: true }
@@ -976,7 +1001,7 @@ export default function DashboardPage() {
     setConfirmedRecurringIds([]);
   };
 
-  const handleDashboardArrivalConfirm = async (id: number, daysAgo: 0 | 1) => {
+  const handleDashboardArrivalConfirm = async (id: number, daysAgo: 0 | 1 | 2) => {
     setDashboardArrivalSubmittingId(id);
     try {
       await confirmArrivalForPurchase(id, daysAgo);
@@ -986,6 +1011,37 @@ export default function DashboardPage() {
       setErrorMessage('도착 확인을 처리하지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally {
       setDashboardArrivalSubmittingId(null);
+    }
+  };
+
+  const handleArrivalBatchConfirm = async () => {
+    if (!confirmArrivalBatchToken) return;
+    setArrivalConfirmSubmitting(true);
+    setArrivalConfirmError(null);
+    try {
+      await confirmArrivalBatch(confirmArrivalBatchToken, arrivalBatchReceived);
+      await load();
+      closeArrivalConfirmModal();
+    } catch (err) {
+      console.error(err);
+      setArrivalConfirmError('배송 확인을 처리하지 못했어요. 다시 시도해주세요.');
+    } finally {
+      setArrivalConfirmSubmitting(false);
+    }
+  };
+
+  const handleRecurringBatchConfirm = async () => {
+    if (!confirmRecurringBatchToken) return;
+    setArrivalConfirmSubmitting(true);
+    try {
+      await confirmRecurringBatch(confirmRecurringBatchToken, recurringBatchMaintainedIds);
+      await load();
+      closeRecurringConfirmModal();
+    } catch (err) {
+      console.error(err);
+      setErrorMessage('유지 여부를 처리하지 못했어요. 다시 시도해주세요.');
+    } finally {
+      setArrivalConfirmSubmitting(false);
     }
   };
 
@@ -1168,13 +1224,13 @@ export default function DashboardPage() {
   };
 
   const urgent = purchases
-    .filter((p) => isRecurringType(p.type) ? !p.isOneTime && p.dDay === 0 : p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
+    .filter((p) => isRecurringType(p.type) ? p.dDay === 0 : p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
   const urgentAllHandled = urgent.length > 0 && urgent.every(isFullyConfirmed);
 
   /** 프리미엄 알림 기능(주간 요약) — 이번 주(오늘부터 7일 이내) 예정인 정기배송·구독. */
   const weeklyRecurring = purchases
-    .filter((p) => isRecurringType(p.type) && !p.isOneTime && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
+    .filter((p) => isRecurringType(p.type) && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
   /**
    * 배송 예정에는 정기배송뿐 아니라 도착 예정일이 있는 일반 구매도 포함한다.
@@ -1183,24 +1239,37 @@ export default function DashboardPage() {
   const weeklyDeliveries = purchases
     .filter((p) =>
       p.type === 'RECURRING_DELIVERY'
-        ? p.isOneTime
-          ? p.lastDeliveredDate === null && p.expectedDeliveryDate !== null && isWithinUpcomingDays(p.expectedDeliveryDate, URGENT_WINDOW_DAYS)
-          : p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS
+        ? p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS
         : p.type === 'GENERAL' && p.expectedDeliveryDate !== null && isWithinUpcomingDays(p.expectedDeliveryDate, URGENT_WINDOW_DAYS)
     )
     .sort((a, b) => {
-      const aDate = a.type === 'GENERAL' || a.isOneTime ? a.expectedDeliveryDate! : a.deadline;
-      const bDate = b.type === 'GENERAL' || b.isOneTime ? b.expectedDeliveryDate! : b.deadline;
+      const aDate = a.type === 'GENERAL' ? a.expectedDeliveryDate! : a.deadline;
+      const bDate = b.type === 'GENERAL' ? b.expectedDeliveryDate! : b.deadline;
       return aDate.localeCompare(bDate);
     });
   const weeklySubscriptions = weeklyRecurring.filter((p) => p.type === 'SUBSCRIPTION');
   const today = todayDateOnly();
+  type WeeklyEntry = { purchase: Purchase; completed: boolean; completedAt: string | null };
+  const completedThisWeek = (purchase: Purchase) => purchase.lastDeliveredDate !== null && isWithinRecentDays(purchase.lastDeliveredDate, URGENT_WINDOW_DAYS);
+  const weeklyDeliveryEntries: WeeklyEntry[] = [
+    ...weeklyDeliveries.map((purchase) => ({ purchase, completed: completedThisWeek(purchase), completedAt: purchase.lastDeliveredDate })),
+    ...purchases
+      .filter((purchase) => (purchase.type === 'GENERAL' || purchase.type === 'RECURRING_DELIVERY') && completedThisWeek(purchase) && !weeklyDeliveries.some((item) => item.id === purchase.id))
+      .map((purchase) => ({ purchase, completed: true, completedAt: purchase.lastDeliveredDate })),
+  ];
+  const weeklySubscriptionEntries: WeeklyEntry[] = [
+    ...weeklySubscriptions.map((purchase) => ({ purchase, completed: completedThisWeek(purchase), completedAt: purchase.lastDeliveredDate })),
+    ...purchases
+      .filter((purchase) => purchase.type === 'SUBSCRIPTION' && completedThisWeek(purchase) && !weeklySubscriptions.some((item) => item.id === purchase.id))
+      .map((purchase) => ({ purchase, completed: true, completedAt: purchase.lastDeliveredDate })),
+  ];
   /** 푸시를 놓쳐도 대시보드에서 답할 수 있는 오늘의 도착 확인 항목. */
   const arrivalChecks = purchases.filter((p) => {
     if (p.type === 'SUBSCRIPTION') return false;
-    if (p.arrivalCheckSnoozedUntil !== null) return p.arrivalCheckSnoozedUntil <= today;
-    return p.type === 'GENERAL' ? p.expectedDeliveryDate === today : p.isOneTime ? p.lastDeliveredDate === null && p.expectedDeliveryDate === today : p.dDay === 0;
+    if (p.arrivalCheckSnoozedUntil !== null) return true;
+    return p.type === 'GENERAL' ? p.lastDeliveredDate === null && p.expectedDeliveryDate === today : p.isOneTime ? p.lastDeliveredDate === null && p.expectedDeliveryDate === today : p.dDay === 0;
   });
+  const arrivalSnoozedCount = arrivalChecks.filter((p) => p.arrivalCheckSnoozedUntil !== null).length;
 
   /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
   const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
@@ -1382,6 +1451,7 @@ export default function DashboardPage() {
   const recurringSelectionItems = purchases.filter(
     (p) => confirmRecurringIds.includes(p.id) && isRecurringType(p.type) && !confirmedRecurringIds.includes(p.id)
   );
+  const arrivalBatchItems = purchases.filter((p) => confirmArrivalBatchIds.includes(p.id) && p.type !== 'SUBSCRIPTION');
 
   return (
     <div className="dashboard">
@@ -1390,17 +1460,47 @@ export default function DashboardPage() {
         <div className="onboarding-overlay" role="dialog" aria-modal="true">
           <div className="onboarding-modal">
             <p className="onboarding-modal__title">🔔 오늘 유지할 항목을 선택하세요</p>
-            <p className="onboarding-modal__body">계속 이용 중인 정기배송·구독만 유지하기로 확인해 주세요.</p>
+            <p className="onboarding-modal__body">유지할 항목만 체크하세요. 체크하지 않은 항목은 유지 안 함으로 처리돼요.</p>
             <div className="arrival-modal__choices">
               {recurringSelectionItems.map((p) => (
-                <button key={p.id} type="button" className="btn" onClick={() => handleRecurringSelectionConfirm(p.id)}>
-                  {p.itemName} 유지하기
-                </button>
+                <label key={p.id} className="schedule-radio">
+                  <input type="checkbox" checked={recurringBatchMaintainedIds.includes(p.id)} onChange={(e) =>
+                    setRecurringBatchMaintainedIds((ids) => e.target.checked ? [...ids, p.id] : ids.filter((id) => id !== p.id))
+                  } />
+                  {p.itemName}
+                </label>
               ))}
-              {recurringSelectionItems.length === 0 && <p className="onboarding-modal__body">선택한 항목을 모두 확인했어요.</p>}
+              {recurringSelectionItems.length === 0 && <p className="onboarding-modal__body">처리할 항목이 없어요.</p>}
             </div>
             <div className="onboarding-modal__actions">
+              {confirmRecurringBatchToken && <button type="button" className="btn" disabled={arrivalConfirmSubmitting} onClick={handleRecurringBatchConfirm}>선택한 {recurringBatchMaintainedIds.length}건 유지 · 나머지 {Math.max(0, recurringSelectionItems.length - recurringBatchMaintainedIds.length)}건 유지 안 함</button>}
               <button type="button" className="btn-text" onClick={closeRecurringConfirmModal}>닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmArrivalBatchToken && (
+        <div className="onboarding-overlay" role="dialog" aria-modal="true">
+          <div className="onboarding-modal">
+            <p className="onboarding-modal__title">📦 받은 배송만 선택하세요</p>
+            <p className="onboarding-modal__body">선택하지 않은 배송은 내일 다시 알려드리고, 오늘 대시보드에도 계속 남겨둘게요.</p>
+            {arrivalConfirmError && <p className="form-error">{arrivalConfirmError}</p>}
+            <div className="arrival-modal__choices">
+              {arrivalBatchItems.map((p) => {
+                const selected = arrivalBatchReceived.find((item) => item.id === p.id);
+                return <div key={p.id} className="arrival-batch-item">
+                  <label className="schedule-radio"><input type="checkbox" checked={Boolean(selected)} onChange={(e) =>
+                    setArrivalBatchReceived((items) => e.target.checked ? [...items, { id: p.id, daysAgo: 0 }] : items.filter((item) => item.id !== p.id))
+                  } />{p.itemName}</label>
+                  {selected && <select value={selected.daysAgo} onChange={(e) => setArrivalBatchReceived((items) => items.map((item) => item.id === p.id ? { ...item, daysAgo: Number(e.target.value) as 0 | 1 | 2 } : item))}>
+                    <option value={0}>받았어요</option><option value={1}>하루 전 수령</option><option value={2}>이틀 전 수령</option>
+                  </select>}
+                </div>;
+              })}
+            </div>
+            <div className="onboarding-modal__actions">
+              <button type="button" className="btn" disabled={arrivalConfirmSubmitting} onClick={handleArrivalBatchConfirm}>선택한 {arrivalBatchReceived.length}건 수령 처리 · 나머지 {Math.max(0, arrivalBatchItems.length - arrivalBatchReceived.length)}건 내일 알림</button>
+              <button type="button" className="btn-text" onClick={closeArrivalConfirmModal}>나중에</button>
             </div>
           </div>
         </div>
@@ -1429,13 +1529,13 @@ export default function DashboardPage() {
                 {arrivalConfirmError && <p className="form-error">{arrivalConfirmError}</p>}
                 <div className="arrival-modal__choices">
                   <button type="button" className="btn" disabled={arrivalConfirmSubmitting} onClick={() => handleArrivalConfirm(0)}>
-                    오늘 받았어요
+                    받았어요
                   </button>
                   <button type="button" className="btn" disabled={arrivalConfirmSubmitting} onClick={() => handleArrivalConfirm(1)}>
-                    어제 받았어요
+                    하루 전에 받았어요
                   </button>
                   <button type="button" className="btn" disabled={arrivalConfirmSubmitting} onClick={() => handleArrivalConfirm(2)}>
-                    그저께 받았어요
+                    이틀 전에 받았어요
                   </button>
                 </div>
                 <div className="onboarding-modal__actions">
@@ -2034,34 +2134,36 @@ export default function DashboardPage() {
         </button>
       )}
 
-      {isPremium && (weeklyDeliveries.length > 0 || weeklySubscriptions.length > 0) && (
+      {isPremium && (weeklyDeliveryEntries.length > 0 || weeklySubscriptionEntries.length > 0) && (
         <div className="weekly-summary-banner">
-          {weeklyDeliveries.length > 0 && (
+          {weeklyDeliveryEntries.length > 0 && (
             <section className="weekly-summary-banner__section" aria-labelledby="weekly-delivery-title">
               <span id="weekly-delivery-title" className="weekly-summary-banner__tag">
-                📦 이번 주 배송 예정 <span><span className="mono">{weeklyDeliveries.length}</span>건</span>
+                📦 이번 주 배송 예정 <span><span className="mono">{weeklyDeliveryEntries.length}</span>건</span>
               </span>
               <ul>
-                {weeklyDeliveries.map((p) => (
-                  <li key={p.id}>
-                    {p.itemName} — <span className="mono">{formatShortDate(p.type === 'GENERAL' ? p.expectedDeliveryDate! : p.deadline)}</span>
+                {weeklyDeliveryEntries.map(({ purchase: p, completed, completedAt }) => (
+                  <li key={p.id} className={completed ? 'weekly-summary-banner__item--completed' : ''}>
+                    {p.itemName} — <span className="mono">{formatShortDate(completed && completedAt ? completedAt : p.type === 'GENERAL' ? p.expectedDeliveryDate! : p.deadline)}</span>
+                    {completed && <span className="weekly-summary-banner__complete">받음</span>}
                   </li>
                 ))}
               </ul>
             </section>
           )}
-          {weeklyDeliveries.length > 0 && weeklySubscriptions.length > 0 && (
+          {weeklyDeliveryEntries.length > 0 && weeklySubscriptionEntries.length > 0 && (
             <div className="weekly-summary-banner__perforation" aria-hidden="true" />
           )}
-          {weeklySubscriptions.length > 0 && (
+          {weeklySubscriptionEntries.length > 0 && (
             <section className="weekly-summary-banner__section" aria-labelledby="weekly-subscription-title">
               <span id="weekly-subscription-title" className="weekly-summary-banner__tag weekly-summary-banner__tag--subscription">
-                💳 이번 주 구독 예정 <span><span className="mono">{weeklySubscriptions.length}</span>건</span>
+                💳 이번 주 구독 예정 <span><span className="mono">{weeklySubscriptionEntries.length}</span>건</span>
               </span>
               <ul>
-                {weeklySubscriptions.map((p) => (
-                  <li key={p.id}>
-                    {p.itemName} — <span className="mono">{formatShortDate(p.deadline)}</span>
+                {weeklySubscriptionEntries.map(({ purchase: p, completed, completedAt }) => (
+                  <li key={p.id} className={completed ? 'weekly-summary-banner__item--completed' : ''}>
+                    {p.itemName} — <span className="mono">{formatShortDate(completed && completedAt ? completedAt : p.deadline)}</span>
+                    {completed && <span className="weekly-summary-banner__complete">유지 완료</span>}
                   </li>
                 ))}
               </ul>
@@ -2074,7 +2176,9 @@ export default function DashboardPage() {
         <section className="arrival-check-section" aria-labelledby="arrival-check-title">
           <div className="arrival-check-section__header">
             <span id="arrival-check-title" className="arrival-check-section__title">📦 오늘 배송 받으셨나요?</span>
-            <span className="arrival-check-section__hint">알림을 놓쳤다면 여기서 확인할 수 있어요.</span>
+            <span className="arrival-check-section__hint">
+              {arrivalSnoozedCount > 0 ? `${arrivalSnoozedCount}건은 내일 다시 알려드려요 · ` : ''}알림을 놓쳤다면 여기서 확인할 수 있어요.
+            </span>
           </div>
           <ul className="arrival-check-section__list">
             {arrivalChecks.map((p) => {
@@ -2087,8 +2191,9 @@ export default function DashboardPage() {
                     <span>예상 도착일 · <span className="mono">{scheduledDate}</span></span>
                   </div>
                   <div className="arrival-check-section__actions">
-                    <button type="button" className="btn btn-sm" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 0)}>오늘 받았어요</button>
-                    <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 1)}>어제 받았어요</button>
+                    <button type="button" className="btn btn-sm" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 0)}>받았어요</button>
+                    <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 1)}>하루 전에 받았어요</button>
+                    <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 2)}>이틀 전에 받았어요</button>
                     <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalSnooze(p.id)}>아직 안 왔어요</button>
                   </div>
                 </li>
@@ -2648,14 +2753,13 @@ export default function DashboardPage() {
                       <h3 className="ticket-card__title">{p.itemName}</h3>
                     </div>
                   </div>
-                  {isRecurringType(p.type) && p.isOneTime ? (
-                    <p className="ticket-card__deadline">한 번만 사용 · 이후 유지 확인 및 예상 지출 제외</p>
-                  ) : isRecurringType(p.type) && p.deliveryRound !== null ? (
+                  {isRecurringType(p.type) && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
                       {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
                         ? ` · 매월 ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
                         : ` (${formatShortDate(p.deadline)})`}
+                      {p.isOneTime && ' · 한 번만 사용'}
                     </p>
                   ) : (
                     renderGeneralDeadlineLines(p)

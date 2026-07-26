@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { BadRequestError } from '../lib/errors';
-import { consumeActionToken } from '../lib/action-tokens';
+import { consumeActionBatchToken, consumeActionToken } from '../lib/action-tokens';
 import { addDays, todayDateOnly } from '../lib/date';
 import { confirmReceiptToday, isValidArrivalDaysAgo, resolveArrivalDate, InvalidPurchaseOperationError } from '../lib/purchase-logic';
 import type { Env, PurchaseRow, PushSubscriptionRequestBody, UserRow } from '../types';
@@ -25,6 +25,23 @@ function validateSubscriptionBody(body: Partial<PushSubscriptionRequestBody>): P
   }
   return { endpoint: body.endpoint, keys: { p256dh: body.keys.p256dh, auth: body.keys.auth } };
 }
+
+async function recordArrival(db: D1Database, purchase: PurchaseRow, daysAgo: 0 | 1 | 2): Promise<void> {
+  if (purchase.type === 'SUBSCRIPTION') throw new BadRequestError('정기구독 항목은 도착 확인 대상이 아닙니다');
+  const arrivalDate = resolveArrivalDate(daysAgo);
+  if (purchase.type === 'RECURRING_DELIVERY') {
+    await db.prepare(
+      `UPDATE purchases SET expected_delivery_date = ?, last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
+       discontinued_at = NULL, arrival_check_snoozed_until = NULL, updated_at = datetime('now') WHERE id = ?`
+    ).bind(arrivalDate, arrivalDate, purchase.id).run();
+  } else {
+    await db.prepare(
+      `UPDATE purchases SET expected_delivery_date = ?, last_delivered_date = ?, arrival_check_snoozed_until = NULL,
+       updated_at = datetime('now') WHERE id = ?`
+    ).bind(arrivalDate, arrivalDate, purchase.id).run();
+  }
+}
+
 
 /** 프론트에서 pushManager.subscribe()의 applicationServerKey로 쓸 VAPID 공개키. 로그인 여부와 무관하게 공개된 값. */
 push.get('/vapid-public-key', (c) => c.json({ publicKey: c.env.VAPID_PUBLIC_KEY }));
@@ -182,6 +199,74 @@ push.post('/confirm-arrival', async (c) => {
   return c.body(null, 204);
 });
 
+/** 같은 날짜에 묶인 배송 도착 확인: 전부 오늘 받음 / 일부 수령 / 전부 내일 재질문. */
+push.post('/arrival-batch/:action', async (c) => {
+  const action = c.req.param('action');
+  const body = await c.req.json<{ token?: string; received?: { id: number; daysAgo: number }[] }>()
+    .catch(() => ({} as { token?: string; received?: { id: number; daysAgo: number }[] }));
+  if (!body.token) throw new BadRequestError('token은 필수입니다');
+  if (action !== 'all-received' && action !== 'partial' && action !== 'snooze') throw new BadRequestError('유효하지 않은 처리입니다');
+
+  const batch = await consumeActionBatchToken(c.env.DB, body.token);
+  if (!batch || batch.kind !== 'ARRIVAL') throw new BadRequestError('유효하지 않거나 이미 처리된 알림이에요');
+  const placeholders = batch.purchaseIds.map(() => '?').join(',');
+  const { results } = await c.env.DB.prepare(
+    `SELECT * FROM purchases WHERE user_id = ? AND id IN (${placeholders}) AND type IN ('GENERAL', 'RECURRING_DELIVERY')`
+  ).bind(batch.userId, ...batch.purchaseIds).all<PurchaseRow>();
+
+  const received = action === 'all-received'
+    ? results.map((purchase) => ({ purchase, daysAgo: 0 as const }))
+    : action === 'partial'
+      ? (body.received ?? []).map((item) => ({ purchase: results.find((p) => p.id === item.id), daysAgo: item.daysAgo }))
+      : [];
+  if (action === 'partial' && received.some((item) => !item.purchase || !isValidArrivalDaysAgo(item.daysAgo))) {
+    throw new BadRequestError('받은 항목 또는 수령 날짜가 올바르지 않습니다');
+  }
+
+  const receivedIds = new Set<number>();
+  for (const item of received) {
+    if (!item.purchase) continue;
+    await recordArrival(c.env.DB, item.purchase, item.daysAgo as 0 | 1 | 2);
+    receivedIds.add(item.purchase.id);
+  }
+  // 일부 수령에서 고르지 않은 항목, 또는 전부 미도착은 내일 재질문한다. 같은 날 대시보드에는
+  // snoozed 상태로 계속 남아, 알림 이후에 도착한 물건도 바로 수령 처리할 수 있다.
+  if (action !== 'all-received') {
+    const remainingIds = results.filter((p) => !receivedIds.has(p.id)).map((p) => p.id);
+    if (remainingIds.length > 0) {
+      await c.env.DB.prepare(`UPDATE purchases SET arrival_check_snoozed_until = ?, updated_at = datetime('now') WHERE id IN (${remainingIds.map(() => '?').join(',')})`)
+        .bind(addDays(todayDateOnly(), 1), ...remainingIds).run();
+    }
+  }
+  return c.body(null, 204);
+});
+
+/** 같은 날 묶인 정기 항목: 선택한 것만 유지하고 나머지는 유지 안 함으로 확정한다. */
+push.post('/recurring-batch/:action', async (c) => {
+  const action = c.req.param('action');
+  const body = await c.req.json<{ token?: string; maintainedIds?: number[] }>()
+    .catch(() => ({} as { token?: string; maintainedIds?: number[] }));
+  if (!body.token) throw new BadRequestError('token은 필수입니다');
+  if (action !== 'all-maintain' && action !== 'partial' && action !== 'all-discontinue') throw new BadRequestError('유효하지 않은 처리입니다');
+  const batch = await consumeActionBatchToken(c.env.DB, body.token);
+  if (!batch || batch.kind !== 'RECURRING') throw new BadRequestError('유효하지 않거나 이미 처리된 알림이에요');
+  const maintained = new Set(action === 'all-maintain' ? batch.purchaseIds : action === 'partial' ? (body.maintainedIds ?? []) : []);
+  if (![...maintained].every((id) => batch.purchaseIds.includes(id))) throw new BadRequestError('알림에 없는 항목입니다');
+  const today = todayDateOnly();
+  for (const id of batch.purchaseIds) {
+    if (maintained.has(id)) {
+      await c.env.DB.prepare(
+        `UPDATE purchases SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
+         discontinued_at = NULL, updated_at = datetime('now') WHERE id = ? AND user_id = ?`
+      ).bind(today, id, batch.userId).run();
+    } else {
+      await c.env.DB.prepare(`UPDATE purchases SET discontinued_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND user_id = ?`)
+        .bind(id, batch.userId).run();
+    }
+  }
+  return c.body(null, 204);
+});
+
 // 대시보드에서도 같은 도착 확인을 할 수 있게, 로그인한 사용자의 소유 항목에 한해 제공한다.
 // 푸시 토큰 경로와 달리 이 경로는 일반 인증을 사용하므로, 삭제된 알림을 복구하는 안전한 대체 수단이다.
 push.use('/arrival-check/*', authMiddleware);
@@ -191,7 +276,7 @@ push.post('/arrival-check/:id/confirm', async (c) => {
   const purchaseId = Number(c.req.param('id'));
   const body = await c.req.json<{ daysAgo?: number }>().catch(() => ({}) as { daysAgo?: number });
   if (!Number.isInteger(purchaseId) || purchaseId <= 0) throw new BadRequestError('유효하지 않은 항목입니다');
-  if (body.daysAgo !== 0 && body.daysAgo !== 1) throw new BadRequestError('daysAgo는 0 또는 1이어야 합니다');
+  if (!isValidArrivalDaysAgo(body.daysAgo)) throw new BadRequestError('daysAgo는 0, 1 또는 2여야 합니다');
 
   const purchase = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ? AND user_id = ?')
     .bind(purchaseId, user.id)
@@ -199,21 +284,7 @@ push.post('/arrival-check/:id/confirm', async (c) => {
   if (!purchase) throw new BadRequestError('항목을 찾을 수 없습니다');
   if (purchase.type === 'SUBSCRIPTION') throw new BadRequestError('정기구독 항목은 도착 확인 대상이 아닙니다');
 
-  const arrivalDate = resolveArrivalDate(body.daysAgo);
-  if (purchase.type === 'RECURRING_DELIVERY') {
-    await c.env.DB.prepare(
-      `UPDATE purchases
-          SET expected_delivery_date = ?, last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
-              discontinued_at = NULL, arrival_check_snoozed_until = NULL, updated_at = datetime('now')
-        WHERE id = ?`
-    ).bind(arrivalDate, arrivalDate, purchase.id).run();
-  } else {
-    await c.env.DB.prepare(
-      `UPDATE purchases
-          SET expected_delivery_date = ?, last_delivered_date = ?, arrival_check_snoozed_until = NULL, updated_at = datetime('now')
-        WHERE id = ?`
-    ).bind(arrivalDate, arrivalDate, purchase.id).run();
-  }
+  await recordArrival(c.env.DB, purchase, body.daysAgo);
 
   return c.body(null, 204);
 });

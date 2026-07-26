@@ -23,6 +23,7 @@
 import { computeDDay, computeDeadline, computePreviousScheduleDeadline } from './purchase-logic';
 import { buildConfirmationNudgeEmailHtml, sendDigestEmail } from './email';
 import { sendPush } from './push';
+import { createActionBatchToken } from './action-tokens';
 import type { Env, PurchaseRow, PushSubscriptionRow } from '../types';
 
 /** 당일 유지 확인(액션 버튼) 알림: 결제/배송 당일. */
@@ -74,7 +75,8 @@ async function sendSameDayConfirmPush(
     .all<PushSubscriptionRow>();
   if (subs.length === 0) return { pushSent: 0, pushSubscriptionsPruned: 0 };
 
-  const dashboardUrl = `${env.APP_URL}/dashboard?confirmRecurring=${items.map((item) => item.id).join(',')}`;
+  const actionToken = await createActionBatchToken(env.DB, userId, 'RECURRING', items.map((item) => item.id));
+  const dashboardUrl = `${env.APP_URL}/dashboard?confirmRecurringBatch=${actionToken}&confirmRecurring=${items.map((item) => item.id).join(',')}`;
   const itemSummary = items.slice(0, 2).map((item) => item.itemName).join(', ');
   const more = items.length > 2 ? ` 외 ${items.length - 2}건` : '';
 
@@ -83,12 +85,14 @@ async function sendSameDayConfirmPush(
   for (const sub of subs) {
     const { sent, gone } = await sendPush(env, sub, {
       title: `🔔 오늘 유지 확인할 항목 ${items.length}건`,
-      body: `${itemSummary}${more} — 유지할 항목을 선택해 주세요.`,
+      body: `${itemSummary}${more} — 모두 유지하거나, 유지할 항목만 선택해 주세요.`,
       url: dashboardUrl,
       actions: [
-        { action: 'choose_recurring', title: '유지할 항목 선택' },
-        { action: 'later', title: '나중에' },
+        { action: 'recurring_all_maintain', title: '모두 유지' },
+        { action: 'recurring_partial', title: '일부 유지' },
+        { action: 'recurring_all_discontinue', title: '모두 유지 안 함' },
       ],
+      actionToken,
     });
     if (sent) pushSent += 1;
     if (gone) {

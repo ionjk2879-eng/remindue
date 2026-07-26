@@ -21,7 +21,7 @@
 import { arrivalAnchor, computeDeadline } from './purchase-logic';
 import { todayDateOnly } from './date';
 import { sendPush } from './push';
-import { createActionToken } from './action-tokens';
+import { createActionBatchToken } from './action-tokens';
 import type { Env, PurchaseRow, PushSubscriptionRow } from '../types';
 
 export interface ArrivalConfirmRunResult {
@@ -44,6 +44,7 @@ export async function runArrivalConfirm(env: Env): Promise<ArrivalConfirmRunResu
   let pushSent = 0;
   let pushSubscriptionsPruned = 0;
 
+  const dueByUser = new Map<number, PurchaseRow[]>();
   for (const row of results) {
     // 일반 구매는 입력된 도착 예정일을 한 번만 확인하고, 정기배송은 매 회차의 다음 배송일을
     // 확인한다. 기존에는 정기배송도 최초 앵커 날짜만 봐서 두 번째 회차부터는 질문이 누락됐다.
@@ -56,22 +57,31 @@ export async function runArrivalConfirm(env: Env): Promise<ArrivalConfirmRunResu
     const isSnoozedRetry = row.arrival_check_snoozed_until !== null && row.arrival_check_snoozed_until <= today;
     if (!isFirstAsk && !isSnoozedRetry) continue;
 
-    itemsAsked += 1;
+    const items = dueByUser.get(row.user_id) ?? [];
+    items.push(row);
+    dueByUser.set(row.user_id, items);
+  }
+
+  for (const [userId, items] of dueByUser) {
+    itemsAsked += items.length;
     const { results: subs } = await env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?')
-      .bind(row.user_id)
+      .bind(userId)
       .all<PushSubscriptionRow>();
     if (subs.length === 0) continue;
 
-    const actionToken = await createActionToken(env.DB, row.id);
-    const dashboardUrl = `${env.APP_URL}/dashboard?confirmArrival=${actionToken}`;
+    const actionToken = await createActionBatchToken(env.DB, userId, 'ARRIVAL', items.map((item) => item.id));
+    const dashboardUrl = `${env.APP_URL}/dashboard?confirmArrivalBatch=${actionToken}&confirmArrivalItems=${items.map((item) => item.id).join(',')}`;
+    const itemSummary = items.slice(0, 2).map((item) => item.item_name).join(', ');
+    const more = items.length > 2 ? ` 외 ${items.length - 2}건` : '';
 
     for (const sub of subs) {
       const { sent, gone } = await sendPush(env, sub, {
-        title: `📦 ${row.item_name}, 오늘 오셨나요?`,
-        body: '받으셨으면 "받았어요"를 눌러 확인해 주세요.',
+        title: `📦 오늘 배송 확인 ${items.length}건`,
+        body: `${itemSummary}${more} — 전부 또는 일부 수령 여부를 알려주세요.`,
         url: dashboardUrl,
         actions: [
-          { action: 'arrival_received', title: '받았어요' },
+          { action: 'arrival_all_received', title: '모두 받음' },
+          { action: 'arrival_partial', title: '일부 받음' },
           { action: 'arrival_not_yet', title: '아직요' },
         ],
         actionToken,

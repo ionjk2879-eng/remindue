@@ -63,10 +63,10 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
     return;
   }
 
-  // "오늘 받으셨나요?"의 "아직요" — 내일 다시 물어보도록 서버에 미루기만 하고, 역시 앱은 안 연다.
-  if (event.action === 'arrival_not_yet' && notifData?.actionToken) {
+  // 묶인 배송의 "모두 받음"은 오늘 수령으로 즉시 처리한다.
+  if (event.action === 'arrival_all_received' && notifData?.actionToken) {
     event.waitUntil(
-      fetch(`${API_BASE}/push/snooze-arrival`, {
+      fetch(`${API_BASE}/push/arrival-batch/all-received`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: notifData.actionToken }),
@@ -75,7 +75,28 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
     return;
   }
 
-  // "오늘 받으셨나요?"의 "받았어요"는 며칠 전인지(오늘/하루전/이틀전) 더 물어봐야 해서 액션 버튼
+  // "아직요"는 묶인 항목 전부를 내일 다시 물어본다. 대시보드에는 오늘도 남아 있어
+  // 알림을 닫은 뒤 도착한 물건을 바로 처리할 수 있다.
+  if (event.action === 'arrival_not_yet' && notifData?.actionToken) {
+    event.waitUntil(
+      fetch(`${API_BASE}/push/arrival-batch/snooze`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: notifData.actionToken }),
+      }).catch(() => {})
+    );
+    return;
+  }
+
+  if ((event.action === 'recurring_all_maintain' || event.action === 'recurring_all_discontinue') && notifData?.actionToken) {
+    const action = event.action === 'recurring_all_maintain' ? 'all-maintain' : 'all-discontinue';
+    event.waitUntil(
+      fetch(`${API_BASE}/push/recurring-batch/${action}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: notifData.actionToken }),
+      }).catch(() => {})
+    );
+    return;
+  }
+
+  // "일부 받음"은 받은 물건과 수령일을 골라야 해서 액션 버튼
   // 하나로 끝낼 수 없다 — 아래 기본 동작(대시보드 열기)으로 자연스럽게 넘어간다. url에 이미
   // ?confirmArrival=<토큰>이 붙어 있어(arrival-confirm.ts) 대시보드가 열리면 그 후속 질문 모달을
   // 띄운다. 액션 버튼 없이 알림 본문을 탭한 기본 동작도 동일하게 대시보드를 연다.
