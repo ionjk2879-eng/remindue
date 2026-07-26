@@ -1254,6 +1254,11 @@ export default function DashboardPage() {
   const today = todayDateOnly();
   type WeeklyEntry = { purchase: Purchase; completed: boolean; completedAt: string | null };
   const completedThisWeek = (purchase: Purchase) => purchase.lastDeliveredDate !== null && isWithinRecentDays(purchase.lastDeliveredDate, URGENT_WINDOW_DAYS);
+  // "유지 안 함"을 누르면 정기 스케줄은 곧바로 다음 회차를 가리킬 수 있다. 그 때문에
+  // 오늘/이번 주에 구독을 끝냈어도 예정일 필터만으로는 주간 티켓에서 빠진다. 처리한 주에는
+  // 이력을 한 번 남겨야 사용자가 이번 주에 어떤 구독을 중단했는지 바로 알 수 있다.
+  const discontinuedThisWeek = (purchase: Purchase) =>
+    purchase.discontinuedAt !== null && isWithinRecentDays(purchase.discontinuedAt.slice(0, 10), URGENT_WINDOW_DAYS);
   const weeklyDeliveryEntries: WeeklyEntry[] = [
     ...weeklyDeliveries.map((purchase) => ({ purchase, completed: completedThisWeek(purchase), completedAt: purchase.lastDeliveredDate })),
     ...purchases
@@ -1271,6 +1276,9 @@ export default function DashboardPage() {
     ...purchases
       .filter((purchase) => purchase.type === 'SUBSCRIPTION' && completedThisWeek(purchase) && !weeklySubscriptions.some((item) => item.id === purchase.id))
       .map((purchase) => ({ purchase, completed: true, completedAt: purchase.lastDeliveredDate })),
+    ...purchases
+      .filter((purchase) => purchase.type === 'SUBSCRIPTION' && discontinuedThisWeek(purchase) && !completedThisWeek(purchase) && !weeklySubscriptions.some((item) => item.id === purchase.id))
+      .map((purchase) => ({ purchase, completed: true, completedAt: purchase.discontinuedAt!.slice(0, 10) })),
   ];
   /** 푸시를 놓쳐도 대시보드에서 답할 수 있는 오늘의 도착 확인 항목. */
   const arrivalChecks = purchases.filter((p) => {
