@@ -2369,7 +2369,7 @@ export default function DashboardPage() {
         </div>
 
         {/* 금액 + 카테고리 — 모든 종류에 공통인 일반 필드. */}
-        <div className="register-form__row">
+        <div className="register-form__row register-form__row--payment">
           <div className="field field--amount">
             <label htmlFor="amount">
               금액(원)
@@ -2436,7 +2436,7 @@ export default function DashboardPage() {
           </div>
         )}
         {isRecurringType(type) && (
-          <div className="register-form__row">
+          <div className="register-form__row register-form__row--recurring">
             {scheduleType === 'INTERVAL' && (
               <div className="field field--narrow">
                 <label htmlFor="intervalDays">주기(일)</label>
