@@ -164,13 +164,24 @@ export async function buildPendingPurchaseFields(extracted: ExtractedOrder): Pro
       ? 1
       : 0;
 
+  // Patreon 멤버십은 서비스 규칙으로 매월 1일 고정 결제로 관리한다. 메일 본문에 다음 결제일이
+  // 빠져 있어도 일반적인 "30일 추정"이나 주문일 기반 폴백으로 처리하지 않는다.
+  const isPatreonMembership = [extracted.itemName, extracted.brand, extracted.brandDomain]
+    .some((value) => typeof value === 'string' && value.toLowerCase().includes('patreon'));
+  if (type === 'SUBSCRIPTION' && isPatreonMembership) {
+    scheduleType = 'FIXED_DAY';
+    fixedDayOfMonth = 1;
+    intervalDays = null;
+    scheduleEstimated = 0;
+  }
+
   // SUBSCRIPTION 기본값 — 대부분의 정기구독은 결제일 기준 매월 특정일 고정 결제 방식을 쓴다
   // (사용자 입장에서 가장 직관적이라 실사용 사례 대다수가 이 패턴이다). 그런데 위에서 주기가
   // "모호한 추정치"(30일)로 남았다면, 프롬프트 지시만 믿지 않고 서버에서 한 번 더 FIXED_DAY로
   // 밀어준다 — 이메일에서 뽑아낸 날짜(주문일)의 "일"을 그대로 고정일로 쓴다. 프롬프트가 이 케이스를
   // 놓치더라도(모델이 매번 지시를 따르리라 보장할 수 없다) 항상 이 기본값이 적용되게 하기 위함.
   // 이메일에 쓸 만한 날짜조차 없으면(orderDate도 null) 어쩔 수 없이 기존 INTERVAL=30 추정치로 남는다.
-  if (type === 'SUBSCRIPTION' && scheduleType === 'INTERVAL' && scheduleEstimated === 1) {
+  if (type === 'SUBSCRIPTION' && !isPatreonMembership && scheduleType === 'INTERVAL' && scheduleEstimated === 1) {
     const fallbackDay = dayOfMonthFrom(extracted.orderDate);
     if (fallbackDay !== null) {
       scheduleType = 'FIXED_DAY';

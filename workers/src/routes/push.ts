@@ -4,6 +4,7 @@ import { BadRequestError } from '../lib/errors';
 import { consumeActionBatchToken, consumeActionToken } from '../lib/action-tokens';
 import { addDays, todayDateOnly } from '../lib/date';
 import { confirmReceiptToday, isValidArrivalDaysAgo, resolveArrivalDate, InvalidPurchaseOperationError } from '../lib/purchase-logic';
+import { refreshRecurringFxOnConfirmation } from '../lib/recurring-fx';
 import type { Env, PurchaseRow, PushSubscriptionRequestBody, UserRow } from '../types';
 
 const push = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
@@ -114,6 +115,7 @@ push.post('/confirm-action', async (c) => {
   )
     .bind(today, purchaseId)
     .run();
+  await refreshRecurringFxOnConfirmation(c.env.DB, purchase);
 
   return c.body(null, 204);
 });
@@ -255,10 +257,14 @@ push.post('/recurring-batch/:action', async (c) => {
   const today = todayDateOnly();
   for (const id of batch.purchaseIds) {
     if (maintained.has(id)) {
+      const purchase = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ? AND user_id = ?')
+        .bind(id, batch.userId)
+        .first<PurchaseRow>();
       await c.env.DB.prepare(
         `UPDATE purchases SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
          discontinued_at = NULL, updated_at = datetime('now') WHERE id = ? AND user_id = ?`
       ).bind(today, id, batch.userId).run();
+      if (purchase) await refreshRecurringFxOnConfirmation(c.env.DB, purchase);
     } else {
       await c.env.DB.prepare(`UPDATE purchases SET discontinued_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND user_id = ?`)
         .bind(id, batch.userId).run();

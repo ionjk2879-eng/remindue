@@ -3,6 +3,7 @@
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
+import { refreshRecurringFxOnConfirmation } from '../lib/recurring-fx';
 import { FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
 import { sanitizeBrandDomain, sanitizeCurrency, sanitizeOriginalAmount } from '../lib/pending-purchase-intake';
 import { buildCsv, buildPdf } from '../lib/export';
@@ -282,6 +283,7 @@ purchases.post('/:id/mark-delivered', async (c) => {
   )
     .bind(today, id)
     .run();
+  await refreshRecurringFxOnConfirmation(c.env.DB, existing);
 
   const updated = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<PurchaseRow>();
   return c.json(toPurchaseResponse(updated!));
@@ -319,6 +321,7 @@ purchases.post('/confirm-all', async (c) => {
       ).bind(today, row.id)
     )
   );
+  await Promise.all(owned.map((row) => refreshRecurringFxOnConfirmation(c.env.DB, row)));
 
   const { results } = await c.env.DB.prepare(
     `SELECT * FROM purchases WHERE id IN (${owned.map(() => '?').join(',')})`
