@@ -892,6 +892,40 @@ button.summary-board__tile:hover {
   letter-spacing: -0.01em;
 }
 
+.ai-summary-section__trigger,
+.ai-brief__header-toggle,
+.ai-brief__refresh {
+  font: inherit;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ai-summary-section__trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  text-align: left;
+}
+
+.ai-brief__header-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 2px 0;
+  color: inherit;
+  text-align: left;
+}
+
+.ai-brief__header-toggle:hover,
+.ai-brief__header-toggle:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .ai-brief__header-sub {
   font-size: 0.82rem;
   font-weight: 500;
@@ -902,6 +936,15 @@ button.summary-board__tile:hover {
   font-size: 0.72rem;
   font-weight: 400;
   color: var(--ink-muted);
+  flex-shrink: 0;
+  padding: 4px 0 4px 8px;
+}
+
+.ai-brief__refresh:hover,
+.ai-brief__refresh:focus-visible {
+  color: #8b7cf6;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .ai-brief__divider {

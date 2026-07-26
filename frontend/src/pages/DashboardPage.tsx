@@ -683,7 +683,10 @@ export default function DashboardPage() {
     // (날짜·이름은 모델이 지어내면 안 되는 값이라서). 가격 인상/사용 안 함 항목은 "가격 인상" 타일의
     // 3분류 계산(priceUpItems/unusedItems, 컴포넌트 상단에서 이미 계산됨)을 그대로 재사용한다.
     const upcoming = purchases
-      .filter((p) => isRecurringType(p.type))
+      // 한 번만 사용하는 항목과 이미 "유지 안 함"으로 끝낸 항목은 자동 결제를
+      // 확인할 대상이 아니다. 목록에는 이력을 위해 남아도 소비 매니저의 다음
+      // 확인 서비스 후보에는 넣지 않는다.
+      .filter((p) => isRecurringType(p.type) && !p.isOneTime && p.discontinuedAt === null)
       .sort((a, b) => a.dDay - b.dDay)[0] ?? null;
     const priceIncreaseItems = priceUpItems.map((p) => p.itemName);
     const unusedServiceItems = unusedItems.map((p) => p.itemName);
@@ -1258,7 +1261,13 @@ export default function DashboardPage() {
       .map((purchase) => ({ purchase, completed: true, completedAt: purchase.lastDeliveredDate })),
   ];
   const weeklySubscriptionEntries: WeeklyEntry[] = [
-    ...weeklySubscriptions.map((purchase) => ({ purchase, completed: completedThisWeek(purchase), completedAt: purchase.lastDeliveredDate })),
+    // "한 번만 사용"은 등록 시점에 다음 회차를 만들지 않도록 선택한 상태다. 따라서
+    // 이번 주 구독 예정에서도 실제 유지 확인을 기다리는 것처럼 보이지 않게 유지 안 함으로 표시한다.
+    ...weeklySubscriptions.map((purchase) => ({
+      purchase,
+      completed: purchase.isOneTime || purchase.discontinuedAt !== null || completedThisWeek(purchase),
+      completedAt: purchase.lastDeliveredDate,
+    })),
     ...purchases
       .filter((purchase) => purchase.type === 'SUBSCRIPTION' && completedThisWeek(purchase) && !weeklySubscriptions.some((item) => item.id === purchase.id))
       .map((purchase) => ({ purchase, completed: true, completedAt: purchase.lastDeliveredDate })),
@@ -2005,16 +2014,17 @@ export default function DashboardPage() {
       )}
 
       {purchasesLoaded && purchases.length > 0 && isPremium && (
-        <button
-          type="button"
+        <div
           className="ai-summary-section summary-board__tile summary-board__tile--ai-summary summary-board__tile--clickable"
-          onClick={handleAiSummary}
         >
           {aiBrief ? (
             <div className="ai-brief">
               <div className="ai-brief__header">
-                <span>🤖 AI 소비 매니저 <span className="ai-brief__header-sub">· 오늘의 브리핑</span></span>
-                <span className="ai-brief__refresh">↻ 다시 분석</span>
+                <button type="button" className="ai-brief__header-toggle" onClick={() => setAiBrief(null)} aria-label="AI 소비 매니저 접기">
+                  <span>🤖 AI 소비 매니저 <span className="ai-brief__header-sub">· 오늘의 브리핑</span></span>
+                  <span aria-hidden="true">⌃</span>
+                </button>
+                <button type="button" className="ai-brief__refresh" onClick={handleAiSummary}>↻ 다시 분석</button>
               </div>
               <div className="ai-brief__divider" />
               {/* "AI가 매기는 점수"처럼 보이지만 실제로는 가격 인상/미사용 의심/지출 급증/과다구독
@@ -2127,15 +2137,15 @@ export default function DashboardPage() {
               )}
             </div>
           ) : (
-            <>
+            <button type="button" className="ai-summary-section__trigger" onClick={handleAiSummary}>
               <span className="summary-board__icon" aria-hidden="true">🤖</span>
               <div className="summary-board__text">
                 <span className="summary-board__label">AI 소비 매니저</span>
                 <span className="summary-board__ai-cta">눌러서 소비 패턴 분석하기</span>
               </div>
-            </>
+            </button>
           )}
-        </button>
+        </div>
       )}
 
       {isPremium && (weeklyDeliveryEntries.length > 0 || weeklySubscriptionEntries.length > 0) && (
@@ -2164,12 +2174,15 @@ export default function DashboardPage() {
                 💳 이번 주 구독 예정 <span><span className="mono">{weeklySubscriptionEntries.length}</span>건</span>
               </span>
               <ul>
-                {weeklySubscriptionEntries.map(({ purchase: p, completed, completedAt }) => (
+                {weeklySubscriptionEntries.map(({ purchase: p, completed, completedAt }) => {
+                  const discontinued = p.isOneTime || p.discontinuedAt !== null;
+                  return (
                   <li key={p.id} className={completed ? 'weekly-summary-banner__item--completed' : ''}>
                     {p.itemName} — <span className="mono">{formatShortDate(completed && completedAt ? completedAt : p.deadline)}</span>
-                    {completed && <span className="weekly-summary-banner__complete">유지 완료</span>}
+                    {completed && <span className="weekly-summary-banner__complete">{discontinued ? '유지 안 함' : '유지 완료'}</span>}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </section>
           )}
