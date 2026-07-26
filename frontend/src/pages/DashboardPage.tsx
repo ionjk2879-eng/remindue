@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { confirmArrival } from '../api/push';
+import { confirmArrival, confirmArrivalForPurchase, snoozeArrivalForPurchase } from '../api/push';
 import {
   fetchPurchases,
   fetchPurchasesForSpendHistory,
@@ -538,6 +538,7 @@ export default function DashboardPage() {
   const [arrivalConfirmSubmitting, setArrivalConfirmSubmitting] = useState(false);
   const [arrivalConfirmError, setArrivalConfirmError] = useState<string | null>(null);
   const [arrivalConfirmDone, setArrivalConfirmDone] = useState(false);
+  const [dashboardArrivalSubmittingId, setDashboardArrivalSubmittingId] = useState<number | null>(null);
 
   const cacheKey = `purchases_cache_${nickname ?? 'anon'}`;
 
@@ -947,6 +948,32 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDashboardArrivalConfirm = async (id: number, daysAgo: 0 | 1) => {
+    setDashboardArrivalSubmittingId(id);
+    try {
+      await confirmArrivalForPurchase(id, daysAgo);
+      await load();
+    } catch (err) {
+      console.error(err);
+      setErrorMessage('도착 확인을 처리하지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setDashboardArrivalSubmittingId(null);
+    }
+  };
+
+  const handleDashboardArrivalSnooze = async (id: number) => {
+    setDashboardArrivalSubmittingId(id);
+    try {
+      await snoozeArrivalForPurchase(id);
+      await load();
+    } catch (err) {
+      console.error(err);
+      setErrorMessage('내일 다시 묻도록 설정하지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setDashboardArrivalSubmittingId(null);
+    }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -1131,6 +1158,13 @@ export default function DashboardPage() {
       return aDate.localeCompare(bDate);
     });
   const weeklySubscriptions = weeklyRecurring.filter((p) => p.type === 'SUBSCRIPTION');
+  const today = todayDateOnly();
+  /** 푸시를 놓쳐도 대시보드에서 답할 수 있는 오늘의 도착 확인 항목. */
+  const arrivalChecks = purchases.filter((p) => {
+    if (p.type === 'SUBSCRIPTION') return false;
+    if (p.arrivalCheckSnoozedUntil !== null) return p.arrivalCheckSnoozedUntil <= today;
+    return p.type === 'GENERAL' ? p.expectedDeliveryDate === today : p.dDay === 0;
+  });
 
   /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
   const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
@@ -1143,7 +1177,6 @@ export default function DashboardPage() {
   const monthlyEquivalent = (p: Purchase): number =>
     p.scheduleType === 'FIXED_DAY' ? p.amount! : (p.amount! * 30) / (p.intervalDays || 30);
 
-  const today = todayDateOnly();
   const [currentYearNum, currentMonthNum] = today.split('-').map(Number);
 
   /**
@@ -1965,7 +1998,7 @@ export default function DashboardPage() {
           {weeklySubscriptions.length > 0 && (
             <section className="weekly-summary-banner__section" aria-labelledby="weekly-subscription-title">
               <span id="weekly-subscription-title" className="weekly-summary-banner__tag weekly-summary-banner__tag--subscription">
-                🔄 이번 주 구독 예정 <span><span className="mono">{weeklySubscriptions.length}</span>건</span>
+                💳 이번 주 구독 예정 <span><span className="mono">{weeklySubscriptions.length}</span>건</span>
               </span>
               <ul>
                 {weeklySubscriptions.map((p) => (
@@ -1977,6 +2010,34 @@ export default function DashboardPage() {
             </section>
           )}
         </div>
+      )}
+
+      {arrivalChecks.length > 0 && (
+        <section className="arrival-check-section" aria-labelledby="arrival-check-title">
+          <div className="arrival-check-section__header">
+            <span id="arrival-check-title" className="arrival-check-section__title">📦 오늘 배송 받으셨나요?</span>
+            <span className="arrival-check-section__hint">알림을 놓쳤다면 여기서 확인할 수 있어요.</span>
+          </div>
+          <ul className="arrival-check-section__list">
+            {arrivalChecks.map((p) => {
+              const isSubmitting = dashboardArrivalSubmittingId === p.id;
+              const scheduledDate = p.type === 'GENERAL' ? p.expectedDeliveryDate : p.deadline;
+              return (
+                <li key={p.id}>
+                  <div>
+                    <strong>{p.itemName}</strong>
+                    <span>예상 도착일 · <span className="mono">{scheduledDate}</span></span>
+                  </div>
+                  <div className="arrival-check-section__actions">
+                    <button type="button" className="btn btn-sm" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 0)}>오늘 받았어요</button>
+                    <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 1)}>어제 받았어요</button>
+                    <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalSnooze(p.id)}>아직 안 왔어요</button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
 
       {/* 하나씩 누르는 게 불편하다는 피드백으로 추가한 일괄 확인 패널 — 확인이 안 됐다고 바로
@@ -2235,7 +2296,7 @@ export default function DashboardPage() {
                     {type === 'RECURRING_DELIVERY' &&
                       '비워두면 구매일을 기준으로 계산해요. 스토어가 안내한(또는 원하는) 첫 배송 도착일을 적으면 이후 회차가 그 날짜 기준으로 반복돼요.'}
                     {type === 'GENERAL' &&
-                      '비워두면 구매일을 기준으로 계산해요. 적으면 반품기한(7일)·A/S 보증(1년)을 이 날짜부터 계산해드려요 — 자세한 환불 가능 날짜와 A/S 보증 만료일은 구매하신 스토어의 상세정보를 꼭 확인해주세요.'}
+                      '비워두면 구매일을 기준으로 계산해요. 적으면 반품기한(7일)·A/S 보증(1년)을 이 날짜부터 계산하고, 오늘부터 7일 안의 도착 예정일은 이번 주 배송 예정에도 표시돼요 — 자세한 환불 가능 날짜와 A/S 보증 만료일은 구매하신 스토어의 상세정보를 꼭 확인해주세요.'}
                   </span>
                 </span>
               </label>
@@ -2370,6 +2431,16 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {type === 'GENERAL' && editingId === null && (
+          <p className="register-form__hint">
+            온라인 쇼핑·택배처럼 한 번 구매하고 배송받는 항목이에요. 도착 예정일을 입력하면 이번 주 배송 예정과 반품기한을 함께 챙겨드려요.
+          </p>
+        )}
+        {type === 'RECURRING_DELIVERY' && editingId === null && (
+          <p className="register-form__hint">
+            생필품 정기배송처럼 일정한 주기로 실물 상품을 받아보는 항목이에요. 첫 배송 예정일과 주기를 입력하면 다음 배송일을 챙겨드려요.
+          </p>
+        )}
         {type === 'SUBSCRIPTION' && editingId === null && (
           <p className="register-form__hint">
             넷플릭스·도메인/호스팅 갱신·멤버십처럼 실물 배송 없이 정기결제되는 항목이에요.

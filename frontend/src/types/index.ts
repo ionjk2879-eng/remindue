@@ -24,6 +24,7 @@ export interface Purchase {
   /** RECURRING_DELIVERY 전용 스케줄 앵커("최초 도착(예정)일") — 없으면(null) baseDate가 대신 앵커로 쓰인다. */
   expectedDeliveryDate: string | null;
   lastDeliveredDate: string | null;
+  arrivalCheckSnoozedUntil: string | null;
   /** "가장 급한" 기한 — GENERAL이고 반품기한/A·S보증 둘 다 있으면 더 급한 쪽. */
   deadline: string;
   dDay: number;

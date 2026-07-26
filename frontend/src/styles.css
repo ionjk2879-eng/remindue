@@ -1997,6 +1997,81 @@ button.summary-board__tile:hover {
 }
 
 /* --------------------------------------------------------------------------
+   오늘의 배송 확인 — 푸시를 놓쳐도 대시보드에서 실제 도착일을 확정한다.
+   -------------------------------------------------------------------------- */
+
+.arrival-check-section {
+  background: var(--paper-card);
+  border: 1.5px dashed var(--safe-teal);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  margin-bottom: 22px;
+}
+
+.arrival-check-section__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.arrival-check-section__title {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--safe-teal);
+}
+
+.arrival-check-section__hint {
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+
+.arrival-check-section__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.arrival-check-section__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.arrival-check-section__list strong,
+.arrival-check-section__list li > div:first-child > span {
+  display: block;
+}
+
+.arrival-check-section__list strong {
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.arrival-check-section__list li > div:first-child > span {
+  margin-top: 2px;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+
+.arrival-check-section__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------------------
    확인이 필요한 항목 ("전체 확인" / "유지 안 함") — 일부러 노란색(amber). 빨간색은 실제
    절약 후보(3회차 이상 미확인/유지 안 함)로 확정됐을 때 다른 곳(가격 인상 체크리스트,
    AI 소비 매니저)에서만 쓴다.

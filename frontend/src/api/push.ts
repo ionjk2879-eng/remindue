@@ -18,3 +18,13 @@ export async function unsubscribePush(endpoint: string) {
 export async function confirmArrival(token: string, daysAgo: 0 | 1 | 2) {
   await apiClient.post('/push/confirm-arrival', { token, daysAgo });
 }
+
+/** 대시보드의 도착 확인 카드에서, 로그인한 사용자가 본인 항목의 실제 도착일을 확정한다. */
+export async function confirmArrivalForPurchase(id: number, daysAgo: 0 | 1) {
+  await apiClient.post(`/push/arrival-check/${id}/confirm`, { daysAgo });
+}
+
+/** 아직 도착하지 않았다면 다음 날 다시 묻도록 설정한다. */
+export async function snoozeArrivalForPurchase(id: number) {
+  await apiClient.post(`/push/arrival-check/${id}/snooze`);
+}

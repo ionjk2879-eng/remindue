@@ -182,4 +182,54 @@ push.post('/confirm-arrival', async (c) => {
   return c.body(null, 204);
 });
 
+// 대시보드에서도 같은 도착 확인을 할 수 있게, 로그인한 사용자의 소유 항목에 한해 제공한다.
+// 푸시 토큰 경로와 달리 이 경로는 일반 인증을 사용하므로, 삭제된 알림을 복구하는 안전한 대체 수단이다.
+push.use('/arrival-check/*', authMiddleware);
+
+push.post('/arrival-check/:id/confirm', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const purchaseId = Number(c.req.param('id'));
+  const body = await c.req.json<{ daysAgo?: number }>().catch(() => ({}) as { daysAgo?: number });
+  if (!Number.isInteger(purchaseId) || purchaseId <= 0) throw new BadRequestError('유효하지 않은 항목입니다');
+  if (body.daysAgo !== 0 && body.daysAgo !== 1) throw new BadRequestError('daysAgo는 0 또는 1이어야 합니다');
+
+  const purchase = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ? AND user_id = ?')
+    .bind(purchaseId, user.id)
+    .first<PurchaseRow>();
+  if (!purchase) throw new BadRequestError('항목을 찾을 수 없습니다');
+  if (purchase.type === 'SUBSCRIPTION') throw new BadRequestError('정기구독 항목은 도착 확인 대상이 아닙니다');
+
+  const arrivalDate = resolveArrivalDate(body.daysAgo);
+  if (purchase.type === 'RECURRING_DELIVERY') {
+    await c.env.DB.prepare(
+      `UPDATE purchases
+          SET expected_delivery_date = ?, last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
+              discontinued_at = NULL, arrival_check_snoozed_until = NULL, updated_at = datetime('now')
+        WHERE id = ?`
+    ).bind(arrivalDate, arrivalDate, purchase.id).run();
+  } else {
+    await c.env.DB.prepare(
+      `UPDATE purchases
+          SET expected_delivery_date = ?, last_delivered_date = ?, arrival_check_snoozed_until = NULL, updated_at = datetime('now')
+        WHERE id = ?`
+    ).bind(arrivalDate, arrivalDate, purchase.id).run();
+  }
+
+  return c.body(null, 204);
+});
+
+push.post('/arrival-check/:id/snooze', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const purchaseId = Number(c.req.param('id'));
+  if (!Number.isInteger(purchaseId) || purchaseId <= 0) throw new BadRequestError('유효하지 않은 항목입니다');
+
+  const result = await c.env.DB.prepare(
+    `UPDATE purchases SET arrival_check_snoozed_until = ?, updated_at = datetime('now')
+      WHERE id = ? AND user_id = ? AND type IN ('GENERAL', 'RECURRING_DELIVERY')`
+  ).bind(addDays(todayDateOnly(), 1), purchaseId, user.id).run();
+  if (result.meta.changes === 0) throw new BadRequestError('도착 확인 대상 항목을 찾을 수 없습니다');
+
+  return c.body(null, 204);
+});
+
 export default push;

@@ -18,7 +18,7 @@
 // 질문을 모달로 띄운다(routes/push.ts의 confirm-arrival). "아직요"는 그 자리에서 스누즈만 하면
 // 끝나는 단순 액션이라 앱을 열지 않는다(sw.ts).
 
-import { arrivalAnchor } from './purchase-logic';
+import { arrivalAnchor, computeDeadline } from './purchase-logic';
 import { todayDateOnly } from './date';
 import { sendPush } from './push';
 import { createActionToken } from './action-tokens';
@@ -45,9 +45,11 @@ export async function runArrivalConfirm(env: Env): Promise<ArrivalConfirmRunResu
   let pushSubscriptionsPruned = 0;
 
   for (const row of results) {
-    const anchor = arrivalAnchor(row);
+    // 일반 구매는 입력된 도착 예정일을 한 번만 확인하고, 정기배송은 매 회차의 다음 배송일을
+    // 확인한다. 기존에는 정기배송도 최초 앵커 날짜만 봐서 두 번째 회차부터는 질문이 누락됐다.
+    const arrivalDate = row.type === 'RECURRING_DELIVERY' ? computeDeadline(row).deadline : arrivalAnchor(row);
 
-    const isFirstAsk = anchor === today && row.arrival_check_snoozed_until === null;
+    const isFirstAsk = arrivalDate === today && row.arrival_check_snoozed_until === null;
     const isSnoozedRetry = row.arrival_check_snoozed_until !== null && row.arrival_check_snoozed_until <= today;
     if (!isFirstAsk && !isSnoozedRetry) continue;
 

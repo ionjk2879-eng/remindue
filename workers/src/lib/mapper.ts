@@ -25,6 +25,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     fixedDayOfMonth: row.fixed_day_of_month,
     expectedDeliveryDate: row.expected_delivery_date,
     lastDeliveredDate: row.last_delivered_date,
+    arrivalCheckSnoozedUntil: row.arrival_check_snoozed_until,
     deadline,
     dDay,
     deliveryRound,

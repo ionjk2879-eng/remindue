@@ -73,8 +73,21 @@ app.onError((err, c) => {
 
 export default {
   fetch: app.fetch,
-  // Cron Trigger(wrangler.jsonc의 triggers.crons) — 매일 1회 D-day 다이제스트 이메일 발송.
+  // UTC 0시(KST 09:00)는 기존 일일 요약, UTC 6시(KST 15:00)는 배송 도착 확인 전용이다.
   scheduled: async (event, env, ctx) => {
+    const scheduledUtcHour = new Date(event.scheduledTime).getUTCHours();
+    if (scheduledUtcHour === 6) {
+      ctx.waitUntil(
+        runArrivalConfirm(env).then((result) => {
+          console.log(
+            `[arrival-confirm] 완료 — 대상 항목 ${result.itemsAsked}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
+          );
+        })
+      );
+      return;
+    }
+    if (scheduledUtcHour !== 0) return;
+
     ctx.waitUntil(
       runDailyDigest(env).then((result) => {
         console.log(
@@ -91,16 +104,6 @@ export default {
       runConfirmationNudge(env).then((result) => {
         console.log(
           `[confirmation-nudge] 완료 — 대상 사용자 ${result.usersNotified}명, 이메일 ${result.emailsSent}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
-        );
-      })
-    );
-
-    // 정기배송 "오늘 오셨나요?" 도착 확인 — dDay===0 조건이 요일과 무관하게 걸릴 수 있고, "아직요"로
-    // 미룬 항목도 매일 재확인해야 하루 뒤 재발송을 놓치지 않는다(confirmation-nudge와 같은 이유).
-    ctx.waitUntil(
-      runArrivalConfirm(env).then((result) => {
-        console.log(
-          `[arrival-confirm] 완료 — 대상 항목 ${result.itemsAsked}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
         );
       })
     );
