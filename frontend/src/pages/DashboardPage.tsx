@@ -128,9 +128,11 @@ const BRAND_DOMAIN: Record<string, string> = {
   'GitHub': 'github.com', 'Notion': 'notion.so',
   'Slack': 'slack.com', 'Zoom': 'zoom.us',
   'ChatGPT': 'openai.com', 'OpenAI': 'openai.com',
+  'Anthropic': 'anthropic.com', 'Claude': 'anthropic.com',
   'Dropbox': 'dropbox.com', '드롭박스': 'dropbox.com',
   'Figma': 'figma.com',
   'Patreon': 'patreon.com', '패트리온': 'patreon.com',
+  'pixivFANBOX': 'pixiv.net',
   // 하드웨어·주변기기
   'MCHOSE': 'mchose.store',
 };
