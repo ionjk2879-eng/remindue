@@ -121,6 +121,22 @@ export function computeDeadline(row: DeadlineInput): DeadlineResult {
   return { deadline: chosen.deadline, deliveryRound: chosen.deliveryRound };
 }
 
+/**
+ * 정기배송·구독의 바로 직전 회차 날짜. computeDeadline()은 늘 오늘 이후 회차를 반환하므로,
+ * 다음 날 미확인 알림처럼 이미 지난 회차를 판별할 때 이 값을 별도로 계산한다.
+ */
+export function computePreviousScheduleDeadline(row: DeadlineInput): string | null {
+  if (row.type !== 'RECURRING_DELIVERY' && row.type !== 'SUBSCRIPTION') return null;
+
+  const nextDeadline = computeDeadline(row).deadline;
+  const anchor = arrivalAnchor(row);
+  const previous = (row.schedule_type ?? 'INTERVAL') === 'FIXED_DAY'
+    ? addMonths(nextDeadline, -1)
+    : addDays(nextDeadline, -(row.interval_days ?? DEFAULT_INTERVAL_DAYS));
+
+  return previous >= anchor ? previous : null;
+}
+
 export function computeDDay(deadline: string): number {
   return daysBetween(todayDateOnly(), deadline);
 }

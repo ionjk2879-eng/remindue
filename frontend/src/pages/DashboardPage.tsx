@@ -535,10 +535,15 @@ export default function DashboardPage() {
   // "며칠 전에 받았는지" 후속 질문을 여기 모달로 띄운다.
   const [searchParams, setSearchParams] = useSearchParams();
   const confirmArrivalToken = searchParams.get('confirmArrival');
+  const confirmRecurringIds = (searchParams.get('confirmRecurring') ?? '')
+    .split(',')
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0);
   const [arrivalConfirmSubmitting, setArrivalConfirmSubmitting] = useState(false);
   const [arrivalConfirmError, setArrivalConfirmError] = useState<string | null>(null);
   const [arrivalConfirmDone, setArrivalConfirmDone] = useState(false);
   const [dashboardArrivalSubmittingId, setDashboardArrivalSubmittingId] = useState<number | null>(null);
+  const [confirmedRecurringIds, setConfirmedRecurringIds] = useState<number[]>([]);
 
   const cacheKey = `purchases_cache_${nickname ?? 'anon'}`;
 
@@ -948,6 +953,18 @@ export default function DashboardPage() {
     }
   };
 
+  const closeRecurringConfirmModal = () => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('confirmRecurring');
+        return next;
+      },
+      { replace: true }
+    );
+    setConfirmedRecurringIds([]);
+  };
+
   const handleDashboardArrivalConfirm = async (id: number, daysAgo: 0 | 1) => {
     setDashboardArrivalSubmittingId(id);
     try {
@@ -1060,6 +1077,11 @@ export default function DashboardPage() {
   const handleMarkDelivered = async (id: number) => {
     await markDelivered(id);
     await load();
+  };
+
+  const handleRecurringSelectionConfirm = async (id: number) => {
+    await handleMarkDelivered(id);
+    setConfirmedRecurringIds((ids) => [...ids, id]);
   };
 
   /** "유지 안 함" — 확인 필요 목록에서 이 항목만 제외하고, 절약 후보 쪽으로 확정 이동시킨다. */
@@ -1343,10 +1365,32 @@ export default function DashboardPage() {
   // 항목이 하나도 없을 때만 띄운다. purchasesLoaded 가드가 없으면 데이터 도착 전 순간적으로
   // purchases.length===0이라 깜빡 떴다 사라지는 게 보일 수 있다.
   const showOnboarding = purchasesLoaded && !hasSeenOnboarding && purchases.length === 0;
+  const recurringSelectionItems = purchases.filter(
+    (p) => confirmRecurringIds.includes(p.id) && isRecurringType(p.type) && !confirmedRecurringIds.includes(p.id)
+  );
 
   return (
     <div className="dashboard">
       {showOnboarding && <OnboardingOverlay onDone={handleOnboardingDone} />}
+      {confirmRecurringIds.length > 0 && (
+        <div className="onboarding-overlay" role="dialog" aria-modal="true">
+          <div className="onboarding-modal">
+            <p className="onboarding-modal__title">🔔 오늘 유지할 항목을 선택하세요</p>
+            <p className="onboarding-modal__body">계속 이용 중인 정기배송·구독만 유지하기로 확인해 주세요.</p>
+            <div className="arrival-modal__choices">
+              {recurringSelectionItems.map((p) => (
+                <button key={p.id} type="button" className="btn" onClick={() => handleRecurringSelectionConfirm(p.id)}>
+                  {p.itemName} 유지하기
+                </button>
+              ))}
+              {recurringSelectionItems.length === 0 && <p className="onboarding-modal__body">선택한 항목을 모두 확인했어요.</p>}
+            </div>
+            <div className="onboarding-modal__actions">
+              <button type="button" className="btn-text" onClick={closeRecurringConfirmModal}>닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
       {confirmArrivalToken && (
         <div className="onboarding-overlay" role="dialog" aria-modal="true">
           <div className="onboarding-modal">
