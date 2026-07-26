@@ -154,7 +154,7 @@ function BrandAvatar({ brand, brandDomain }: { brand: string; brandDomain?: stri
   );
 }
 
-/** 외화 결제 항목의 원본 금액·적용 환율을 원화 금액 옆에 작게 덧붙인다 — "$7.99 · 1,301.5원/USD"
+/** 외화 결제 항목의 원본 금액·적용 환율을 원화 금액 옆에 작게 덧붙인다 — "$7.99 · 1 USD = 1,301.5원"
  *  처럼, 환율 변동으로 원화 금액이 달라졌을 때 그 이유를 바로 알 수 있게. 원화 결제면 아무것도
  *  렌더링하지 않는다. */
 function FxHint({
@@ -171,7 +171,7 @@ function FxHint({
     <span className="fx-hint mono">
       {' '}
       ({formatOriginalAmount(originalAmount, originalCurrency)}
-      {exchangeRate !== null && ` · ${exchangeRate.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원`})
+      {exchangeRate !== null && ` · 1 ${originalCurrency} = ${exchangeRate.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원`})
     </span>
   );
 }
