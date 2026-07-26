@@ -26,7 +26,7 @@ export const FREE_PLAN_MAX_PURCHASES = 5;
 
 type DeadlineInput = Pick<
   PurchaseRow,
-  'type' | 'base_date' | 'warranty_months' | 'return_deadline_days' | 'interval_days' | 'schedule_type' | 'fixed_day_of_month' | 'expected_delivery_date'
+  'type' | 'base_date' | 'warranty_months' | 'return_deadline_days' | 'interval_days' | 'schedule_type' | 'fixed_day_of_month' | 'is_one_time' | 'expected_delivery_date'
 >;
 
 /**
@@ -80,6 +80,22 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
     case 'SUBSCRIPTION': {
       const scheduleType = row.schedule_type ?? 'INTERVAL';
       const anchor = arrivalAnchor(row);
+
+      // "한 번만 사용"은 오늘 결제/배송을 다시 확인할 정기 항목이 아니라, 이번 이용 기간이
+      // 끝나는 날을 한 번만 알려주는 항목이다. 기존에는 아래 반복 스케줄과 같은 계산을 써서
+      // interval의 k=0(=anchor, 보통 등록 당일)이 D-day로 잡혔다. 최초 주기 끝을 유일한 일정으로
+      // 계산하면 기존에 저장된 항목도 별도 데이터 수정 없이 같은 기준으로 바로 보정된다.
+      if (row.is_one_time === 1) {
+        if (scheduleType === 'FIXED_DAY') {
+          const fixedDay = row.fixed_day_of_month ?? 1;
+          // anchor와 같은 고정일이라도 이미 시작한 이번 달이 아니라 다음 달 고정일을 잡는다.
+          const deadline = nextFixedDayOfMonth(fixedDay, addDays(anchor, 1));
+          return [{ kind: 'SCHEDULE', deadline, deliveryRound: 1 }];
+        }
+
+        const interval = row.interval_days ?? DEFAULT_INTERVAL_DAYS;
+        return [{ kind: 'SCHEDULE', deadline: addDays(anchor, interval), deliveryRound: 1 }];
+      }
 
       if (scheduleType === 'FIXED_DAY') {
         // 매월 고정일 방식: 오늘 이후 가장 가까운 fixedDayOfMonth 날짜를 다음 일정으로 삼는다.
