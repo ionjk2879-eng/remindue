@@ -578,6 +578,10 @@ export default function DashboardPage() {
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
   const [showSavingsDetail, setShowSavingsDetail] = useState(false);
+  const [showSpecificSpendCalculator, setShowSpecificSpendCalculator] = useState(false);
+  /** 빈 배열은 카테고리를 제한하지 않는다는 뜻이며, null은 현재 필터 항목 전체 선택이다. */
+  const [calculatorCategories, setCalculatorCategories] = useState<PurchaseCategory[]>([]);
+  const [calculatorSelectedItemIds, setCalculatorSelectedItemIds] = useState<number[] | null>(null);
   const [showPriceStatusDetail, setShowPriceStatusDetail] = useState(false);
   const [showRecurringDeliveryDetail, setShowRecurringDeliveryDetail] = useState(false);
   const [showSubscriptionDetail, setShowSubscriptionDetail] = useState(false);
@@ -1424,6 +1428,20 @@ export default function DashboardPage() {
 
   const monthlySpendEstimate = spendingOccurrences.reduce((sum, occ) => sum + occ.amount, 0);
 
+  /** 특정 지출 계산기: 활성 항목을 카테고리와 개별 항목으로 좁혀 이번 달 발생 예정액을 계산한다. */
+  const calculatorCandidates = purchases.filter((p) => p.amount !== null && p.discontinuedAt === null);
+  const calculatorCategoryFiltered = calculatorCandidates.filter(
+    (p) => calculatorCategories.length === 0 || (p.category !== null && calculatorCategories.includes(p.category))
+  );
+  const calculatorSelectedItems = calculatorCategoryFiltered.filter(
+    (p) => calculatorSelectedItemIds === null || calculatorSelectedItemIds.includes(p.id)
+  );
+  const calculatorAmount = Math.round(calculatorSelectedItems.reduce((sum, p) => {
+    if (isRecurringType(p.type)) return sum + occurrencesInMonth(p, currentYearNum, currentMonthNum) * p.amount!;
+    const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
+    return sum + (baseYear === currentYearNum && baseMonth === currentMonthNum ? p.amount! : 0);
+  }, 0));
+
   /** "올해 예상 지출" — 1~12월 각각의 실제 지출 총액(정기 결제 발생 횟수 + 1회성 결제)과 그 합계. */
   const monthlySpendTotals = Array.from({ length: 12 }, (_, i) => totalSpendInMonth(spendHistoryPurchases, currentYearNum, i + 1));
   const yearlySpendEstimate = monthlySpendTotals.reduce((sum, v) => sum + v, 0);
@@ -1837,6 +1855,22 @@ export default function DashboardPage() {
             </div>
             <span className="summary-board__chevron" aria-hidden="true">{showSavingsDetail ? '▲' : '▾'}</span>
           </button>
+          <button
+            type="button"
+            className="summary-board__tile summary-board__tile--calculator summary-board__tile--clickable"
+            onClick={() => setShowSpecificSpendCalculator((v) => !v)}
+            aria-expanded={showSpecificSpendCalculator}
+          >
+            <span className="summary-board__icon" aria-hidden="true">🧮</span>
+            <div className="summary-board__text">
+              <span className="summary-board__label">특정 지출 계산기</span>
+              <span className="summary-board__value mono">
+                {calculatorAmount.toLocaleString('ko-KR')}
+                <span className="summary-board__unit">원 · 이번 달</span>
+              </span>
+            </div>
+            <span className="summary-board__chevron" aria-hidden="true">{showSpecificSpendCalculator ? '▲' : '▾'}</span>
+          </button>
         </div>
       )}
 
@@ -2055,6 +2089,72 @@ export default function DashboardPage() {
               </ul>
             </div>
           )}
+        </div>
+      )}
+
+      {showSpecificSpendCalculator && (
+        <div className="spending-detail specific-spend-calculator">
+          <div className="spending-detail__section">
+            <p className="spending-detail__heading">🧮 특정 지출 계산기</p>
+            <p className="spending-detail__hint">카테고리를 고르면 해당 항목만 자동으로 걸러집니다. 이어서 필요한 항목만 선택해 이번 달 예상 지출을 계산하세요.</p>
+
+            <div className="specific-spend-calculator__categories" aria-label="카테고리 필터">
+              {PURCHASE_CATEGORIES.map((cat) => {
+                const checked = calculatorCategories.length === 0 || calculatorCategories.includes(cat);
+                return (
+                  <label key={cat} className={`notification-day-option${checked ? ' notification-day-option--active' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setCalculatorCategories((current) => {
+                          const next = current.length === 0
+                            ? PURCHASE_CATEGORIES.filter((item) => item !== cat)
+                            : current.includes(cat)
+                              ? current.filter((item) => item !== cat)
+                              : [...current, cat];
+                          return next.length === PURCHASE_CATEGORIES.length ? [] : next;
+                        });
+                        setCalculatorSelectedItemIds(null);
+                      }}
+                    />
+                    {CATEGORY_ICON[cat]} {CATEGORY_LABEL[cat]}
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="specific-spend-calculator__items">
+              {calculatorCategoryFiltered.length === 0 ? (
+                <p className="spending-detail__empty">선택한 카테고리에 금액이 등록된 활성 항목이 없어요.</p>
+              ) : (
+                calculatorCategoryFiltered.map((p) => {
+                  const checked = calculatorSelectedItemIds === null || calculatorSelectedItemIds.includes(p.id);
+                  const itemAmount = isRecurringType(p.type)
+                    ? occurrencesInMonth(p, currentYearNum, currentMonthNum) * p.amount!
+                    : p.baseDate.startsWith(`${currentYearNum}-${String(currentMonthNum).padStart(2, '0')}`) ? p.amount! : 0;
+                  return (
+                    <label key={p.id} className="specific-spend-calculator__item">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setCalculatorSelectedItemIds((current) => {
+                          const selected = current ?? calculatorCategoryFiltered.map((item) => item.id);
+                          return selected.includes(p.id) ? selected.filter((id) => id !== p.id) : [...selected, p.id];
+                        })}
+                      />
+                      <span>{p.itemName}{p.category && <small>{CATEGORY_ICON[p.category]} {CATEGORY_LABEL[p.category]}</small>}</span>
+                      <strong className="mono">{itemAmount.toLocaleString('ko-KR')}원</strong>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            <p className="spending-detail__total">
+              <span>선택한 {calculatorSelectedItems.length}건의 {currentMonthNum}월 예상 지출</span>
+              <span className="mono">{calculatorAmount.toLocaleString('ko-KR')}원</span>
+            </p>
+          </div>
         </div>
       )}
 

@@ -292,7 +292,7 @@ export default function SettingsPage() {
           ) : (
             <>
               <p className="settings-section__hint">
-                반품 기한·A/S 보증·정기배송·정기구독의 예정일이 며칠 남았을 때 요약 알림을 받을지 골라주세요.
+                반품 기한·A/S 보증이 며칠 남았을 때 요약 알림을 받을지 골라주세요. 정기배송·구독 유지 여부는 아래에서 따로 안내해요.
               </p>
               <div className="notification-day-options">
                 {NOTIFICATION_DAY_OPTIONS.map((day) => (
@@ -329,13 +329,12 @@ export default function SettingsPage() {
 
       <section className="settings-section">
         <h2>정기배송·구독 유지 확인</h2>
-        <p className="settings-section__hint">오전 10시에 정기배송·구독의 다음 회차 유지 여부를 확인해요.</p>
+        <p className="settings-section__hint">오전 10시에 “다음 배송·결제까지 D-n일 남았어요. 다음 회차도 유지할까요?”라고 안내해요.</p>
         <div className="notification-day-options" aria-label="정기배송과 구독 유지 확인 알림">
-          {isPremium ? (
-            <>
-              <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />예정일 전날</label>
-              <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미응답 시 예정일 당일</label>
-            </>
+          {isPremium && selectedDays !== null ? (
+            selectedDays.map((day) => (
+              <label key={day} className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />{formatDayLabel(day)}</label>
+            ))
           ) : (
             <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />예정일 당일</label>
           )}

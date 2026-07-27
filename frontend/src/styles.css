@@ -848,6 +848,54 @@ button.summary-board__tile:hover {
   white-space: normal;
 }
 
+.summary-board__tile--calculator {
+  border-left-color: #6b7dff;
+  background: color-mix(in srgb, #6b7dff 7%, var(--paper-card));
+}
+
+.specific-spend-calculator__categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.specific-spend-calculator__items {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.specific-spend-calculator__item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.specific-spend-calculator__item > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.specific-spend-calculator__item small {
+  margin-left: 6px;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+}
+
+.specific-spend-calculator__item strong {
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+}
+
 .summary-board__tile--ai-summary {
   grid-column: 1 / -1;
   border-left-color: #8b7cf6;
