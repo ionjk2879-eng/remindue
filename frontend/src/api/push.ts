@@ -14,10 +14,13 @@ export async function subscribePush(subscription: PushSubscriptionJSON) {
 export async function ensurePushSubscription(requestPermission = false) {
   if (!isPushSupported()) throw new Error('이 브라우저는 알림을 지원하지 않습니다.');
 
-  let permission = await getNotificationPermission();
-  if (permission === 'default' && requestPermission) {
+  // 반드시 사용자 클릭 안에서 브라우저의 실제 권한 요청을 실행한다. Chrome은 이 호출이
+  // 있어야 해당 origin을 "알림을 요청한 사이트"로 기록하고 권한 UI를 노출한다.
+  let permission = Notification.permission;
+  if (permission !== 'granted' && requestPermission) {
     permission = await Notification.requestPermission();
   }
+  if (permission !== 'granted') permission = await getNotificationPermission();
   if (permission !== 'granted') return null;
 
   const registration = await navigator.serviceWorker.ready;
