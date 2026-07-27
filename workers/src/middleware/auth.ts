@@ -17,7 +17,7 @@ export const authMiddleware = createMiddleware<{ Bindings: Env; Variables: AuthV
 
   const token = header.slice(BEARER_PREFIX.length);
   const payload = await verifyJwt(token, c.env.JWT_SECRET);
-  if (!payload) {
+  if (!payload || payload.type !== 'access') {
     throw new UnauthorizedError('유효하지 않거나 만료된 토큰입니다');
   }
 

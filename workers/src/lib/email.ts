@@ -4,6 +4,7 @@
 
 import type { FeedbackCategory, PurchaseType } from '../types';
 import { buildDigestTitle, buildItemClause, formatDDay, type DigestItem } from './messages';
+import { logger, maskEmail } from './logger';
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 const FROM_ADDRESS = 'Remindue <onboarding@resend.dev>';
@@ -418,7 +419,7 @@ export async function sendDigestEmail(
   html: string
 ): Promise<{ sent: boolean }> {
   if (!apiKey) {
-    console.warn(`[digest-email] RESEND_API_KEY가 없어 발송을 건너뜁니다 (수신자: ${to}, 제목: ${subject})`);
+    logger.warn('email.digest_missing_api_key', { recipient: maskEmail(to) });
     return { sent: false };
   }
 
@@ -432,8 +433,8 @@ export async function sendDigestEmail(
   });
 
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    console.error(`[digest-email] Resend 발송 실패 (${res.status}): ${body}`);
+    await res.text().catch(() => '');
+    logger.error('email.digest_send_failed', { statusCode: res.status });
     return { sent: false };
   }
 

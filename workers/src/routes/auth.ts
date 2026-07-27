@@ -1,13 +1,16 @@
 // Mirrors backend/src/main/java/com/remindue/auth/AuthController.java
 
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { hashPassword, verifyPassword } from '../lib/password';
-import { signJwt } from '../lib/jwt';
+import { signJwt, verifyJwt } from '../lib/jwt';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { BadRequestError, ConflictError } from '../lib/errors';
 import type { AuthResponse, Env, UserRow } from '../types';
 
 const ACCESS_TOKEN_EXPIRATION_SECONDS = 60 * 60; // 1시간 — application.yml의 access-token-expiration-ms와 동일
+const REFRESH_TOKEN_EXPIRATION_SECONDS = 60 * 60 * 24 * 30;
+const REFRESH_COOKIE = 'remindue_refresh';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
@@ -40,8 +43,64 @@ function requireEmail(email: unknown): string {
 }
 
 const auth = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
+type AuthContext = Context<{ Bindings: Env; Variables: AuthVariables }>;
+
+function requireAllowedOrigin(c: AuthContext): void {
+  const origin = c.req.header('Origin');
+  if (!origin) return;
+  const allowed = c.env.CORS_ORIGIN.split(',').map((value) => value.trim()).filter(Boolean);
+  if (!allowed.includes(origin)) throw new BadRequestError('허용되지 않은 요청 출처입니다');
+}
+
+function refreshCookieOptions(c: { req: { url: string } }) {
+  const secure = new URL(c.req.url).protocol === 'https:';
+  return {
+    httpOnly: true,
+    secure,
+    partitioned: secure,
+    sameSite: secure ? 'None' as const : 'Lax' as const,
+    path: '/api/auth',
+    maxAge: REFRESH_TOKEN_EXPIRATION_SECONDS,
+  };
+}
+
+async function issueSession(c: AuthContext, user: UserRow): Promise<AuthResponse> {
+  const sessionId = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRATION_SECONDS * 1000).toISOString();
+  await c.env.DB.prepare(
+    "DELETE FROM refresh_sessions WHERE user_id = ? AND (revoked_at IS NOT NULL OR expires_at <= datetime('now'))"
+  ).bind(user.id).run();
+  await c.env.DB.prepare('INSERT INTO refresh_sessions (id, user_id, expires_at) VALUES (?, ?, ?)')
+    .bind(sessionId, user.id, expiresAt)
+    .run();
+  const [accessToken, refreshToken] = await Promise.all([
+    signJwt(user.email, c.env.JWT_SECRET, ACCESS_TOKEN_EXPIRATION_SECONDS, 'access'),
+    signJwt(user.email, c.env.JWT_SECRET, REFRESH_TOKEN_EXPIRATION_SECONDS, 'refresh', sessionId),
+  ]);
+  setCookie(c, REFRESH_COOKIE, refreshToken, refreshCookieOptions(c));
+  return {
+    accessToken,
+    nickname: user.nickname,
+    isPremium: user.is_premium === 1,
+    hasSeenOnboarding: user.has_seen_onboarding === 1,
+  };
+}
+
+async function revokeRefreshSession(c: AuthContext): Promise<void> {
+  const token = getCookie(c, REFRESH_COOKIE);
+  if (token) {
+    const payload = await verifyJwt(token, c.env.JWT_SECRET);
+    if (payload?.type === 'refresh' && payload.jti) {
+      await c.env.DB.prepare("UPDATE refresh_sessions SET revoked_at = datetime('now') WHERE id = ? AND revoked_at IS NULL")
+        .bind(payload.jti)
+        .run();
+    }
+  }
+  deleteCookie(c, REFRESH_COOKIE, refreshCookieOptions(c));
+}
 
 auth.post('/signup', async (c) => {
+  requireAllowedOrigin(c);
   const body = await c.req.json<SignupBody>().catch(() => ({}) as SignupBody);
   const email = requireEmail(body.email);
   const password = body.password;
@@ -82,12 +141,13 @@ auth.post('/signup', async (c) => {
     throw new Error('forwarding_token 발급에 반복 실패했습니다');
   }
 
-  const accessToken = await signJwt(email, c.env.JWT_SECRET, ACCESS_TOKEN_EXPIRATION_SECONDS);
-  const response: AuthResponse = { accessToken, nickname, isPremium: false, hasSeenOnboarding: false };
-  return c.json(response);
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>();
+  if (!user) throw new Error('가입한 사용자를 다시 조회하지 못했습니다');
+  return c.json(await issueSession(c, user));
 });
 
 auth.post('/login', async (c) => {
+  requireAllowedOrigin(c);
   const body = await c.req.json<LoginBody>().catch(() => ({}) as LoginBody);
   const email = requireEmail(body.email);
   const password = body.password;
@@ -100,14 +160,47 @@ auth.post('/login', async (c) => {
     throw new BadRequestError('이메일 또는 비밀번호가 올바르지 않습니다');
   }
 
-  const accessToken = await signJwt(email, c.env.JWT_SECRET, ACCESS_TOKEN_EXPIRATION_SECONDS);
-  const response: AuthResponse = {
-    accessToken,
-    nickname: user.nickname,
-    isPremium: user.is_premium === 1,
-    hasSeenOnboarding: user.has_seen_onboarding === 1,
-  };
-  return c.json(response);
+  return c.json(await issueSession(c, user));
+});
+
+auth.post('/refresh', async (c) => {
+  requireAllowedOrigin(c);
+  const token = getCookie(c, REFRESH_COOKIE);
+  if (!token) return c.json({ message: '세션이 없습니다' }, 401);
+  const payload = await verifyJwt(token, c.env.JWT_SECRET);
+  if (payload?.type !== 'refresh' || !payload.jti) {
+    deleteCookie(c, REFRESH_COOKIE, refreshCookieOptions(c));
+    return c.json({ message: '유효하지 않은 세션입니다' }, 401);
+  }
+
+  const session = await c.env.DB.prepare(
+    `SELECT rs.id, rs.user_id
+       FROM refresh_sessions rs
+       JOIN users u ON u.id = rs.user_id
+      WHERE rs.id = ? AND u.email = ? AND rs.revoked_at IS NULL AND rs.expires_at > datetime('now')`
+  ).bind(payload.jti, payload.sub).first<{ id: string; user_id: number }>();
+  if (!session) {
+    deleteCookie(c, REFRESH_COOKIE, refreshCookieOptions(c));
+    return c.json({ message: '만료되었거나 폐기된 세션입니다' }, 401);
+  }
+
+  // refresh token은 한 번 사용하면 즉시 폐기하고 새 세션으로 회전한다.
+  const claimed = await c.env.DB.prepare("UPDATE refresh_sessions SET revoked_at = datetime('now') WHERE id = ? AND revoked_at IS NULL")
+    .bind(session.id)
+    .run();
+  if ((claimed.meta.changes ?? 0) !== 1) {
+    deleteCookie(c, REFRESH_COOKIE, refreshCookieOptions(c));
+    return c.json({ message: '이미 사용된 세션입니다' }, 401);
+  }
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(session.user_id).first<UserRow>();
+  if (!user) return c.json({ message: '사용자를 찾을 수 없습니다' }, 401);
+  return c.json(await issueSession(c, user));
+});
+
+auth.post('/logout', async (c) => {
+  requireAllowedOrigin(c);
+  await revokeRefreshSession(c);
+  return c.body(null, 204);
 });
 
 /**
@@ -143,6 +236,7 @@ auth.delete('/account', authMiddleware, async (c) => {
   const anonymizedPasswordHash = await hashPassword(crypto.randomUUID() + crypto.randomUUID());
 
   await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE refresh_sessions SET revoked_at = datetime('now') WHERE user_id = ? AND revoked_at IS NULL").bind(user.id),
     c.env.DB.prepare('DELETE FROM purchases WHERE user_id = ?').bind(user.id),
     c.env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(user.id),
     c.env.DB.prepare('DELETE FROM pending_purchases WHERE user_id = ?').bind(user.id),
@@ -159,6 +253,8 @@ auth.delete('/account', authMiddleware, async (c) => {
         WHERE id = ?`
     ).bind(anonymizedEmail, anonymizedPasswordHash, generateForwardingToken(), user.id),
   ]);
+
+  deleteCookie(c, REFRESH_COOKIE, refreshCookieOptions(c));
 
   return c.body(null, 204);
 });

@@ -11,6 +11,7 @@ import PostalMime from 'postal-mime';
 import { extractOrderConfirmation } from './email-extract';
 import { insertPendingPurchase } from './pending-purchase-intake';
 import type { Env, UserRow } from '../types';
+import { logger, maskEmail } from './logger';
 
 // 신규 토큰은 영문 소문자지만, 기존 계정에는 마이그레이션에서 발급한 16진수 토큰이
 // 남아 있을 수 있다. 숫자를 막으면 그 계정의 정상 수신 주소를 조용히 버리게 된다.
@@ -35,13 +36,13 @@ function stripHtml(html: string): string {
 export async function handleIncomingEmail(message: ForwardableEmailMessage, env: Env): Promise<void> {
   const token = extractForwardingToken(message.to);
   if (!token) {
-    console.warn(`[email-intake] 수신 주소 형식이 아니라 무시합니다: ${message.to}`);
+    logger.warn('email.intake.invalid_recipient');
     return;
   }
 
   const user = await env.DB.prepare('SELECT * FROM users WHERE forwarding_token = ?').bind(token).first<UserRow>();
   if (!user) {
-    console.warn(`[email-intake] 알 수 없는 forwarding_token이라 무시합니다: ${token}`);
+    logger.warn('email.intake.unknown_recipient');
     return;
   }
 
@@ -54,18 +55,18 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
   const bodyText = parsed.text?.trim() || (parsed.html ? stripHtml(parsed.html) : '');
 
   if (!bodyText) {
-    console.warn(`[email-intake] 본문을 읽을 수 없어 무시합니다 (수신자: ${user.email})`);
+    logger.warn('email.intake.empty_body', { recipient: maskEmail(user.email) });
     return;
   }
 
   // subject/bodyText는 여기서만 쓰이고 함수 종료와 함께 버려진다 — 어디에도 저장/로그하지 않는다.
   const extracted = await extractOrderConfirmation(env.ANTHROPIC_API_KEY, subject, bodyText);
   if (!extracted || !extracted.isOrderConfirmation) {
-    console.log(`[email-intake] 주문확인 메일이 아니라고 판단되어 무시합니다 (수신자: ${user.email})`);
+    logger.info('email.intake.not_order_confirmation', { recipient: maskEmail(user.email) });
     return;
   }
 
   await insertPendingPurchase(env.DB, user.id, 'email', extracted, user.is_premium === 1);
 
-  console.log(`[email-intake] 확인 대기 항목 추가 (수신자: ${user.email}, 상품명: ${extracted.itemName ?? '(없음)'})`);
+  logger.info('email.intake.pending_created', { recipient: maskEmail(user.email), hasItemName: Boolean(extracted.itemName) });
 }

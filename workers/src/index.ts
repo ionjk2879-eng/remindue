@@ -18,8 +18,23 @@ import { rollOverUnansweredArrivals, runArrivalConfirm } from './lib/arrival-con
 import { runBillingRenewals, runPremiumExpirySweep } from './lib/billing-renewal';
 import { handleIncomingEmail } from './lib/email-intake';
 import type { Env } from './types';
+import { logger } from './lib/logger';
 
 const app = new Hono<{ Bindings: Env }>();
+
+app.use('*', async (c, next) => {
+  const requestId = c.req.header('X-Request-ID') ?? crypto.randomUUID();
+  c.header('X-Request-ID', requestId);
+  const startedAt = Date.now();
+  await next();
+  logger.info('http.request', {
+    requestId,
+    method: c.req.method,
+    path: new URL(c.req.url).pathname,
+    status: c.res.status,
+    durationMs: Date.now() - startedAt,
+  });
+});
 
 // CORS_ORIGIN은 콤마로 구분된 여러 출처를 담을 수 있다 — 커스텀 도메인(remindue.kr)을 붙인
 // 뒤에도 예전 workers.dev 프론트엔드 주소나 로컬 개발 주소가 계속 동작하게 하기 위함.
@@ -67,7 +82,10 @@ app.onError((err, c) => {
   if (err instanceof HttpError) {
     return c.json({ message: err.message }, err.status as never);
   }
-  console.error(err);
+  logger.error('http.unhandled_error', {
+    requestId: c.res.headers.get('X-Request-ID'),
+    error: err instanceof Error ? err.message : String(err),
+  });
   return c.json({ message: 'Internal Server Error' }, 500);
 });
 

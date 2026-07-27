@@ -165,8 +165,8 @@ export default function PrivacyPolicyPage() {
       <section className="legal-section">
         <h2>8. 쿠키 등 자동 수집 장치</h2>
         <p>
-          서비스는 로그인 상태 유지를 위해 브라우저의 localStorage에 접근 토큰을 저장합니다. 이는 서버로 전송되는 쿠키가 아니라 브라우저에만
-          저장되는 정보이며, 로그아웃하거나 브라우저 데이터를 삭제하면 함께 제거됩니다.
+          서비스는 로그인 상태 유지를 위해 보안 속성(HttpOnly, Secure, SameSite)이 적용된 세션 갱신 쿠키를 사용합니다. 접근 토큰은 브라우저
+          메모리에만 일시적으로 보관되며 localStorage에 저장하지 않습니다. 세션 쿠키는 로그아웃하거나 유효기간이 지나면 폐기됩니다.
         </p>
       </section>
 

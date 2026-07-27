@@ -1,33 +1,16 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { fetchBillingStatus } from '../api/billing';
+import { logoutSession } from '../api/auth';
+import { refreshSession, setAccessToken } from '../api/client';
 import type { BillingStatus } from '../types';
 
 let billingFetchedAt = 0;
 const BILLING_CACHE_MS = 5 * 60 * 1000;
 
-function isStoredTokenExpired(): boolean {
-  const token = localStorage.getItem('accessToken');
-  if (!token) return true;
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return typeof payload.exp !== 'number' || payload.exp < Date.now() / 1000;
-  } catch {
-    return true;
-  }
-}
-
-function clearAuthStorage() {
-  const nickname = localStorage.getItem('nickname');
-  if (nickname) localStorage.removeItem(`purchases_cache_${nickname}`);
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('nickname');
-  localStorage.removeItem('isPremium');
-  localStorage.removeItem('hasSeenOnboarding');
-}
-
 interface AuthContextValue {
   nickname: string | null;
   isAuthenticated: boolean;
+  isInitializing: boolean;
   /** 프리미엄 접근 권한 — 무제한 등록, 이번 주 배송 요약, 커스텀 알림 시점, CSV/PDF 내보내기, 가족 공유, 이력 보관. */
   isPremium: boolean;
   /** 최초 결제 승인 시각. 결제 이력이 없는 계정(결제 연동 이전부터 프리미엄이었던 계정)은 null. */
@@ -46,45 +29,36 @@ interface AuthContextValue {
   completeOnboarding: () => void;
   /** 결제/해지 직후 토큰 재발급 없이 프리미엄 상태만 갱신한다 — 액세스 토큰은 그대로 둔다. */
   refreshPremium: (status: BillingStatus) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // 토큰이 만료된 채로 앱을 열면 대시보드가 잠깐 보였다가 로그인 화면으로 튀는 문제 방지 —
-  // 초기화 시점에 exp 클레임을 확인해 이미 만료됐으면 localStorage를 즉시 비운다.
-  if (isStoredTokenExpired()) clearAuthStorage();
-
-  const [nickname, setNickname] = useState<string | null>(localStorage.getItem('nickname'));
-  const [isPremium, setIsPremium] = useState<boolean>(localStorage.getItem('isPremium') === 'true');
+  const [nickname, setNickname] = useState<string | null>(null);
+  const [isPremium, setIsPremium] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [premiumSince, setPremiumSince] = useState<string | null>(null);
   const [paymentCount, setPaymentCount] = useState(0);
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
-  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean>(localStorage.getItem('hasSeenOnboarding') === 'true');
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
 
   const setAuth = (accessToken: string, nickname: string, isPremium: boolean, hasSeenOnboarding: boolean) => {
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('nickname', nickname);
-    localStorage.setItem('isPremium', String(isPremium));
-    localStorage.setItem('hasSeenOnboarding', String(hasSeenOnboarding));
+    setAccessToken(accessToken);
     setNickname(nickname);
     setIsPremium(isPremium);
     setHasSeenOnboarding(hasSeenOnboarding);
   };
 
   const completeOnboarding = () => {
-    localStorage.setItem('hasSeenOnboarding', 'true');
     setHasSeenOnboarding(true);
   };
 
   const updateNickname = (newNickname: string) => {
-    localStorage.setItem('nickname', newNickname);
     setNickname(newNickname);
   };
 
   const refreshPremium = (status: BillingStatus) => {
-    localStorage.setItem('isPremium', String(status.isPremium));
     setIsPremium(status.isPremium);
     setPremiumSince(status.premiumSince);
     setPaymentCount(status.paymentCount);
@@ -92,8 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     billingFetchedAt = Date.now();
   };
 
-  const logout = () => {
-    clearAuthStorage();
+  const clearAuth = () => {
+    if (nickname) localStorage.removeItem(`purchases_cache_${nickname}`);
+    setAccessToken(null);
     setNickname(null);
     setIsPremium(false);
     setPremiumSince(null);
@@ -101,6 +76,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setBillingStatus(null);
     setHasSeenOnboarding(false);
   };
+
+  const logout = async () => {
+    try {
+      await logoutSession();
+    } finally {
+      clearAuth();
+    }
+  };
+
+  useEffect(() => {
+    // 이전 버전이 저장했던 토큰과 인증 메타데이터를 업그레이드 첫 실행에서 제거한다.
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('nickname');
+    localStorage.removeItem('isPremium');
+    localStorage.removeItem('hasSeenOnboarding');
+    refreshSession()
+      .then((session) => setAuth(session.accessToken, session.nickname, session.isPremium, session.hasSeenOnboarding))
+      .catch(() => clearAuth())
+      .finally(() => setIsInitializing(false));
+
+    const handleExpired = () => clearAuth();
+    window.addEventListener('remindue:session-expired', handleExpired);
+    return () => window.removeEventListener('remindue:session-expired', handleExpired);
+    // 최초 마운트에서 HttpOnly 쿠키 세션을 한 번만 복구한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // isPremium/premiumSince/paymentCount는 로그인 시점/결제 성공 리다이렉트에서만 갱신되므로,
   // 그 사이(다른 기기에서 결제했거나 리다이렉트 페이지를 완전히 못 거쳤을 때) 값이 낡을 수 있다 —
@@ -125,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         nickname,
         isAuthenticated: !!nickname,
+        isInitializing,
         isPremium,
         premiumSince,
         paymentCount,

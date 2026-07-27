@@ -5,6 +5,7 @@ const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
 // 분류 + 짧은 필드 추출이라 가장 저렴/빠른 모델로 충분하다.
 const MODEL = 'claude-haiku-4-5';
+import { logger } from './logger';
 
 export interface ExtractedOrder {
   isOrderConfirmation: boolean;
@@ -523,8 +524,8 @@ export async function callExtractionApi(
   });
 
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    console.error(`[${logPrefix}] Claude API 호출 실패 (${res.status}): ${body}`);
+    await res.text().catch(() => '');
+    logger.error('ai.order_extraction_failed', { logPrefix, statusCode: res.status });
     return null;
   }
 
@@ -544,7 +545,7 @@ export async function callExtractionApi(
   try {
     return JSON.parse(textBlock.text) as ExtractedOrder;
   } catch (err) {
-    console.error(`[${logPrefix}] JSON 파싱 실패: ${err}`, textBlock.text);
+    logger.error('ai.order_extraction_invalid_json', { logPrefix, error: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }

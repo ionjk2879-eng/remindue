@@ -26,7 +26,8 @@ const BillingAuthSuccessPage = lazy(() => import('./pages/BillingAuthSuccessPage
 const BillingFailPage = lazy(() => import('./pages/BillingFailPage'));
 
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isInitializing } = useAuth();
+  if (isInitializing) return <RouteLoading />;
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 }
 

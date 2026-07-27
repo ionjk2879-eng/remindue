@@ -39,6 +39,24 @@ import PremiumBadge from '../components/PremiumBadge';
 import PushPermissionBanner from '../components/PushPermissionBanner';
 import OnboardingOverlay from '../components/OnboardingOverlay';
 import Pagination from '../components/Pagination';
+import ArrivalCheckSection from '../components/dashboard/ArrivalCheckSection';
+import BrandAvatar from '../components/dashboard/BrandAvatar';
+import { formatOriginalAmount, FxHint, PurchaseAmount } from '../components/dashboard/PurchaseMoney';
+import WeeklySummaryBanner from '../components/dashboard/WeeklySummaryBanner';
+import {
+  currentCalendarWeekRange,
+  daysSinceBaseDate,
+  formatKoreanMonthDay,
+  formatShortDate,
+  isWithinRecentDays,
+  isWithinUpcomingDays,
+  occurrenceDatesInMonth,
+  occurrencesInMonth,
+  previousFixedScheduleDate,
+  shiftDateOnly,
+  todayDateOnly,
+  totalSpendInMonth,
+} from '../components/dashboard/dashboardUtils';
 
 const PURCHASES_PAGE_SIZE = 5;
 
@@ -51,132 +69,6 @@ function formatAmountInput(value: string): string {
 function parseAmountInput(value: string): number | undefined {
   const digits = value.replace(/\D/g, '');
   return digits ? Number(digits) : undefined;
-}
-
-/** 통화별 현지 표기 순서·소수점 자릿수를 적용할 로캘. */
-const CURRENCY_LOCALE: Record<string, string> = {
-  USD: 'en-US',
-  JPY: 'ja-JP',
-  EUR: 'de-DE',
-  GBP: 'en-GB',
-  CNY: 'zh-CN',
-};
-
-/** 해외 결제는 원본 금액을 "달러/엔" 같은 한글 단위 대신 현지 통화 기호로 표시한다. */
-function formatOriginalAmount(amount: number, currency: string): string {
-  const normalizedCurrency = currency.toUpperCase();
-  try {
-    return new Intl.NumberFormat(CURRENCY_LOCALE[normalizedCurrency] ?? 'en-US', {
-      style: 'currency',
-      currency: normalizedCurrency,
-      currencyDisplay: 'narrowSymbol',
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    return `${amount.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${normalizedCurrency}`;
-  }
-}
-
-function PurchaseAmount({
-  amount,
-  originalAmount,
-  originalCurrency,
-}: {
-  amount: number;
-  originalAmount: number | null;
-  originalCurrency: string | null;
-}) {
-  if (originalCurrency && originalAmount !== null) {
-    return <>{formatOriginalAmount(originalAmount, originalCurrency)} / {amount.toLocaleString('ko-KR')}원</>;
-  }
-  return <>{amount.toLocaleString('ko-KR')}원</>;
-}
-
-const BRAND_DOMAIN: Record<string, string> = {
-  // 한국 쇼핑·커머스
-  '네이버': 'naver.com', '네이버쇼핑': 'naver.com', '네이버플러스': 'naver.com',
-  '쿠팡': 'coupang.com', '쿠팡이츠': 'coupangeats.com',
-  '마켓컬리': 'kurly.com', '컬리': 'kurly.com',
-  'SSG': 'ssg.com', 'SSG.COM': 'ssg.com', 'SSG닷컴': 'ssg.com',
-  '지마켓': 'gmarket.co.kr', '옥션': 'auction.co.kr',
-  '11번가': '11st.co.kr', '위메프': 'wemakeprice.com', '티몬': 'tmon.co.kr',
-  '인터파크': 'interpark.com', '무신사': 'musinsa.com',
-  '올리브영': 'oliveyoung.co.kr', '오늘의집': 'ohou.se',
-  '당근': 'daangn.com', '당근마켓': 'daangn.com', '번개장터': 'bunjang.co.kr',
-  '롯데온': 'lotteon.com', '롯데마트': 'lottemart.com',
-  // 한국 음식·배달
-  '배달의민족': 'baemin.com', '배민': 'baemin.com', '요기요': 'yogiyo.co.kr',
-  // 한국 미디어·교육
-  '왓챠': 'watcha.com', '웨이브': 'wavve.com', '티빙': 'tving.com',
-  '밀리의서재': 'millie.co.kr', '리디': 'ridibooks.com', '리디북스': 'ridibooks.com',
-  '클래스101': 'class101.net', '인프런': 'inflearn.com',
-  '패스트캠퍼스': 'fastcampus.co.kr',
-  // 한국 금융·플랫폼
-  '카카오': 'kakao.com', '카카오페이': 'kakaopay.com',
-  // 글로벌 스트리밍
-  '넷플릭스': 'netflix.com', 'Netflix': 'netflix.com',
-  '유튜브': 'youtube.com', 'YouTube': 'youtube.com',
-  '유튜브프리미엄': 'youtube.com', 'YouTube Premium': 'youtube.com',
-  '스포티파이': 'spotify.com', 'Spotify': 'spotify.com',
-  '디즈니플러스': 'disneyplus.com', 'Disney+': 'disneyplus.com', '디즈니+': 'disneyplus.com',
-  // 글로벌 소프트웨어·클라우드
-  '애플': 'apple.com', 'Apple': 'apple.com',
-  '애플뮤직': 'apple.com', 'Apple Music': 'apple.com',
-  '아마존': 'amazon.com', 'Amazon': 'amazon.com',
-  '구글': 'google.com', 'Google': 'google.com',
-  '마이크로소프트': 'microsoft.com', 'Microsoft': 'microsoft.com',
-  'Adobe': 'adobe.com', '어도비': 'adobe.com',
-  'GitHub': 'github.com', 'Notion': 'notion.so',
-  'Slack': 'slack.com', 'Zoom': 'zoom.us',
-  'ChatGPT': 'openai.com', 'OpenAI': 'openai.com',
-  'Anthropic': 'anthropic.com', 'Claude': 'anthropic.com',
-  'Dropbox': 'dropbox.com', '드롭박스': 'dropbox.com',
-  'Figma': 'figma.com',
-  'Patreon': 'patreon.com', '패트리온': 'patreon.com',
-  'pixivFANBOX': 'pixiv.net',
-};
-
-// Clearbit의 무료 로고 API(logo.clearbit.com)가 2025-12-08부로 완전히 종료돼 logo.dev로 교체했다
-// — 이 토큰(비밀 아님, publishable key)이 없으면 요청해봐야 항상 실패하므로 아예 시도하지 않는다.
-const LOGO_DEV_TOKEN = import.meta.env.VITE_LOGO_DEV_TOKEN as string | undefined;
-
-/** 카드 제목 옆에 크게 붙는 브랜드 로고 아이콘 — 로고가 없으면(맵/AI 둘 다 못 찾음) 아무것도
- *  렌더링하지 않는다(자리 차지 안 함). 브랜드명 자체는 각 카드가 kicker 텍스트로 별도 표시한다. */
-function BrandAvatar({ brand }: { brand: string }) {
-  // AI가 추출한 임의 도메인을 Logo.dev에 바로 넘기면 공식 도메인이어도 광고 이미지 등 잘못된
-  // 자산이 표시될 수 있다. 실제 로고를 확인해 둔 정적 매핑만 사용한다.
-  const domain = BRAND_DOMAIN[brand] ?? null;
-  if (!domain || !LOGO_DEV_TOKEN) return null;
-  return (
-    <img
-      className="brand-avatar"
-      src={`https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=96`}
-      alt=""
-      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-    />
-  );
-}
-
-/** 외화 결제 항목의 원본 금액·적용 환율을 원화 금액 옆에 작게 덧붙인다 — "$7.99 · 1 USD = 1,301.5원"
- *  처럼, 환율 변동으로 원화 금액이 달라졌을 때 그 이유를 바로 알 수 있게. 원화 결제면 아무것도
- *  렌더링하지 않는다. */
-function FxHint({
-  originalAmount,
-  originalCurrency,
-  exchangeRate,
-}: {
-  originalAmount: number | null;
-  originalCurrency: string | null;
-  exchangeRate: number | null;
-}) {
-  if (!originalCurrency || originalAmount === null) return null;
-  return (
-    <span className="fx-hint mono">
-      {' '}
-      ({formatOriginalAmount(originalAmount, originalCurrency)}
-      {exchangeRate !== null && ` · 1 ${originalCurrency} = ${exchangeRate.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원`})
-    </span>
-  );
 }
 
 interface AiBriefData extends AiBriefSections {
@@ -296,55 +188,6 @@ const MISSED_ROUNDS_REVIEW_THRESHOLD = 3;
 /** 무료 플랜(isPremium=false) 최대 등록 개수 — 백엔드 purchase-logic.ts의 FREE_PLAN_MAX_PURCHASES와 값을 맞춘다. */
 const FREE_PLAN_MAX_PURCHASES = 5;
 
-/** "2026-08-15" -> "8/15" */
-function formatShortDate(dateStr: string): string {
-  const [, month, day] = dateStr.split('-').map(Number);
-  return `${month}/${day}`;
-}
-
-/** "2026-08-15" -> "8월 15일" */
-function formatKoreanMonthDay(dateStr: string): string {
-  const [, month, day] = dateStr.split('-').map(Number);
-  return `${month}월 ${day}일`;
-}
-
-/** date.ts의 backend todayDateOnly()와 동일한 기준(KST) — "유지하기"를 오늘 이미 눌렀는지 비교에 쓴다. */
-function todayDateOnly(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
-}
-
-/** yyyy-MM-dd 날짜가 오늘부터 지정한 일수 안에 있는지(KST 기준) 판별한다. */
-function isWithinUpcomingDays(dateStr: string, days: number): boolean {
-  const today = todayDateOnly();
-  const start = new Date(`${today}T00:00:00+09:00`).getTime();
-  const target = new Date(`${dateStr}T00:00:00+09:00`).getTime();
-  const dDay = Math.round((target - start) / 86_400_000);
-  return dDay >= 0 && dDay <= days;
-}
-
-/** 이번 주 보드에서 이미 완료한 회차를 잠시 남겨 둘 범위. 수령/유지 처리를 한 뒤 다음 주기로
- * 계산이 넘어가도, 사용자는 방금 처리한 항목을 확인할 수 있어야 한다. */
-function isWithinRecentDays(dateStr: string, days: number): boolean {
-  const today = new Date(`${todayDateOnly()}T00:00:00+09:00`).getTime();
-  const target = new Date(`${dateStr}T00:00:00+09:00`).getTime();
-  const elapsed = Math.round((today - target) / 86_400_000);
-  return elapsed >= 0 && elapsed <= days;
-}
-
-/** yyyy-MM-dd에서 날짜를 더하거나 뺀다. 정기 일정의 직전 회차를 계산할 때 쓴다. */
-function shiftDateOnly(dateStr: string, days: number): string {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
-}
-
-/** 매월 고정일 일정의 바로 전 회차. 월말 고정일도 해당 월의 마지막 날로 맞춘다. */
-function previousFixedScheduleDate(dateStr: string, fixedDay: number): string {
-  const [year, month] = dateStr.split('-').map(Number);
-  const previousMonthIndex = month - 2;
-  const previousMonthLastDay = new Date(Date.UTC(year, previousMonthIndex + 1, 0)).getUTCDate();
-  return new Date(Date.UTC(year, previousMonthIndex, Math.min(fixedDay, previousMonthLastDay))).toISOString().slice(0, 10);
-}
-
 /**
  * 정기구독·배송이고 오늘 이미 "유지하기"를 눌렀는지. (예전에는 계산상 회차 수와
  * delivery_confirm_count를 비교해서 "놓친 배송"까지 판단했지만, 실제 배송 지연 등으로 오탐이
@@ -394,14 +237,6 @@ function renderCategoryBadge(p: Purchase) {
   ));
 }
 
-/** KST 달력의 이번 주 범위(월요일~일요일). "오늘부터 7일"처럼 다음 주를 섞지 않는다. */
-function currentCalendarWeekRange(today = todayDateOnly()): { start: string; end: string } {
-  const weekday = new Date(`${today}T00:00:00+09:00`).getDay(); // Sun=0, Mon=1
-  const daysSinceMonday = (weekday + 6) % 7;
-  const start = shiftDateOnly(today, -daysSinceMonday);
-  return { start, end: shiftDateOnly(start, 6) };
-}
-
 /**
  * "정기배송"/"정기구독" 요약 타일 상세용 — 날짜순이 아니라 서비스 카테고리별로 묶어서
  * 한눈에 보여준다(같은 유형·같은 서비스끼리 정렬). 그룹 내부는 dDay 오름차순.
@@ -441,100 +276,6 @@ function isOverdue(p: Purchase): boolean {
   // 한 번만 사용한 정기 항목은 완료 뒤에도 목록에 남기는 선택이다. 과거 일정이라는 이유만으로
   // "지난 항목"으로 보내면 이 옵션의 목적과 어긋난다.
   return (!isRecurringType(p.type) && p.dDay < 0) || (isRecurringType(p.type) && !p.isOneTime && p.discontinuedAt !== null);
-}
-
-/** yyyy-MM-dd 문자열 기준으로 오늘까지 며칠 지났는지 — "몇 개월째 이용 중"류 표시에 쓴다. */
-function daysSinceBaseDate(baseDate: string): number {
-  const start = new Date(`${baseDate}T00:00:00`).getTime();
-  const now = new Date(`${todayDateOnly()}T00:00:00`).getTime();
-  return Math.floor((now - start) / 86_400_000);
-}
-
-/** 보관·삭제·유지 안 함 처리된 정기 항목은 그 시각 이후 회차가 지출 집계에서 빠진다(이미 지난
- *  회차는 실제로 발생한 지출이니 그대로 잡힌다) — 가장 먼저 멈춘 시각을 기준으로 삼는다. */
-function spendCutoffDate(p: Purchase): string | null {
-  const dates = [p.archivedAt, p.discardedAt, p.discontinuedAt]
-    .filter((d): d is string => d !== null)
-    .map((d) => d.slice(0, 10));
-  return dates.length === 0 ? null : dates.sort()[0];
-}
-
-/** purchase-logic.ts의 scheduleAnchor와 동일한 규칙(서버에 그 함수가 없어 프론트에서 복제) —
- *  RECURRING_DELIVERY만 expectedDeliveryDate를 앵커로 쓰고(없으면 baseDate로 폴백),
- *  SUBSCRIPTION/GENERAL은 항상 baseDate. */
-function scheduleAnchorDate(p: Purchase): string {
-  return p.type === 'RECURRING_DELIVERY' ? p.expectedDeliveryDate ?? p.baseDate : p.baseDate;
-}
-
-/**
- * 정기배송/구독이 특정 연/월에 실제로 결제·배송되는 날짜들(yyyy-MM-dd) — FIXED_DAY는 시작월
- * 이후로 그 달의 고정일 하루(월말보다 큰 날짜면 말일로 보정), INTERVAL은 주기에 따라 그 달에
- * 0개일 수도 여러 개일 수도 있다(예: 7일마다 항목은 한 달에 4~5개). 정기배송/구독이 아니면 빈 배열.
- * 보관/삭제된 항목은 spendCutoffDate 이후 회차를 제외한다(지출 집계용 fetchPurchasesForSpendHistory
- * 호출부에서만 실제로 archivedAt/discardedAt이 채워져 오므로, 평소 활성 목록 계산에는 영향 없다).
- */
-function occurrenceDatesInMonth(p: Purchase, year: number, month: number): string[] {
-  if (!isRecurringType(p.type)) return [];
-  const anchorDate = scheduleAnchorDate(p);
-  const [baseYear, baseMonth] = anchorDate.split('-').map(Number);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const cutoff = spendCutoffDate(p);
-
-  // "한 번만 사용" 정기 항목은 타입과 목록은 유지하되 최초 일정 한 번만 지출로 잡는다.
-  // 고정일 방식도 최초 앵커 날짜가 실제 사용/결제일이므로 그 날짜를 기준으로 한다.
-  if (p.isOneTime) {
-    return baseYear === year && baseMonth === month && (cutoff === null || anchorDate <= cutoff) ? [anchorDate] : [];
-  }
-
-  if (p.scheduleType === 'FIXED_DAY') {
-    const started = year > baseYear || (year === baseYear && month >= baseMonth);
-    if (!started) return [];
-    const daysInMonth = new Date(year, month, 0).getDate();
-    const day = Math.min(p.fixedDayOfMonth ?? 1, daysInMonth);
-    const date = `${year}-${pad(month)}-${pad(day)}`;
-    return cutoff !== null && date > cutoff ? [] : [date];
-  }
-
-  const interval = Math.max(1, p.intervalDays || 30);
-  const monthStart = new Date(`${year}-${pad(month)}-01T00:00:00`).getTime();
-  const monthEndExclusive = new Date(
-    month === 12 ? `${year + 1}-01-01T00:00:00` : `${year}-${pad(month + 1)}-01T00:00:00`
-  ).getTime();
-  const baseTime = new Date(`${anchorDate}T00:00:00`).getTime();
-  if (baseTime >= monthEndExclusive) return [];
-
-  const stepMs = interval * 86_400_000;
-  const kMin = Math.max(0, Math.ceil((monthStart - baseTime) / stepMs));
-  const dates: string[] = [];
-  for (let t = baseTime + kMin * stepMs; t < monthEndExclusive; t += stepMs) {
-    if (t >= monthStart) {
-      const d = new Date(t);
-      const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-      if (cutoff === null || date <= cutoff) dates.push(date);
-    }
-  }
-  return dates;
-}
-
-/** 정기배송/구독이 특정 연/월(month는 1~12)에 몇 번 결제·배송되는지. */
-function occurrencesInMonth(p: Purchase, year: number, month: number): number {
-  return occurrenceDatesInMonth(p, year, month).length;
-}
-
-/** 정기배송/구독은 occurrencesInMonth × amount, 1회성(GENERAL)은 baseDate가
- *  그 연/월이면 amount 그대로 — 특정 연/월의 총 지출액. */
-function totalSpendInMonth(purchases: Purchase[], year: number, month: number): number {
-  let total = 0;
-  for (const p of purchases) {
-    if (p.amount === null) continue;
-    if (isRecurringType(p.type)) {
-      total += occurrencesInMonth(p, year, month) * p.amount;
-    } else {
-      const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
-      if (baseYear === year && baseMonth === month) total += p.amount;
-    }
-  }
-  return Math.round(total);
 }
 
 export default function DashboardPage() {
@@ -2425,82 +2166,18 @@ export default function DashboardPage() {
       )}
 
       {isPremium && (weeklyDeliveries.length > 0 || weeklySubscriptions.length > 0) && (
-        <div className="weekly-summary-banner">
-          {weeklyDeliveries.length > 0 && (
-            <section className="weekly-summary-banner__section" aria-labelledby="weekly-delivery-title">
-              <span id="weekly-delivery-title" className="weekly-summary-banner__tag">
-                📦 이번 주 도착 예정 <span><span className="mono">{weeklyDeliveries.length}</span>건</span>
-              </span>
-              <ul>
-                {weeklyDeliveries.map((p) => (
-                  <li key={p.id}>
-                    {p.itemName} — <span className="mono">{formatShortDate(p.type === 'GENERAL' ? p.expectedDeliveryDate! : p.deadline)}</span>
-                    {p.isOneTime && <span className="weekly-summary-banner__complete">유지 안 함</span>}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {weeklyDeliveries.length > 0 && weeklySubscriptions.length > 0 && (
-            <div className="weekly-summary-banner__perforation" aria-hidden="true" />
-          )}
-          {weeklySubscriptions.length > 0 && (
-            <section className="weekly-summary-banner__section" aria-labelledby="weekly-subscription-title">
-              <span id="weekly-subscription-title" className="weekly-summary-banner__tag weekly-summary-banner__tag--subscription">
-                💳 이번 주 결제 예정 <span><span className="mono">{weeklySubscriptions.length}</span>건</span>
-              </span>
-              <ul>
-                {weeklySubscriptions.map((p) => (
-                  <li key={p.id}>
-                    {p.itemName} — <span className="mono">{formatShortDate(p.deadline)}</span>
-                    {p.isOneTime && <span className="weekly-summary-banner__complete">유지 안 함</span>}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </div>
+        <WeeklySummaryBanner deliveries={weeklyDeliveries} subscriptions={weeklySubscriptions} />
       )}
 
-      {arrivalChecks.length > 0 && (
-        <section className="arrival-check-section" aria-labelledby="arrival-check-title">
-          <div className="arrival-check-section__header">
-            <span id="arrival-check-title" className="arrival-check-section__title">📦 오늘 배송 받으셨나요?</span>
-            <span className="arrival-check-section__hint">
-              {arrivalSnoozedCount > 0 ? `${arrivalSnoozedCount}건은 내일 다시 알려드려요 · ` : ''}알림을 놓쳤다면 여기서 확인할 수 있어요.
-            </span>
-          </div>
-          <ul className="arrival-check-section__list">
-            {arrivalChecks.map((p) => {
-              const isSubmitting = dashboardArrivalSubmittingId === p.id;
-              const scheduledDate = p.type === 'GENERAL' ? p.expectedDeliveryDate : p.deadline;
-              return (
-                <li key={p.id}>
-                  <div>
-                    <strong>{p.itemName} · {p.type === 'RECURRING_DELIVERY' ? '정기배송' : '일반배송'}</strong>
-                    <span>예상 도착일 · <span className="mono">{scheduledDate}</span></span>
-                  </div>
-                  <div className="arrival-check-section__actions">
-                    <select
-                      className="arrival-check-section__date-select"
-                      aria-label={`${p.itemName} 실제 수령일`}
-                      value={dashboardArrivalDaysAgo[p.id] ?? 0}
-                      disabled={isSubmitting}
-                      onChange={(e) => setDashboardArrivalDaysAgo((days) => ({ ...days, [p.id]: Number(e.target.value) }))}
-                    >
-                      {Array.from({ length: 31 }, (_, daysAgo) => (
-                        <option key={daysAgo} value={daysAgo}>{daysAgo === 0 ? '오늘 수령' : `${daysAgo}일 전 수령`}</option>
-                      ))}
-                    </select>
-                    <button type="button" className="btn btn-sm" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, dashboardArrivalDaysAgo[p.id] ?? 0)}>수령 처리</button>
-                    <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalSnooze(p.id)}>아직 미도착</button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      <ArrivalCheckSection
+        purchases={arrivalChecks}
+        snoozedCount={arrivalSnoozedCount}
+        submittingId={dashboardArrivalSubmittingId}
+        daysAgoById={dashboardArrivalDaysAgo}
+        setDaysAgoById={setDashboardArrivalDaysAgo}
+        onConfirm={handleDashboardArrivalConfirm}
+        onSnooze={handleDashboardArrivalSnooze}
+      />
 
       {/* 하나씩 누르는 게 불편하다는 피드백으로 추가한 일괄 확인 패널 — 확인이 안 됐다고 바로
           "사용 안 함"으로 단정하지 않고 순화된 문구("확인이 필요합니다")로, 색도 빨간색이 아니라

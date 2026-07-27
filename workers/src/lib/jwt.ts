@@ -7,6 +7,8 @@ export interface JwtPayload {
   sub: string; // user email
   iat: number;
   exp: number;
+  type: 'access' | 'refresh';
+  jti?: string;
 }
 
 const HEADER = { alg: 'HS256', typ: 'JWT' } as const;
@@ -27,9 +29,15 @@ async function sign(data: string, secret: string): Promise<string> {
   return toBase64Url(new Uint8Array(signature));
 }
 
-export async function signJwt(subject: string, secret: string, expiresInSeconds: number): Promise<string> {
+export async function signJwt(
+  subject: string,
+  secret: string,
+  expiresInSeconds: number,
+  type: JwtPayload['type'] = 'access',
+  jti?: string
+): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  const payload: JwtPayload = { sub: subject, iat: now, exp: now + expiresInSeconds };
+  const payload: JwtPayload = { sub: subject, iat: now, exp: now + expiresInSeconds, type, ...(jti ? { jti } : {}) };
 
   const encodedHeader = encodeJsonBase64Url(HEADER);
   const encodedPayload = encodeJsonBase64Url(payload);
@@ -59,6 +67,7 @@ export async function verifyJwt(token: string, secret: string): Promise<JwtPaylo
 
   const now = Math.floor(Date.now() / 1000);
   if (typeof payload.exp !== 'number' || payload.exp < now) return null;
+  if (payload.type !== 'access' && payload.type !== 'refresh') return null;
 
   return payload;
 }

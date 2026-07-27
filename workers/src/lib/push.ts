@@ -3,6 +3,7 @@
 
 import webpush from 'web-push';
 import type { Env, PushSubscriptionRow } from '../types';
+import { logger, maskEndpoint } from './logger';
 
 export interface PushPayload {
   title: string;
@@ -29,7 +30,7 @@ export interface PushSendResult {
 
 export async function sendPush(env: Env, sub: PushSubscriptionRow, payload: PushPayload): Promise<PushSendResult> {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) {
-    console.warn(`[push] VAPID 키가 없어 발송을 건너뜁니다 (endpoint: ${sub.endpoint})`);
+    logger.warn('push.missing_vapid_keys', { endpoint: maskEndpoint(sub.endpoint) });
     return { sent: false, gone: false };
   }
 
@@ -44,10 +45,10 @@ export async function sendPush(env: Env, sub: PushSubscriptionRow, payload: Push
   } catch (err) {
     const statusCode = (err as { statusCode?: number }).statusCode;
     if (statusCode === 404 || statusCode === 410) {
-      console.warn(`[push] 구독이 만료되어 삭제 대상입니다 (endpoint: ${sub.endpoint})`);
+      logger.warn('push.subscription_expired', { endpoint: maskEndpoint(sub.endpoint), statusCode });
       return { sent: false, gone: true };
     }
-    console.error('[push] 발송 실패', err);
+    logger.error('push.send_failed', { endpoint: maskEndpoint(sub.endpoint), statusCode: statusCode ?? null });
     return { sent: false, gone: false };
   }
 }
