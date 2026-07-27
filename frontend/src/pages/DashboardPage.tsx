@@ -1320,8 +1320,8 @@ export default function DashboardPage() {
       const bDate = b.type === 'GENERAL' ? b.expectedDeliveryDate! : b.deadline;
       return aDate.localeCompare(bDate);
     });
-  // "한 번만 사용"은 이용 기간에는 남아 있지만 다음 결제가 없으므로 결제 예정에는 넣지 않는다.
-  const weeklySubscriptions = weeklyRecurring.filter((p) => p.type === 'SUBSCRIPTION' && !p.isOneTime);
+  // "한 번만 사용"도 이번 이용 기간의 예정에는 포함한다. 다음 갱신이 없다는 점은 목록에서 표시한다.
+  const weeklySubscriptions = weeklyRecurring.filter((p) => p.type === 'SUBSCRIPTION');
   const today = todayDateOnly();
   type WeeklyEntry = { purchase: Purchase; completed: boolean; completedAt: string | null };
   const completedThisWeek = (purchase: Purchase) => purchase.lastDeliveredDate !== null && isWithinRecentDays(purchase.lastDeliveredDate, URGENT_WINDOW_DAYS);
@@ -2258,6 +2258,7 @@ export default function DashboardPage() {
                 {weeklyDeliveries.map((p) => (
                   <li key={p.id}>
                     {p.itemName} — <span className="mono">{formatShortDate(p.type === 'GENERAL' ? p.expectedDeliveryDate! : p.deadline)}</span>
+                    {p.isOneTime && <span className="weekly-summary-banner__complete">유지 안 함</span>}
                   </li>
                 ))}
               </ul>
@@ -2275,6 +2276,7 @@ export default function DashboardPage() {
                 {weeklySubscriptions.map((p) => (
                   <li key={p.id}>
                     {p.itemName} — <span className="mono">{formatShortDate(p.deadline)}</span>
+                    {p.isOneTime && <span className="weekly-summary-banner__complete">유지 안 함</span>}
                   </li>
                 ))}
               </ul>

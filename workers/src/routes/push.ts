@@ -99,8 +99,12 @@ push.post('/test', async (c) => {
     const { deadline } = computeDeadline(purchase);
     const dDay = computeDDay(deadline);
     if (dDay < 0 || dDay > 7) continue;
-    if (purchase.type === 'RECURRING_DELIVERY') deliveries.push({ itemName: purchase.item_name, date: deadline });
-    if (purchase.type === 'SUBSCRIPTION' && purchase.is_one_time === 0) payments.push({ itemName: purchase.item_name, date: deadline });
+    if (purchase.type === 'RECURRING_DELIVERY') {
+      deliveries.push({ itemName: purchase.is_one_time === 1 ? `${purchase.item_name} (유지 안 함)` : purchase.item_name, date: deadline });
+    }
+    if (purchase.type === 'SUBSCRIPTION') {
+      payments.push({ itemName: purchase.is_one_time === 1 ? `${purchase.item_name} (유지 안 함)` : purchase.item_name, date: deadline });
+    }
   }
   const render = (label: string, items: Array<{ itemName: string; date: string }>) => [
     `${label} ${items.length}건`,

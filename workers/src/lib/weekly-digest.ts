@@ -102,10 +102,11 @@ export async function runWeeklyDigest(env: Env): Promise<WeeklyDigestRunResult> 
     if (dDay < 0 || dDay > UPCOMING_WINDOW_DAYS) continue;
 
     if (row.type === 'RECURRING_DELIVERY') {
-      bucketFor(row).deliveries.push({ itemName: row.item_name, dDay, deadline });
-    } else if (row.type === 'SUBSCRIPTION' && row.is_one_time === 0) {
-      // A one-time subscription remains usable for its term, but has no next payment to notify.
-      bucketFor(row).subscriptions.push({ itemName: row.item_name, dDay, deadline });
+      const itemName = row.is_one_time === 1 ? `${row.item_name} (유지 안 함)` : row.item_name;
+      bucketFor(row).deliveries.push({ itemName, dDay, deadline });
+    } else if (row.type === 'SUBSCRIPTION') {
+      const itemName = row.is_one_time === 1 ? `${row.item_name} (유지 안 함)` : row.item_name;
+      bucketFor(row).subscriptions.push({ itemName, dDay, deadline });
     }
   }
 
