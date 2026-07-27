@@ -26,16 +26,11 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787/api
 self.addEventListener('push', (event: PushEvent) => {
   const data: PushPayload = event.data ? event.data.json() : {};
   const title = data.title ?? 'Remindue';
-  const iconByKind: Record<NonNullable<PushPayload['notificationKind']>, string> = {
-    DEADLINE: '/notification-deadline.svg',
-    RENEWAL: '/notification-renewal.svg',
-    ARRIVAL: '/notification-arrival.svg',
-    WEEKLY_SUMMARY: '/notification-weekly-summary.svg',
-  };
   const options: NotificationOptions = {
     body: data.body ?? '',
-    icon: data.notificationKind ? iconByKind[data.notificationKind] : '/pwa-192x192.png',
-    // badge를 지정하면 Android 알림 우측/상태 영역에 앱 로고가 중복 표시될 수 있어 의도적으로 생략한다.
+    // One UI는 `icon`을 알림 오른쪽의 큰 사각형으로 표시하므로 생략한다.
+    // 왼쪽에는 설치된 PWA의 공통 색 시계 앱 아이콘만 표시된다.
+    // badge도 지정하지 않아 상태 영역에 로고가 중복되지 않는다.
     data: { url: data.url ?? '/', actionToken: data.actionToken },
     ...(data.actions ? { actions: data.actions } : {}),
   };

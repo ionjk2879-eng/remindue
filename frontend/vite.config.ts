@@ -20,8 +20,8 @@ export default defineConfig({
         start_url: '/',
         lang: 'ko',
         icons: [
-          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          // Android 알림 왼쪽의 앱 식별 아이콘. 흰 원 대신 색 시계 SVG를 공통 아이콘으로 쓴다.
+          { src: '/notification-renewal.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
         ],
       },
       injectManifest: {

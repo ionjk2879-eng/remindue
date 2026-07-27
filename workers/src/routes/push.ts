@@ -70,6 +70,13 @@ push.post('/subscribe', async (c) => {
 push.use('/test', authMiddleware);
 push.post('/test', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const { kind } = await c.req.json<{ kind?: unknown }>().catch(() => ({} as { kind?: unknown }));
+  const testMessages = {
+    DEADLINE: { title: '⏳ Remindue 기한 예정 알림', body: '반품·A/S 기한이 다가오는 항목을 미리 알려드려요.' },
+    RENEWAL: { title: '🔁 Remindue 정기배송·구독 유지 확인', body: '다음 배송·결제 전, 계속 유지할지 확인해보세요.' },
+    ARRIVAL: { title: '📦 Remindue 배송 수령 확인', body: '예상 도착일 상품을 받으셨는지 확인해보세요.' },
+  } as const;
+  const testKind = typeof kind === 'string' && kind in testMessages ? kind as keyof typeof testMessages : null;
   const { results: subscriptions } = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?')
     .bind(user.id)
     .all<PushSubscriptionRow>();
@@ -119,10 +126,12 @@ push.post('/test', async (c) => {
   let sent = 0;
   let pruned = 0;
   for (const subscription of subscriptions) {
+    const message = testKind ? testMessages[testKind] : { title: '🔔 Remindue 예정 항목 테스트', body };
     const result = await sendPush(c.env, subscription, {
-      title: '🔔 Remindue 예정 항목 테스트',
-      body,
+      title: message.title,
+      body: message.body,
       url: `${c.env.APP_URL}/dashboard`,
+      ...(testKind ? { notificationKind: testKind } : {}),
       actions: [{ action: 'open_dashboard', title: '대시보드 열기' }],
     });
     if (result.sent) sent += 1;

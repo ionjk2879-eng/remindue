@@ -10,7 +10,7 @@ import {
 import { acceptInvite, fetchReceivedInvites, fetchSentInvites, inviteMember, revokeShare } from '../api/sharing';
 import { cancelSubscription } from '../api/billing';
 import { deleteAccount } from '../api/auth';
-import { sendTestPush } from '../api/push';
+import { sendTestPush, type PushTestKind } from '../api/push';
 import { useAuth } from '../context/AuthContext';
 import Skeleton from '../components/Skeleton';
 import type { SharedAccess } from '../types';
@@ -48,7 +48,7 @@ export default function SettingsPage() {
   const [renewalSelectedDays, setRenewalSelectedDays] = useState<number[] | null>(null);
   const [savingRenewalDays, setSavingRenewalDays] = useState(false);
   const [renewalDaysMessage, setRenewalDaysMessage] = useState<string | null>(null);
-  const [sendingTestPush, setSendingTestPush] = useState(false);
+  const [sendingTestPush, setSendingTestPush] = useState<PushTestKind | null>(null);
   const [testPushMessage, setTestPushMessage] = useState<string | null>(null);
 
   const [inviteEmail, setInviteEmail] = useState('');
@@ -150,17 +150,17 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSendTestPush = async () => {
+  const handleSendTestPush = async (kind: PushTestKind) => {
     setTestPushMessage(null);
-    setSendingTestPush(true);
+    setSendingTestPush(kind);
     try {
-      const { sent } = await sendTestPush();
+      const { sent } = await sendTestPush(kind);
       setTestPushMessage(`테스트 알림을 ${sent}개 기기에 보냈어요.`);
     } catch (err) {
       const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
       setTestPushMessage(message ?? '테스트 알림을 보내지 못했어요.');
     } finally {
-      setSendingTestPush(false);
+      setSendingTestPush(null);
     }
   };
 
@@ -397,10 +397,18 @@ export default function SettingsPage() {
 
       <section className="settings-section">
         <h2>알림 테스트</h2>
-        <p className="settings-section__hint">현재 로그인한 계정에만 테스트 알림을 한 번 보냅니다.</p>
-        <button className="btn btn-sm" onClick={handleSendTestPush} disabled={sendingTestPush}>
-          {sendingTestPush ? '발송 중...' : '테스트 알림 보내기'}
-        </button>
+        <p className="settings-section__hint">현재 로그인한 계정에만 유형별 색 시계 아이콘 테스트 알림을 보냅니다. 주간 요약은 제외합니다.</p>
+        <div className="settings-test-pushes">
+          {([
+            ['DEADLINE', '기한 예정 알림'],
+            ['RENEWAL', '정기배송·구독 유지 확인'],
+            ['ARRIVAL', '배송 수령 확인'],
+          ] as const).map(([kind, label]) => (
+            <button key={kind} className="btn btn-sm" onClick={() => handleSendTestPush(kind)} disabled={sendingTestPush !== null}>
+              {sendingTestPush === kind ? '발송 중...' : `${label} 테스트`}
+            </button>
+          ))}
+        </div>
         {testPushMessage && <p className="settings-section__message">{testPushMessage}</p>}
       </section>
 

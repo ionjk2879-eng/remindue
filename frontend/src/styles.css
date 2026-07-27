@@ -2280,6 +2280,12 @@ button.summary-board__tile:hover {
   line-height: 1.15;
 }
 
+.settings-test-pushes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .arrival-check-section__date-select {
   min-width: 104px;
   border: 1px solid var(--hairline-strong);
