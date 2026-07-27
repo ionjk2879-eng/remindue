@@ -82,6 +82,7 @@ export interface PurchaseRow {
   discarded_at: string | null;
   /** 서비스 카테고리 — 모든 구매 유형에 적용. 미지정이면 NULL. */
   category: PurchaseCategory | null;
+  category_tags: string | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. 수동 등록이면 NULL. */
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
@@ -167,6 +168,7 @@ export interface PendingPurchaseRow {
   amount: number | null;
   /** AI가 추정한 서비스 카테고리 — 모든 구매 유형에 적용. 판단 불가면 NULL. */
   category: PurchaseCategory | null;
+  category_tags: string | null;
   /** 같은 상품명의 기존 활성 항목과 매칭됐고 금액이 달라졌을 때만 그 항목의 id. 그 외 NULL(가격 변동 없음/신규 항목). */
   matched_purchase_id: number | null;
   /** matched_purchase_id가 있을 때 그 항목의 "변경 전" 금액. 그 외 NULL. */
@@ -205,6 +207,7 @@ export interface PendingPurchaseResponse {
   amount: number | null;
   /** AI가 추정한 서비스 카테고리 — 모든 구매 유형에 적용. 판단 불가면 null. */
   category: PurchaseCategory | null;
+  categoryTags: PurchaseCategory[];
   /** 같은 상품명의 기존 활성 항목과 매칭됐고 금액이 달라졌을 때만 그 항목의 id. 그 외 null(가격 변동 없음/신규 항목). */
   matchedPurchaseId: number | null;
   /** matchedPurchaseId가 있을 때 그 항목의 "변경 전" 금액. 그 외 null. */
@@ -257,6 +260,7 @@ export interface PurchaseResponse {
   discardedAt: string | null;
   /** 서비스 카테고리 — 모든 구매 유형에 적용. 미지정이면 null. */
   category: PurchaseCategory | null;
+  categoryTags: PurchaseCategory[];
   /** GENERAL이고 returnDeadlineDays가 있을 때만: baseDate + returnDeadlineDays. 그 외 null. */
   returnDeadlineDate: string | null;
   /** returnDeadlineDate의 D-day. returnDeadlineDate가 null이면 null. */
@@ -323,6 +327,7 @@ export interface PurchaseRequestBody {
   /** GENERAL/RECURRING_DELIVERY 전용 — usesArrivalDate 참고. SUBSCRIPTION이면 무시된다. */
   expectedDeliveryDate?: string | null;
   category?: PurchaseCategory | null;
+  categoryTags?: PurchaseCategory[];
   brand?: string | null;
   brandDomain?: string | null;
   originalAmount?: number | null;

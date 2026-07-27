@@ -136,6 +136,7 @@ export async function runWeeklyDigest(env: Env): Promise<WeeklyDigestRunResult> 
         title,
         body,
         url: dashboardUrl,
+        notificationKind: 'WEEKLY_SUMMARY',
         actions: [{ action: 'open_dashboard', title: '전체 보기' }],
       });
       if (sent) pushSent += 1;

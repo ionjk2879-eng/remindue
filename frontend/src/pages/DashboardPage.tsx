@@ -385,12 +385,13 @@ function primaryDeadlineLabel(p: Purchase): string {
 
 /** 종류 배지 옆에 붙는 서비스 카테고리 배지 — category가 없으면 아무것도 표시하지 않는다. */
 function renderCategoryBadge(p: Purchase) {
-  if (!p.category) return null;
-  return (
-    <span className={`ticket-card__category ticket-card__category--${p.category}`}>
-      {CATEGORY_ICON[p.category]} {CATEGORY_LABEL[p.category]}
+  const tags = p.categoryTags.length > 0 ? p.categoryTags : p.category ? [p.category] : [];
+  if (tags.length === 0) return null;
+  return tags.map((category) => (
+    <span className={`ticket-card__category ticket-card__category--${category}`} key={category}>
+      {CATEGORY_ICON[category]} {CATEGORY_LABEL[category]}
     </span>
-  );
+  ));
 }
 
 /**
@@ -549,6 +550,7 @@ export default function DashboardPage() {
   const [fixedDayOfMonth, setFixedDayOfMonth] = useState('1');
   const [isOneTime, setIsOneTime] = useState(false);
   const [category, setCategory] = useState<PurchaseCategory>('OTHER');
+  const [categoryTags, setCategoryTags] = useState<PurchaseCategory[]>(['OTHER']);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showPremiumUpsell, setShowPremiumUpsell] = useState(false);
   const [forwardingEmail, setForwardingEmail] = useState('');
@@ -608,6 +610,7 @@ export default function DashboardPage() {
   const [arrivalConfirmError, setArrivalConfirmError] = useState<string | null>(null);
   const [arrivalConfirmDone, setArrivalConfirmDone] = useState(false);
   const [dashboardArrivalSubmittingId, setDashboardArrivalSubmittingId] = useState<number | null>(null);
+  const [dashboardArrivalDaysAgo, setDashboardArrivalDaysAgo] = useState<Record<number, number>>({});
   const [confirmedRecurringIds, setConfirmedRecurringIds] = useState<number[]>([]);
   const [arrivalBatchReceived, setArrivalBatchReceived] = useState<{ id: number; daysAgo: number }[]>([]);
   const [recurringBatchMaintainedIds, setRecurringBatchMaintainedIds] = useState<number[]>([]);
@@ -898,6 +901,7 @@ export default function DashboardPage() {
     setFixedDayOfMonth('1');
     setIsOneTime(false);
     setCategory('OTHER');
+    setCategoryTags(['OTHER']);
     setBrand('');
     setBrandDomain(null);
     setOriginalAmount(null);
@@ -923,6 +927,7 @@ export default function DashboardPage() {
     setFixedDayOfMonth(String(p.fixedDayOfMonth ?? 1));
     setIsOneTime(p.isOneTime);
     setCategory(p.category ?? 'OTHER');
+    setCategoryTags(p.categoryTags.length > 0 ? p.categoryTags : [p.category ?? 'OTHER']);
     setBrand(p.brand ?? '');
     setBrandDomain(p.brandDomain ?? null);
     setOriginalAmount(p.originalAmount ?? null);
@@ -965,6 +970,7 @@ export default function DashboardPage() {
         setIntervalDays(String(item.intervalDays));
       }
       setCategory(item.category ?? 'OTHER');
+      setCategoryTags(item.categoryTags.length > 0 ? item.categoryTags : [item.category ?? 'OTHER']);
     } else {
       setBaseDate(item.orderDate ?? item.expectedDeliveryDate ?? '');
       // GENERAL도 도착일을 정보용으로 같이 프리필한다(계산엔 영향 없음).
@@ -977,6 +983,7 @@ export default function DashboardPage() {
         setWarrantyMonths(String(item.warrantyMonths));
       }
       setCategory(item.category ?? 'OTHER');
+      setCategoryTags(item.categoryTags.length > 0 ? item.categoryTags : [item.category ?? 'OTHER']);
     }
     setBrand(item.brand ?? '');
     setBrandDomain(item.brandDomain ?? null);
@@ -1152,6 +1159,7 @@ export default function DashboardPage() {
       fixedDayOfMonth: isRecurringType(type) && scheduleType === 'FIXED_DAY' ? Number(fixedDayOfMonth) : undefined,
       isOneTime: isRecurringType(type) ? isOneTime : false,
       category,
+      categoryTags: categoryTags.includes(category) ? categoryTags : [category, ...categoryTags],
       brand: brand.trim() || null,
       brandDomain: brand.trim() ? brandDomain : null,
       originalAmount,
@@ -2446,9 +2454,18 @@ export default function DashboardPage() {
                     <span>예상 도착일 · <span className="mono">{scheduledDate}</span></span>
                   </div>
                   <div className="arrival-check-section__actions">
-                    <button type="button" className="btn btn-sm" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 0)}>받았어요</button>
-                    <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 1)}>하루 전에 받았어요</button>
-                    <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 2)}>이틀 전에 받았어요</button>
+                    <select
+                      className="arrival-check-section__date-select"
+                      aria-label={`${p.itemName} 실제 수령일`}
+                      value={dashboardArrivalDaysAgo[p.id] ?? 0}
+                      disabled={isSubmitting}
+                      onChange={(e) => setDashboardArrivalDaysAgo((days) => ({ ...days, [p.id]: Number(e.target.value) }))}
+                    >
+                      {Array.from({ length: 31 }, (_, daysAgo) => (
+                        <option key={daysAgo} value={daysAgo}>{daysAgo === 0 ? '오늘 수령' : `${daysAgo}일 전 수령`}</option>
+                      ))}
+                    </select>
+                    <button type="button" className="btn btn-sm" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, dashboardArrivalDaysAgo[p.id] ?? 0)}>수령 처리</button>
                     <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalSnooze(p.id)}>아직 미도착</button>
                   </div>
                 </li>

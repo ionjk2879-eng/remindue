@@ -5,7 +5,7 @@ import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
 import { refreshRecurringFxOnConfirmation } from '../lib/recurring-fx';
 import { computeDDay, computeDeadline, FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
-import { sanitizeBrandDomain, sanitizeCurrency, sanitizeOriginalAmount } from '../lib/pending-purchase-intake';
+import { sanitizeBrandDomain, sanitizeCategoryTags, sanitizeCurrency, sanitizeOriginalAmount } from '../lib/pending-purchase-intake';
 import { buildCsv, buildPdf } from '../lib/export';
 import { BadRequestError, ForbiddenError, PaymentRequiredError } from '../lib/errors';
 import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES } from '../types';
@@ -67,6 +67,7 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
   const isOneTime = isRecurringType(body.type) && body.isOneTime === true;
   // 카테고리는 이제 모든 구매 유형에 적용된다.
   const category = body.category && PURCHASE_CATEGORIES.includes(body.category) ? body.category : null;
+  const categoryTags = category ? sanitizeCategoryTags(body.categoryTags, category) : [];
   const brand = typeof body.brand === 'string' && body.brand.trim() ? body.brand.trim() : null;
   const originalCurrency = sanitizeCurrency(body.originalCurrency ?? null);
   const originalAmount = sanitizeOriginalAmount(originalCurrency, body.originalAmount ?? null);
@@ -88,6 +89,7 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
     isOneTime,
     expectedDeliveryDate,
     category,
+    categoryTags,
     brand: brand,
     brandDomain: sanitizeBrandDomain(brand, body.brandDomain ?? null),
     originalAmount,
@@ -179,8 +181,8 @@ purchases.post('/', async (c) => {
 
   const insert = await c.env.DB.prepare(
     `INSERT INTO purchases
-       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, is_one_time, expected_delivery_date, last_delivered_date, category, brand, brand_domain, original_amount, original_currency, exchange_rate)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, is_one_time, expected_delivery_date, last_delivered_date, category, category_tags, brand, brand_domain, original_amount, original_currency, exchange_rate)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       user.id,
@@ -198,6 +200,7 @@ purchases.post('/', async (c) => {
       body.expectedDeliveryDate,
       lastDeliveredDate,
       body.category,
+      JSON.stringify(body.categoryTags),
       body.brand,
       body.brandDomain,
       body.originalAmount,
@@ -224,7 +227,7 @@ purchases.put('/:id', async (c) => {
         SET type = ?, item_name = ?, base_date = ?, amount = ?, memo = ?,
             warranty_months = ?, return_deadline_days = ?, interval_days = ?,
             schedule_type = ?, fixed_day_of_month = ?, is_one_time = ?, expected_delivery_date = ?,
-            category = ?, brand = ?, brand_domain = ?,
+            category = ?, category_tags = ?, brand = ?, brand_domain = ?,
             original_amount = ?, original_currency = ?, exchange_rate = ?,
             updated_at = datetime('now')
       WHERE id = ?`
@@ -243,6 +246,7 @@ purchases.put('/:id', async (c) => {
       body.isOneTime ? 1 : 0,
       body.expectedDeliveryDate,
       body.category,
+      JSON.stringify(body.categoryTags),
       body.brand,
       body.brandDomain,
       body.originalAmount,

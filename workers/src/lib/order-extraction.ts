@@ -27,6 +27,8 @@ export interface ExtractedOrder {
   originalAmount: number | null;
   /** 지출 카테고리 추정 — 모든 구매 유형에 대해 채운다(판단 불가면 OTHER). */
   category: 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'HAIR_BODY' | 'SKINCARE' | 'PET' | 'ELECTRONICS' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER' | null;
+  /** All applicable categories for a mixed-product order. category is the primary one. */
+  categoryTags: Array<'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'HAIR_BODY' | 'SKINCARE' | 'PET' | 'ELECTRONICS' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER'>;
   /**
    * estimatedType이 GENERAL일 때만 의미 있다: 냉장고/TV/세탁기/노트북/청소기 등 A/S 보증기간
    * 추적이 중요한 가전제품으로 보이면 true. RECURRING_DELIVERY/SUBSCRIPTION이면 항상 false.
@@ -153,6 +155,12 @@ const EXTRACTION_SCHEMA = {
         '위에 뚜렷이 해당하지 않으면 OTHER(사료 등). ' +
         'isOrderConfirmation=false면 반드시 null.',
     },
+    categoryTags: {
+      type: 'array',
+      items: { type: 'string', enum: ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'HAIR_BODY', 'SKINCARE', 'PET', 'ELECTRONICS', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'] },
+      description:
+        'One or more applicable spending categories, without duplicates. Use this only for the actual products in the order, not the marketplace. category must be the first/primary tag. Examples: body sunscreen lotion = HAIR_BODY and SKINCARE; shampoo brush = HAIR_BODY; deodorant and mask-pack bundle = HAIR_BODY and SKINCARE.',
+    },
     looksLikeElectronics: {
       type: 'boolean',
       description:
@@ -249,6 +257,7 @@ const EXTRACTION_SCHEMA = {
     'currency',
     'originalAmount',
     'category',
+    'categoryTags',
     'looksLikeElectronics',
     'foundExplicitDeadline',
     'returnDeadlineDays',

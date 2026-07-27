@@ -13,7 +13,7 @@ interface PushPayload {
   title?: string;
   body?: string;
   url?: string;
-  notificationKind?: 'DEADLINE' | 'RENEWAL' | 'ARRIVAL';
+  notificationKind?: 'DEADLINE' | 'RENEWAL' | 'ARRIVAL' | 'WEEKLY_SUMMARY';
   /** "유지하기"/"나중에" 같은 액션 버튼 — 지원 안 하는 플랫폼(iOS Safari 등)에서는 그냥
    *  무시되고 본문 탭 시 기본 동작(앱 열기)만 동작한다. */
   actions?: { action: string; title: string }[];
@@ -30,6 +30,7 @@ self.addEventListener('push', (event: PushEvent) => {
     DEADLINE: '/notification-deadline.svg',
     RENEWAL: '/notification-renewal.svg',
     ARRIVAL: '/notification-arrival.svg',
+    WEEKLY_SUMMARY: '/notification-weekly-summary.svg',
   };
   const options: NotificationOptions = {
     body: data.body ?? '',

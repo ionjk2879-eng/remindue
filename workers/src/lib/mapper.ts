@@ -1,6 +1,16 @@
 import { computeDDay, computeDeadline, computeDeadlines } from './purchase-logic';
 import type { PendingPurchaseResponse, PendingPurchaseRow, PurchaseResponse, PurchaseRow } from '../types';
 
+function parseCategoryTags(value: string | null, primary: PurchaseRow['category']): PurchaseResponse['categoryTags'] {
+  try {
+    const tags = value ? JSON.parse(value) : [];
+    if (Array.isArray(tags) && tags.every((tag) => typeof tag === 'string')) return [...new Set([...(primary ? [primary] : []), ...tags])] as PurchaseResponse['categoryTags'];
+  } catch {
+    // Legacy/invalid rows still expose their primary category.
+  }
+  return primary ? [primary] : [];
+}
+
 export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
   const { deadline, deliveryRound } = computeDeadline(row);
   const dDay = computeDDay(deadline);
@@ -33,6 +43,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     archivedAt: row.archived_at,
     discardedAt: row.discarded_at,
     category: row.category,
+    categoryTags: parseCategoryTags(row.category_tags, row.category),
     returnDeadlineDate: returnInstance?.deadline ?? null,
     returnDeadlineDDay: returnInstance ? computeDDay(returnInstance.deadline) : null,
     warrantyDeadlineDate: warrantyInstance?.deadline ?? null,
@@ -67,6 +78,7 @@ export function toPendingPurchaseResponse(row: PendingPurchaseRow): PendingPurch
     scheduleEstimated: row.schedule_estimated === 1,
     amount: row.amount,
     category: row.category,
+    categoryTags: parseCategoryTags(row.category_tags, row.category),
     matchedPurchaseId: row.matched_purchase_id,
     previousAmount: row.previous_amount,
     brand: row.brand,

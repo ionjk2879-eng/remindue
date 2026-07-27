@@ -35,6 +35,8 @@ export interface Purchase {
   /** "삭제"(취소와 다름) 시각. discard된 항목은 목록 조회에 안 잡히므로 사실상 항상 null. */
   discardedAt: string | null;
   category: PurchaseCategory | null;
+  /** One order can contain products from several categories. category is the primary tag. */
+  categoryTags: PurchaseCategory[];
   /** GENERAL이고 returnDeadlineDays가 있을 때만: baseDate + returnDeadlineDays. 그 외 null. */
   returnDeadlineDate: string | null;
   returnDeadlineDDay: number | null;
@@ -75,6 +77,7 @@ export interface PurchaseInput {
   /** RECURRING_DELIVERY 전용 — 스케줄 앵커. GENERAL은 정보용으로만 저장되고 계산엔 영향 없다. */
   expectedDeliveryDate?: string | null;
   category?: PurchaseCategory | null;
+  categoryTags?: PurchaseCategory[];
   brand?: string | null;
   brandDomain?: string | null;
   originalAmount?: number | null;
@@ -115,6 +118,7 @@ export interface PendingPurchase {
   amount: number | null;
   /** AI가 추정한 서비스 카테고리 — 모든 구매 유형에 적용. 판단 불가면 null. */
   category: PurchaseCategory | null;
+  categoryTags: PurchaseCategory[];
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */

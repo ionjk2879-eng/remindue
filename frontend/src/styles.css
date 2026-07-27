@@ -2295,6 +2295,17 @@ button.summary-board__tile:hover {
   flex-wrap: wrap;
 }
 
+.arrival-check-section__date-select {
+  min-width: 104px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  background: var(--paper-card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
 /* --------------------------------------------------------------------------
    확인이 필요한 항목 ("전체 확인" / "유지 안 함") — 일부러 노란색(amber). 빨간색은 실제
    절약 후보(3회차 이상 미확인/유지 안 함)로 확정됐을 때 다른 곳(가격 인상 체크리스트,

@@ -41,6 +41,14 @@ export function sanitizeCategory(category: string | null): PurchaseCategory {
   return PURCHASE_CATEGORIES.includes(category as PurchaseCategory) ? (category as PurchaseCategory) : 'OTHER';
 }
 
+/** Keep only known categories, remove duplicates, and make the primary category first. */
+export function sanitizeCategoryTags(categories: readonly string[] | null | undefined, primary: PurchaseCategory): PurchaseCategory[] {
+  const valid = Array.isArray(categories)
+    ? categories.filter((category): category is PurchaseCategory => PURCHASE_CATEGORIES.includes(category as PurchaseCategory))
+    : [];
+  return [...new Set([primary, ...valid])];
+}
+
 /** AI가 GENERAL 항목을 전자제품으로 판단했을 때만 기본 보증기간(12개월)을 채운다. 그 외 null —
  *  반품기한(returnDeadlineDays)과 별개로 프리필돼서 등록 화면에서 둘 다 확인/수정할 수 있다. */
 export function sanitizeWarrantyMonths(type: PurchaseType, looksLikeElectronics: boolean): number | null {
@@ -123,6 +131,7 @@ export interface PendingPurchaseFields {
   scheduleEstimated: 0 | 1;
   amount: number | null;
   category: PurchaseCategory | null;
+  categoryTags: PurchaseCategory[];
   brand: string | null;
   brandDomain: string | null;
   originalAmount: number | null;
@@ -222,6 +231,7 @@ export async function buildPendingPurchaseFields(extracted: ExtractedOrder): Pro
     scheduleEstimated,
     amount,
     category: sanitizeCategory(extracted.category),
+    categoryTags: sanitizeCategoryTags(extracted.categoryTags, sanitizeCategory(extracted.category)),
     brand,
     brandDomain: sanitizeBrandDomain(brand, extracted.brandDomain),
     originalAmount,
@@ -279,8 +289,8 @@ export async function insertPendingPurchase(
   const result = await db
     .prepare(
       `INSERT INTO pending_purchases
-         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, warranty_months, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category, matched_purchase_id, previous_amount, brand, brand_domain, original_amount, original_currency, exchange_rate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, warranty_months, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category, category_tags, matched_purchase_id, previous_amount, brand, brand_domain, original_amount, original_currency, exchange_rate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       userId,
@@ -298,6 +308,7 @@ export async function insertPendingPurchase(
       fields.scheduleEstimated,
       fields.amount,
       fields.category,
+      JSON.stringify(fields.categoryTags),
       matchedPurchaseId,
       previousAmount,
       fields.brand,
