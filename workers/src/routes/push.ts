@@ -5,7 +5,9 @@ import { consumeActionBatchToken, consumeActionToken } from '../lib/action-token
 import { addDays, todayDateOnly } from '../lib/date';
 import { confirmReceiptToday, isValidArrivalDaysAgo, resolveArrivalDate, InvalidPurchaseOperationError } from '../lib/purchase-logic';
 import { refreshRecurringFxOnConfirmation } from '../lib/recurring-fx';
+import { sendPush } from '../lib/push';
 import type { Env, PurchaseRow, PushSubscriptionRequestBody, UserRow } from '../types';
+import type { PushSubscriptionRow } from '../types';
 
 const push = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
@@ -61,6 +63,38 @@ push.post('/subscribe', async (c) => {
     .run();
 
   return c.body(null, 204);
+});
+
+/** 현재 로그인한 사용자에게만 발송하는 연결 확인용 알림. */
+push.use('/test', authMiddleware);
+push.post('/test', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const { results: subscriptions } = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?')
+    .bind(user.id)
+    .all<PushSubscriptionRow>();
+
+  if (subscriptions.length === 0) {
+    throw new BadRequestError('이 브라우저에 등록된 알림 구독이 없습니다. 먼저 알림을 허용해주세요.');
+  }
+
+  let sent = 0;
+  let pruned = 0;
+  for (const subscription of subscriptions) {
+    const result = await sendPush(c.env, subscription, {
+      title: '🔔 Remindue 테스트 알림',
+      body: '알림이 정상적으로 도착했습니다.\n알림을 길게 눌러 내용을 확인할 수 있어요.',
+      url: `${c.env.APP_URL}/dashboard`,
+      actions: [{ action: 'open_dashboard', title: '대시보드 열기' }],
+    });
+    if (result.sent) sent += 1;
+    if (result.gone) {
+      await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(subscription.id).run();
+      pruned += 1;
+    }
+  }
+
+  if (sent === 0) throw new BadRequestError('테스트 알림을 보내지 못했습니다. 알림 설정을 다시 확인해주세요.');
+  return c.json({ sent, pruned });
 });
 
 /**

@@ -9,6 +9,7 @@ import {
 import { acceptInvite, fetchReceivedInvites, fetchSentInvites, inviteMember, revokeShare } from '../api/sharing';
 import { cancelSubscription } from '../api/billing';
 import { deleteAccount } from '../api/auth';
+import { sendTestPush } from '../api/push';
 import { useAuth } from '../context/AuthContext';
 import Skeleton from '../components/Skeleton';
 import type { SharedAccess } from '../types';
@@ -43,6 +44,8 @@ export default function SettingsPage() {
   const [selectedDays, setSelectedDays] = useState<number[] | null>(null);
   const [savingDays, setSavingDays] = useState(false);
   const [daysMessage, setDaysMessage] = useState<string | null>(null);
+  const [sendingTestPush, setSendingTestPush] = useState(false);
+  const [testPushMessage, setTestPushMessage] = useState<string | null>(null);
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -119,6 +122,20 @@ export default function SettingsPage() {
       setDaysMessage(message ?? '저장하지 못했어요.');
     } finally {
       setSavingDays(false);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    setTestPushMessage(null);
+    setSendingTestPush(true);
+    try {
+      const { sent } = await sendTestPush();
+      setTestPushMessage(`테스트 알림을 ${sent}개 기기에 보냈어요.`);
+    } catch (err) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setTestPushMessage(message ?? '테스트 알림을 보내지 못했어요.');
+    } finally {
+      setSendingTestPush(false);
     }
   };
 
@@ -301,6 +318,15 @@ export default function SettingsPage() {
             <Link to="/pricing">프리미엄으로 업그레이드하면 원하는 시점을 고를 수 있어요 →</Link>
           </p>
         )}
+      </section>
+
+      <section className="settings-section">
+        <h2>알림 테스트</h2>
+        <p className="settings-section__hint">현재 로그인한 계정에만 테스트 알림을 한 번 보냅니다.</p>
+        <button className="btn btn-sm" onClick={handleSendTestPush} disabled={sendingTestPush}>
+          {sendingTestPush ? '발송 중...' : '테스트 알림 보내기'}
+        </button>
+        {testPushMessage && <p className="settings-section__message">{testPushMessage}</p>}
       </section>
 
       <section className="settings-section">
