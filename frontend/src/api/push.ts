@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { isPushSupported, urlBase64ToUint8Array } from '../lib/push';
 
 export async function fetchVapidPublicKey() {
   const { data } = await apiClient.get<{ publicKey: string }>('/push/vapid-public-key');
@@ -7,6 +8,29 @@ export async function fetchVapidPublicKey() {
 
 export async function subscribePush(subscription: PushSubscriptionJSON) {
   await apiClient.post('/push/subscribe', subscription);
+}
+
+/** 권한만 수동 허용된 경우에도 실제 구독을 만들고 현재 계정에 연결한다. */
+export async function ensurePushSubscription(requestPermission = false) {
+  if (!isPushSupported()) throw new Error('이 브라우저는 알림을 지원하지 않습니다.');
+
+  let permission = Notification.permission;
+  if (permission === 'default' && requestPermission) {
+    permission = await Notification.requestPermission();
+  }
+  if (permission !== 'granted') return null;
+
+  const registration = await navigator.serviceWorker.ready;
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    const publicKey = await fetchVapidPublicKey();
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+  }
+  await subscribePush(subscription.toJSON());
+  return subscription;
 }
 
 export async function unsubscribePush(endpoint: string) {

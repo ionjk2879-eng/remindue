@@ -10,7 +10,7 @@ import {
 import { acceptInvite, fetchReceivedInvites, fetchSentInvites, inviteMember, revokeShare } from '../api/sharing';
 import { cancelSubscription } from '../api/billing';
 import { deleteAccount } from '../api/auth';
-import { sendTestPush, type PushTestKind } from '../api/push';
+import { ensurePushSubscription, sendTestPush, type PushTestKind } from '../api/push';
 import { useAuth } from '../context/AuthContext';
 import Skeleton from '../components/Skeleton';
 import type { SharedAccess } from '../types';
@@ -154,6 +154,13 @@ export default function SettingsPage() {
     setTestPushMessage(null);
     setSendingTestPush(kind);
     try {
+      const subscription = await ensurePushSubscription(true);
+      if (!subscription) {
+        setTestPushMessage(Notification.permission === 'denied'
+          ? '브라우저 사이트 설정에서 알림을 허용한 뒤 다시 시도해 주세요.'
+          : '알림 권한을 허용해야 테스트 알림을 보낼 수 있어요.');
+        return;
+      }
       const { sent } = await sendTestPush(kind);
       setTestPushMessage(`테스트 알림을 ${sent}개 기기에 보냈어요.`);
     } catch (err) {
