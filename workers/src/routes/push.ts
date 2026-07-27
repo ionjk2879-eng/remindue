@@ -6,6 +6,7 @@ import { addDays, todayDateOnly } from '../lib/date';
 import { confirmReceiptToday, isValidArrivalDaysAgo, resolveArrivalDate, InvalidPurchaseOperationError } from '../lib/purchase-logic';
 import { refreshRecurringFxOnConfirmation } from '../lib/recurring-fx';
 import { sendPush } from '../lib/push';
+import { computeDDay, computeDeadline } from '../lib/purchase-logic';
 import type { Env, PurchaseRow, PushSubscriptionRequestBody, UserRow } from '../types';
 import type { PushSubscriptionRow } from '../types';
 
@@ -77,12 +78,44 @@ push.post('/test', async (c) => {
     throw new BadRequestError('이 브라우저에 등록된 알림 구독이 없습니다. 먼저 알림을 허용해주세요.');
   }
 
+  const { results: purchases } = await c.env.DB.prepare(
+    `SELECT * FROM purchases
+      WHERE user_id = ?
+        AND type IN ('GENERAL', 'RECURRING_DELIVERY', 'SUBSCRIPTION')
+        AND archived_at IS NULL
+        AND discarded_at IS NULL
+        AND discontinued_at IS NULL`
+  ).bind(user.id).all<PurchaseRow>();
+
+  const deliveries: Array<{ itemName: string; date: string }> = [];
+  const payments: Array<{ itemName: string; date: string }> = [];
+  for (const purchase of purchases) {
+    if (purchase.type === 'GENERAL') {
+      if (purchase.last_delivered_date || !purchase.expected_delivery_date) continue;
+      const dDay = computeDDay(purchase.expected_delivery_date);
+      if (dDay >= 0 && dDay <= 7) deliveries.push({ itemName: purchase.item_name, date: purchase.expected_delivery_date });
+      continue;
+    }
+    const { deadline } = computeDeadline(purchase);
+    const dDay = computeDDay(deadline);
+    if (dDay < 0 || dDay > 7) continue;
+    if (purchase.type === 'RECURRING_DELIVERY') deliveries.push({ itemName: purchase.item_name, date: deadline });
+    if (purchase.type === 'SUBSCRIPTION' && purchase.is_one_time === 0) payments.push({ itemName: purchase.item_name, date: deadline });
+  }
+  const render = (label: string, items: Array<{ itemName: string; date: string }>) => [
+    `${label} ${items.length}건`,
+    ...items.slice(0, 3).map((item) => `• ${item.itemName} — ${item.date.slice(5)}`),
+  ];
+  const body = deliveries.length || payments.length
+    ? [...(deliveries.length ? render('📦 이번 주 도착 예정', deliveries) : []), ...(payments.length ? ['', ...render('💳 이번 주 결제 예정', payments)] : [])].join('\n')
+    : '오늘부터 7일 안에 예정된 도착·결제 항목이 없습니다.';
+
   let sent = 0;
   let pruned = 0;
   for (const subscription of subscriptions) {
     const result = await sendPush(c.env, subscription, {
-      title: '🔔 Remindue 테스트 알림',
-      body: '알림이 정상적으로 도착했습니다.\n알림을 길게 눌러 내용을 확인할 수 있어요.',
+      title: '🔔 Remindue 예정 항목 테스트',
+      body,
       url: `${c.env.APP_URL}/dashboard`,
       actions: [{ action: 'open_dashboard', title: '대시보드 열기' }],
     });
