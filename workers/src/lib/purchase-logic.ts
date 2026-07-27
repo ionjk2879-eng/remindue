@@ -179,11 +179,11 @@ export function confirmReceiptToday(type: PurchaseType): string {
 
 /** "받았어요" 답변의 daysAgo 선택지 — 도착 확인 알림이 뜬 당일(0)/하루 전(1)/이틀 전(2)만 받는다.
  *  그 이상은 물어보지 않는다(늦게 확인하는 사람도 보통 이 안에서 답한다 — arrival-confirm.ts). */
-export const ARRIVAL_DAYS_AGO_OPTIONS = [0, 1, 2] as const;
-export type ArrivalDaysAgo = (typeof ARRIVAL_DAYS_AGO_OPTIONS)[number];
+export const MAX_ARRIVAL_DAYS_AGO = 30;
+export type ArrivalDaysAgo = number;
 
 export function isValidArrivalDaysAgo(value: unknown): value is ArrivalDaysAgo {
-  return typeof value === 'number' && (ARRIVAL_DAYS_AGO_OPTIONS as readonly number[]).includes(value);
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= MAX_ARRIVAL_DAYS_AGO;
 }
 
 /**

@@ -30,7 +30,7 @@ function validateSubscriptionBody(body: Partial<PushSubscriptionRequestBody>): P
   return { endpoint: body.endpoint, keys: { p256dh: body.keys.p256dh, auth: body.keys.auth } };
 }
 
-async function recordArrival(db: D1Database, purchase: PurchaseRow, daysAgo: 0 | 1 | 2): Promise<void> {
+async function recordArrival(db: D1Database, purchase: PurchaseRow, daysAgo: number): Promise<void> {
   if (purchase.type === 'SUBSCRIPTION') throw new BadRequestError('정기구독 항목은 도착 확인 대상이 아닙니다');
   const arrivalDate = resolveArrivalDate(daysAgo);
   if (purchase.type === 'RECURRING_DELIVERY') {
@@ -301,7 +301,7 @@ push.post('/arrival-batch/:action', async (c) => {
   const receivedIds = new Set<number>();
   for (const item of received) {
     if (!item.purchase) continue;
-    await recordArrival(c.env.DB, item.purchase, item.daysAgo as 0 | 1 | 2);
+    await recordArrival(c.env.DB, item.purchase, item.daysAgo);
     receivedIds.add(item.purchase.id);
   }
   // 일부 수령에서 고르지 않은 항목, 또는 전부 미도착은 내일 재질문한다. 같은 날 대시보드에는

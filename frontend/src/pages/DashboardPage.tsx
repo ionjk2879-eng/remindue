@@ -603,7 +603,7 @@ export default function DashboardPage() {
   const [arrivalConfirmDone, setArrivalConfirmDone] = useState(false);
   const [dashboardArrivalSubmittingId, setDashboardArrivalSubmittingId] = useState<number | null>(null);
   const [confirmedRecurringIds, setConfirmedRecurringIds] = useState<number[]>([]);
-  const [arrivalBatchReceived, setArrivalBatchReceived] = useState<{ id: number; daysAgo: 0 | 1 | 2 }[]>([]);
+  const [arrivalBatchReceived, setArrivalBatchReceived] = useState<{ id: number; daysAgo: number }[]>([]);
   const [recurringBatchMaintainedIds, setRecurringBatchMaintainedIds] = useState<number[]>([]);
 
   useEffect(() => {
@@ -1043,7 +1043,7 @@ export default function DashboardPage() {
 
   /** daysAgo(0/1/2)를 답하면 그 실제 도착일이 새 스케줄 앵커로 확정된다 — 서버가 이후 회차를 그
    *  날짜 기준으로 다시 계산한다. */
-  const handleArrivalConfirm = async (daysAgo: 0 | 1 | 2) => {
+  const handleArrivalConfirm = async (daysAgo: number) => {
     if (!confirmArrivalToken) return;
     setArrivalConfirmSubmitting(true);
     setArrivalConfirmError(null);
@@ -1072,7 +1072,7 @@ export default function DashboardPage() {
     setConfirmedRecurringIds([]);
   };
 
-  const handleDashboardArrivalConfirm = async (id: number, daysAgo: 0 | 1 | 2) => {
+  const handleDashboardArrivalConfirm = async (id: number, daysAgo: number) => {
     setDashboardArrivalSubmittingId(id);
     try {
       await confirmArrivalForPurchase(id, daysAgo);
@@ -1596,8 +1596,8 @@ export default function DashboardPage() {
                   <label className="schedule-radio"><input type="checkbox" checked={Boolean(selected)} onChange={(e) =>
                     setArrivalBatchReceived((items) => e.target.checked ? [...items, { id: p.id, daysAgo: 0 }] : items.filter((item) => item.id !== p.id))
                   } />{p.itemName} · {p.type === 'RECURRING_DELIVERY' ? '정기배송' : '일반배송'}</label>
-                  {selected && <select value={selected.daysAgo} onChange={(e) => setArrivalBatchReceived((items) => items.map((item) => item.id === p.id ? { ...item, daysAgo: Number(e.target.value) as 0 | 1 | 2 } : item))}>
-                    <option value={0}>받았어요</option><option value={1}>하루 전 수령</option><option value={2}>이틀 전 수령</option>
+                  {selected && <select value={selected.daysAgo} onChange={(e) => setArrivalBatchReceived((items) => items.map((item) => item.id === p.id ? { ...item, daysAgo: Number(e.target.value) } : item))}>
+                    {Array.from({ length: 31 }, (_, daysAgo) => <option key={daysAgo} value={daysAgo}>{daysAgo === 0 ? '오늘 받았어요' : `${daysAgo}일 전 수령`}</option>)}
                   </select>}
                 </div>;
               })}

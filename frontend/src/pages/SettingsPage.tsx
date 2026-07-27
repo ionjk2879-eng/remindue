@@ -282,7 +282,7 @@ export default function SettingsPage() {
       </section>
 
       <section className="settings-section">
-        <h2>알림 시점</h2>
+        <h2>기한 예정 알림</h2>
         {isPremium ? (
           selectedDays === null ? (
             <div className="skeleton-block">
@@ -292,8 +292,7 @@ export default function SettingsPage() {
           ) : (
             <>
               <p className="settings-section__hint">
-                등록한 모든 항목(반품기한·A/S보증·정기배송·정기구독)의 기한이 며칠 남았을 때
-                요약 알림을 받을지 골라주세요.
+                반품 기한·A/S 보증·정기배송·정기구독의 예정일이 며칠 남았을 때 요약 알림을 받을지 골라주세요.
               </p>
               <div className="notification-day-options">
                 {NOTIFICATION_DAY_OPTIONS.map((day) => (
@@ -313,11 +312,44 @@ export default function SettingsPage() {
             </>
           )
         ) : (
-          <p className="settings-section__hint">
-            무료 플랜은 7일/3일/1일/당일 전 알림으로 고정돼요.{' '}
-            <Link to="/pricing">프리미엄으로 업그레이드하면 원하는 시점을 고를 수 있어요 →</Link>
-          </p>
+          <>
+            <p className="settings-section__hint">무료 플랜의 기본 예정 알림이에요.</p>
+            <div className="notification-day-options" aria-label="무료 기한 예정 알림 시점">
+              {FREE_PLAN_FIXED_DAYS.map((day) => (
+                <label key={day} className="notification-day-option notification-day-option--active">
+                  <input type="checkbox" checked readOnly />
+                  {formatDayLabel(day)}
+                </label>
+              ))}
+            </div>
+            <p className="settings-section__hint"><Link to="/pricing">프리미엄으로 업그레이드하면 원하는 시점을 고를 수 있어요 →</Link></p>
+          </>
         )}
+      </section>
+
+      <section className="settings-section">
+        <h2>정기배송·구독 유지 확인</h2>
+        <p className="settings-section__hint">오전 10시에 정기배송·구독의 다음 회차 유지 여부를 확인해요.</p>
+        <div className="notification-day-options" aria-label="정기배송과 구독 유지 확인 알림">
+          {isPremium ? (
+            <>
+              <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />예정일 전날</label>
+              <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미응답 시 예정일 당일</label>
+            </>
+          ) : (
+            <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />예정일 당일</label>
+          )}
+          <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미응답 시 D+7 절약 검토</label>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2>배송 수령 확인</h2>
+        <p className="settings-section__hint">일반배송과 정기배송의 실제 수령 여부를 확인해요.</p>
+        <div className="notification-day-options" aria-label="배송 수령 확인 알림">
+          <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />예상 도착일 당일 오후 7시</label>
+          <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미수령 시 다음 날 재알림</label>
+        </div>
       </section>
 
       <section className="settings-section">

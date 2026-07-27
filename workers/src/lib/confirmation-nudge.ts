@@ -24,15 +24,18 @@ import { computeDDay, computeDeadline, computePreviousScheduleDeadline } from '.
 import { buildConfirmationNudgeEmailHtml, sendDigestEmail } from './email';
 import { sendPush } from './push';
 import { createActionBatchToken } from './action-tokens';
+import { addDays } from './date';
 import type { Env, PurchaseRow, PushSubscriptionRow } from '../types';
 
-/** 당일 유지 확인(액션 버튼) 알림: 결제/배송 당일. */
-const SAME_DAY_DDAY = 0;
+/** 유지 여부는 비용이 발생하기 전날에 먼저 묻고, 미응답이면 당일 한 번만 재알림한다. */
+const PRE_RENEWAL_DDAY = 1;
+const RENEWAL_DAY_DDAY = 0;
 
 interface RecurringPurchaseWithUser extends PurchaseRow {
   user_email: string;
   user_nickname: string;
   user_email_notifications_enabled: number;
+  user_is_premium: number;
 }
 
 /** DashboardPage.tsx의 missedRoundsFor와 동일한 계산 — 서버에는 그 함수가 없어 여기서 복제한다. */
@@ -127,8 +130,13 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
     const { deadline, deliveryRound } = computeDeadline(row);
     const dDay = computeDDay(deadline);
 
-    // 당일 유지 확인은 같은 사용자·같은 날짜의 항목을 한 푸시로 묶는다.
-    if (dDay === SAME_DAY_DDAY) {
+    const missedRounds = missedRoundsFor(deliveryRound, row.delivery_confirm_count, dDay);
+    // 무료는 당일 한 번만 안내한다. 프리미엄은 전날에 먼저 묻고, 미응답일 때만 당일 재알림한다.
+    const confirmedOnPreRenewalDay = row.last_delivered_date === addDays(deadline, -1);
+    const shouldAskForRenewal = row.user_is_premium === 1
+      ? dDay === PRE_RENEWAL_DDAY || (dDay === RENEWAL_DAY_DDAY && !confirmedOnPreRenewalDay)
+      : dDay === RENEWAL_DAY_DDAY;
+    if (shouldAskForRenewal) {
       const items = sameDayItemsByUserId.get(row.user_id) ?? [];
       items.push({ id: row.id, itemName: row.item_name });
       sameDayItemsByUserId.set(row.user_id, items);
@@ -139,8 +147,7 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
     const previousDeadline = computePreviousScheduleDeadline(row);
     if (previousDeadline === null) continue;
     const daysSincePreviousDeadline = computeDDay(previousDeadline);
-    if (daysSincePreviousDeadline !== -1 && daysSincePreviousDeadline !== -7) continue;
-    const missedRounds = missedRoundsFor(deliveryRound, row.delivery_confirm_count, dDay);
+    if (daysSincePreviousDeadline !== -7) continue;
     if (missedRounds < 1) continue;
 
     const bucket = bucketsByUserId.get(row.user_id) ?? {
@@ -150,11 +157,7 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
       followUp: [],
       reviewFlagged: [],
     };
-    if (daysSincePreviousDeadline === -1) {
-      bucket.followUp.push(row.item_name);
-    } else {
-      bucket.reviewFlagged.push(row.item_name);
-    }
+    bucket.reviewFlagged.push(row.item_name);
     bucketsByUserId.set(row.user_id, bucket);
   }
 

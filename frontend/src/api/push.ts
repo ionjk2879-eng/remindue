@@ -20,17 +20,17 @@ export async function sendTestPush() {
 
 /** "오늘 받으셨나요?" 알림에서 "받았어요" 탭 후 대시보드 모달의 오늘/하루전/이틀전 선택 — 인증 없이
  *  토큰만으로 처리된다(routes/push.ts). daysAgo만큼 이전 날짜가 새 스케줄 앵커로 확정된다. */
-export async function confirmArrival(token: string, daysAgo: 0 | 1 | 2) {
+export async function confirmArrival(token: string, daysAgo: number) {
   await apiClient.post('/push/confirm-arrival', { token, daysAgo });
 }
 
 /** 대시보드의 도착 확인 카드에서, 로그인한 사용자가 본인 항목의 실제 도착일을 확정한다. */
-export async function confirmArrivalForPurchase(id: number, daysAgo: 0 | 1 | 2) {
+export async function confirmArrivalForPurchase(id: number, daysAgo: number) {
   await apiClient.post(`/push/arrival-check/${id}/confirm`, { daysAgo });
 }
 
 /** 묶인 배송 알림에서 일부만 받은 경우, 선택한 항목만 실제 도착일로 확정한다. */
-export async function confirmArrivalBatch(token: string, received: { id: number; daysAgo: 0 | 1 | 2 }[]) {
+export async function confirmArrivalBatch(token: string, received: { id: number; daysAgo: number }[]) {
   await apiClient.post('/push/arrival-batch/partial', { token, received });
 }
 
