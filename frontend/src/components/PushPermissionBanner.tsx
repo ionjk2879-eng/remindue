@@ -7,6 +7,7 @@ export default function PushPermissionBanner() {
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
 
   useEffect(() => {
     if (!isPushSupported()) return;
@@ -56,13 +57,15 @@ export default function PushPermissionBanner() {
       const currentPermission = await getNotificationPermission();
       if (!subscription) {
         setVisible(true);
+        setShowPermissionPrompt(false);
         setError(currentPermission === 'denied'
-          ? '브라우저 사이트 설정에서 알림을 허용한 뒤 이 화면으로 돌아와 주세요.'
-          : '알림 권한을 허용해야 알림을 받을 수 있어요.');
+          ? 'Chrome 알림 권한 창에서 허용을 선택해 주세요.'
+          : '알림 권한 요청이 완료되지 않았어요. 다시 시도해 주세요.');
         return;
       }
-      setVisible(false);
+      window.location.reload();
     } catch (err) {
+      setShowPermissionPrompt(false);
       setError('알림 설정에 실패했습니다. 다시 시도해 주세요.');
       console.error(err);
     } finally {
@@ -77,10 +80,29 @@ export default function PushPermissionBanner() {
       <span className="push-banner__text">놓치기 쉬운 기한, 브라우저 알림으로 바로 받아보세요.</span>
       <div className="push-banner__actions">
         {error && <span className="push-banner__error">{error}</span>}
-        <button className="btn btn-sm" onClick={handleEnable} disabled={busy}>
-          {busy ? '설정 중…' : '알림 허용 받기'}
+        <button className="btn btn-sm" onClick={() => { setError(null); setShowPermissionPrompt(true); }} disabled={busy}>
+          알림 허용 받기
         </button>
       </div>
+      {showPermissionPrompt && (
+        <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="push-permission-title">
+          <div className="onboarding-modal">
+            <p id="push-permission-title" className="onboarding-modal__title">🔔 Remindue 알림을 허용할까요?</p>
+            <p className="onboarding-modal__body">
+              이어서 표시되는 Chrome 권한 창에서 <strong>허용</strong>을 눌러주세요.
+              허용이 완료되면 화면이 새로고침되고 알림이 활성화됩니다.
+            </p>
+            <div className="onboarding-modal__actions">
+              <button type="button" className="btn" disabled={busy} onClick={handleEnable}>
+                {busy ? '설정 중…' : '허용하기'}
+              </button>
+              <button type="button" className="btn-text" disabled={busy} onClick={() => setShowPermissionPrompt(false)}>
+                나중에
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
