@@ -3206,6 +3206,17 @@ button.summary-board__tile:hover {
   flex-shrink: 0;
 }
 
+.brand-avatar--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-soft);
+  color: var(--ink-soft);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
 .brand-kicker {
   display: block;
   font-size: 0.76rem;

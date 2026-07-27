@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="OLIVE YOUNG">
+  <rect width="96" height="96" rx="20" fill="#f7fff0"/>
+  <circle cx="39" cy="43" r="21" fill="#82dc28"/>
+  <circle cx="45" cy="37" r="7" fill="#ff7878"/>
+  <path d="M39 64c9-5 16-12 20-23" fill="none" stroke="#4b9b1c" stroke-width="5" stroke-linecap="round"/>
+  <path d="M18 78h60" stroke="#82dc28" stroke-width="4" stroke-linecap="round"/>
+</svg>
