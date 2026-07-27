@@ -13,6 +13,7 @@ interface PushPayload {
   title?: string;
   body?: string;
   url?: string;
+  notificationKind?: 'DEADLINE' | 'RENEWAL' | 'ARRIVAL';
   /** "유지하기"/"나중에" 같은 액션 버튼 — 지원 안 하는 플랫폼(iOS Safari 등)에서는 그냥
    *  무시되고 본문 탭 시 기본 동작(앱 열기)만 동작한다. */
   actions?: { action: string; title: string }[];
@@ -25,10 +26,15 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787/api
 self.addEventListener('push', (event: PushEvent) => {
   const data: PushPayload = event.data ? event.data.json() : {};
   const title = data.title ?? 'Remindue';
+  const iconByKind: Record<NonNullable<PushPayload['notificationKind']>, string> = {
+    DEADLINE: '/notification-deadline.svg',
+    RENEWAL: '/notification-renewal.svg',
+    ARRIVAL: '/notification-arrival.svg',
+  };
   const options: NotificationOptions = {
     body: data.body ?? '',
-    icon: '/pwa-192x192.png',
-    badge: '/pwa-192x192.png',
+    icon: data.notificationKind ? iconByKind[data.notificationKind] : '/pwa-192x192.png',
+    // badge를 지정하면 Android 알림 우측/상태 영역에 앱 로고가 중복 표시될 수 있어 의도적으로 생략한다.
     data: { url: data.url ?? '/', actionToken: data.actionToken },
     ...(data.actions ? { actions: data.actions } : {}),
   };

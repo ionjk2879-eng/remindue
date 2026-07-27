@@ -90,6 +90,7 @@ async function sendSameDayConfirmPush(
       title: `🔔 다음 회차 유지 확인 ${items.length}건`,
       body: `${itemSummary}${more} — 다음 배송·결제를 계속 진행할지 선택해 주세요.`,
       url: dashboardUrl,
+      notificationKind: 'RENEWAL',
       actions: [
         { action: 'recurring_all_maintain', title: '모두 유지' },
         { action: 'recurring_partial', title: '일부 유지' },

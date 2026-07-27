@@ -1484,18 +1484,24 @@ export default function DashboardPage() {
   });
 
   /**
-   * "카테고리별 분석" — 카테고리가 지정된 정기배송/구독의 개수와, 그중 이번 달에 실제로 결제되는
-   * 항목들의 금액 합(occurrencesInMonth 기준 — 이번 달에 결제가 없는 항목은 개수엔 잡히되 금액엔 0으로 반영).
+   * "카테고리별 분석"은 요약 타일의 이번 달 예상 지출과 같은 기준이다. 정기배송·구독뿐 아니라
+   * 이번 달에 발생하는 일반배송까지 포함해, 새로 등록한 모든 카테고리가 누락되지 않게 한다.
    */
   const categoryCounts = PURCHASE_CATEGORIES.map((cat) => {
-    const items = purchases.filter((p) => isRecurringType(p.type) && p.discontinuedAt === null && p.category === cat);
-    const amount = items.reduce((sum, p) => {
-      if (p.amount === null) return sum;
-      return sum + occurrencesInMonth(p, currentYearNum, currentMonthNum) * p.amount;
-    }, 0);
-    return { category: cat, count: items.length, amount: Math.round(amount) };
-  }).filter((c) => c.count > 0);
-  const uncategorizedRecurringCount = purchases.filter((p) => isRecurringType(p.type) && p.discontinuedAt === null && p.category === null).length;
+    const items = spendHistoryPurchases.filter((p) => p.category === cat && p.amount !== null);
+    const count = items.filter((p) => {
+      if (isRecurringType(p.type)) return occurrencesInMonth(p, currentYearNum, currentMonthNum) > 0;
+      const [year, month] = p.baseDate.split('-').map(Number);
+      return year === currentYearNum && month === currentMonthNum;
+    }).length;
+    return { category: cat, count, amount: totalSpendInMonth(items, currentYearNum, currentMonthNum) };
+  }).filter((c) => c.count > 0 || c.amount > 0);
+  const uncategorizedSpendCount = spendHistoryPurchases.filter((p) => {
+    if (p.category !== null || p.amount === null) return false;
+    if (isRecurringType(p.type)) return occurrencesInMonth(p, currentYearNum, currentMonthNum) > 0;
+    const [year, month] = p.baseDate.split('-').map(Number);
+    return year === currentYearNum && month === currentMonthNum;
+  }).length;
 
   /** 확인 대기 중인 "가격 인상 감지" 건수 — pending-purchase-intake.ts가 matched_purchase_id를 채운 것만. */
   const priceChangeCount = pendingItems.filter((item) => item.matchedPurchaseId !== null).length;
@@ -1944,9 +1950,9 @@ export default function DashboardPage() {
                   </li>
                 ))}
               </ul>
-              {uncategorizedRecurringCount > 0 && (
+              {uncategorizedSpendCount > 0 && (
                 <p className="spending-detail__hint">
-                  카테고리 미지정 <span className="mono">{uncategorizedRecurringCount}</span>건 — 항목을 수정해서
+                  카테고리 미지정 <span className="mono">{uncategorizedSpendCount}</span>건 — 항목을 수정해서
                   카테고리를 지정해보세요.
                 </p>
               )}

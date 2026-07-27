@@ -123,6 +123,7 @@ export async function runArrivalConfirm(env: Env): Promise<ArrivalConfirmRunResu
         title: `📦 오늘 배송 확인 ${items.length}건`,
         body: `${itemSummary}${more} — 수령한 배송만 처리해 주세요. 미도착 항목은 내일 다시 알려드려요.`,
         url: dashboardUrl,
+        notificationKind: 'ARRIVAL',
         actions: [
           { action: 'arrival_all_received', title: '모두 받음' },
           { action: 'arrival_partial', title: '일부 받음' },

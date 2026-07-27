@@ -8,6 +8,8 @@ export interface PushPayload {
   title: string;
   body: string;
   url: string;
+  /** 알림 화면에서 구분할 용도. 서비스 워커가 유형별 색 아이콘을 고른다. */
+  notificationKind?: 'DEADLINE' | 'RENEWAL' | 'ARRIVAL';
   /**
    * 알림에 액션 버튼("유지하기"/"나중에" 등)을 붙일 때만 채운다 — Notification API의
    * actions와 그대로 매핑된다(sw.ts). 지원 안 하는 플랫폼(iOS Safari 등)에서는 그냥

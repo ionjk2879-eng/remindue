@@ -110,6 +110,7 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
         title: subject,
         body: buildPushBody(items),
         url: dashboardUrl,
+        notificationKind: 'DEADLINE',
         ...(actionToken ? { actions: [{ action: 'deadline_disable', title: '알림 더는 안 받기' }], actionToken } : {}),
       });
       if (sent) pushSent += 1;
