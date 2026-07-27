@@ -1352,8 +1352,8 @@ export default function DashboardPage() {
   const today = todayDateOnly();
   const calendarWeek = currentCalendarWeekRange(today);
   /**
-   * 요약 카드의 결제 건수는 사용자 접속일부터 7일이 아니라 이번 주 월~일 달력 범위다.
-   * 같은 정기구독이 짧은 주기로 두 번 결제되면 각각 한 건으로 센다.
+   * 요약 카드에는 이번 주 월요일부터 오늘까지 이미 도래한 결제 회차만 센다.
+   * 이번 주 후반의 예정 결제는 '결제 예정' 목록에만 남기고 완료 건수에는 넣지 않는다.
    */
   const weeklyPaymentCount = purchases
     .filter((purchase) => purchase.type === 'SUBSCRIPTION' && purchase.discontinuedAt === null)
@@ -1366,7 +1366,7 @@ export default function DashboardPage() {
         ...occurrenceDatesInMonth(purchase, startYear, startMonth),
         ...(startYear === endYear && startMonth === endMonth ? [] : occurrenceDatesInMonth(purchase, endYear, endMonth)),
       ];
-      return count + dates.filter((date) => date >= calendarWeek.start && date <= calendarWeek.end).length;
+      return count + dates.filter((date) => date >= calendarWeek.start && date <= today).length;
     }, 0);
   type WeeklyEntry = { purchase: Purchase; completed: boolean; completedAt: string | null };
   const completedThisWeek = (purchase: Purchase) => purchase.lastDeliveredDate !== null && isWithinRecentDays(purchase.lastDeliveredDate, URGENT_WINDOW_DAYS);
@@ -1825,12 +1825,12 @@ export default function DashboardPage() {
           <div className="summary-board__tile summary-board__tile--week">
             <span className="summary-board__icon" aria-hidden="true">📅</span>
             <div className="summary-board__text">
-              <span className="summary-board__label">이번 주 결제</span>
+              <span className="summary-board__label">이번 주 결제 완료</span>
               <span className="summary-board__value mono">
                 {weeklyPaymentCount}
                 <span className="summary-board__unit">건</span>
               </span>
-              <span className="summary-board__unit summary-board__value-caption">월~일 기준</span>
+              <span className="summary-board__unit summary-board__value-caption">월~오늘 기준</span>
             </div>
           </div>
           <button
