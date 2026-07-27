@@ -11,6 +11,9 @@ export default defineConfig({
       filename: 'sw.ts',
       injectRegister: 'script',
       includeAssets: [
+        'notification-deadline.png',
+        'notification-arrival.png',
+        'notification-weekly-summary.png',
         'notification-deadline.svg',
         'notification-arrival.svg',
         'notification-weekly-summary.svg',
@@ -26,7 +29,7 @@ export default defineConfig({
         lang: 'ko',
         icons: [
           // Android 알림 왼쪽의 앱 식별 아이콘. 흰 원 대신 색 시계 SVG를 공통 아이콘으로 쓴다.
-          { src: '/notification-renewal.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: '/notification-renewal.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
         ],
       },
       injectManifest: {

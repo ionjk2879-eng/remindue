@@ -24,10 +24,11 @@ interface PushPayload {
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787/api';
 
 const NOTIFICATION_ICONS: Record<NonNullable<PushPayload['notificationKind']>, string> = {
-  DEADLINE: '/notification-deadline.svg',
-  RENEWAL: '/notification-renewal.svg',
-  ARRIVAL: '/notification-arrival.svg',
-  WEEKLY_SUMMARY: '/notification-weekly-summary.svg',
+  // Android/One UI는 알림 icon으로 SVG를 무시할 수 있어 PNG를 우선 사용한다.
+  DEADLINE: '/notification-deadline.png',
+  RENEWAL: '/notification-renewal.png',
+  ARRIVAL: '/notification-arrival.png',
+  WEEKLY_SUMMARY: '/notification-weekly-summary.png',
 };
 
 self.addEventListener('push', (event: PushEvent) => {
