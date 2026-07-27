@@ -35,8 +35,8 @@ async function recordArrival(db: D1Database, purchase: PurchaseRow, daysAgo: 0 |
   const arrivalDate = resolveArrivalDate(daysAgo);
   if (purchase.type === 'RECURRING_DELIVERY') {
     await db.prepare(
-      `UPDATE purchases SET expected_delivery_date = ?, last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
-       discontinued_at = NULL, arrival_check_snoozed_until = NULL, updated_at = datetime('now') WHERE id = ?`
+      `UPDATE purchases SET expected_delivery_date = ?, last_delivered_date = ?,
+       arrival_check_snoozed_until = NULL, updated_at = datetime('now') WHERE id = ?`
     ).bind(arrivalDate, arrivalDate, purchase.id).run();
   } else {
     await db.prepare(
@@ -255,8 +255,8 @@ push.post('/confirm-arrival', async (c) => {
   if (purchase.type === 'RECURRING_DELIVERY') {
     await c.env.DB.prepare(
       `UPDATE purchases
-          SET expected_delivery_date = ?, last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
-              discontinued_at = NULL, arrival_check_snoozed_until = NULL, updated_at = datetime('now')
+          SET expected_delivery_date = ?, last_delivered_date = ?,
+              arrival_check_snoozed_until = NULL, updated_at = datetime('now')
         WHERE id = ?`
     )
       .bind(arrivalDate, arrivalDate, purchaseId)

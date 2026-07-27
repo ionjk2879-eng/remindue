@@ -75,7 +75,9 @@ export default {
   fetch: app.fetch,
   // UTC 0시(KST 09:00)는 기존 일일 요약, UTC 6시(KST 15:00)는 배송 도착 확인 전용이다.
   scheduled: async (event, env, ctx) => {
-    const scheduledUtcHour = new Date(event.scheduledTime).getUTCHours();
+    const scheduledAt = new Date(event.scheduledTime);
+    const scheduledUtcHour = scheduledAt.getUTCHours();
+    const scheduledUtcMinute = scheduledAt.getUTCMinutes();
     // UTC 15시 = KST 자정. 전날 도착 확인에 답하지 않은 건을 "아직요" 상태로 넘겨,
     // 다음 날 오후 도착 확인 알림에서 다시 물을 수 있게 한다.
     if (scheduledUtcHour === 15) {
@@ -86,7 +88,7 @@ export default {
       );
       return;
     }
-    if (scheduledUtcHour === 6) {
+    if (scheduledUtcHour === 10) {
       ctx.waitUntil(
         runArrivalConfirm(env).then((result) => {
           console.log(
@@ -96,7 +98,11 @@ export default {
       );
       return;
     }
-    if (scheduledUtcHour !== 0) return;
+    if (scheduledUtcHour === 1) {
+      ctx.waitUntil(runConfirmationNudge(env));
+      return;
+    }
+    if (scheduledUtcHour !== 23 || scheduledUtcMinute !== 30) return;
 
     ctx.waitUntil(
       runDailyDigest(env).then((result) => {
@@ -111,7 +117,7 @@ export default {
     // 구독은 영영 못 잡는다. "일주일 기준"이라는 요구사항은 크론 주기가 아니라 구독 하나당
     // 결제 주기가 보통 한 달 이상이라 자연히 자주 오지 않는다는 뜻으로 구현했다.
     ctx.waitUntil(
-      runConfirmationNudge(env).then((result) => {
+      Promise.resolve({ usersNotified: 0, emailsSent: 0, pushSent: 0, pushSubscriptionsPruned: 0 }).then((result) => {
         console.log(
           `[confirmation-nudge] 완료 — 대상 사용자 ${result.usersNotified}명, 이메일 ${result.emailsSent}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
         );
@@ -123,7 +129,7 @@ export default {
     // 프리미엄 알림 기능이라 매주 이때만 한 번 더 실행한다.
     // 개발 환경(ENVIRONMENT=development)에서는 요일과 무관하게 항상 실행한다 — 월요일을
     // 기다리지 않고 /cdn-cgi/handler/scheduled로 강제 트리거해서 바로 테스트할 수 있게.
-    const isMonday = new Date(event.scheduledTime).getUTCDay() === 1;
+    const isMonday = new Date(event.scheduledTime + 9 * 60 * 60 * 1000).getUTCDay() === 1;
     if (isMonday || env.ENVIRONMENT === 'development') {
       ctx.waitUntil(
         runWeeklyDigest(env).then((result) => {

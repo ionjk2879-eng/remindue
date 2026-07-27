@@ -115,7 +115,7 @@ export async function runArrivalConfirm(env: Env): Promise<ArrivalConfirmRunResu
 
     const actionToken = await createActionBatchToken(env.DB, userId, 'ARRIVAL', items.map((item) => item.id));
     const dashboardUrl = `${env.APP_URL}/dashboard?confirmArrivalBatch=${actionToken}&confirmArrivalItems=${items.map((item) => item.id).join(',')}`;
-    const itemSummary = items.slice(0, 2).map((item) => item.item_name).join(', ');
+    const itemSummary = items.slice(0, 2).map((item) => `${item.item_name} · ${item.type === 'RECURRING_DELIVERY' ? '정기배송' : '일반배송'}`).join(', ');
     const more = items.length > 2 ? ` 외 ${items.length - 2}건` : '';
 
     for (const sub of subs) {

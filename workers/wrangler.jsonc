@@ -12,7 +12,7 @@
   // UTC 0시(KST 오전 9시)는 매일 1회 D-day 다이제스트 이메일을 발송하고,
   // UTC 6시(KST 오후 3시)는 배송 도착 확인 알림을 발송한다.
   "triggers": {
-    "crons": ["0 0 * * *", "0 6 * * *", "0 15 * * *"]
+    "crons": ["30 23 * * *", "0 1 * * *", "0 10 * * *", "0 15 * * *"]
   },
   // Email Routing으로 받는 메일을 처리하는 email() 핸들러(src/index.ts)는 wrangler.jsonc에 별도
   // 설정이 필요 없다 — Cloudflare 대시보드에서 라우팅 규칙의 액션을 "Send to a Worker"로 잡고

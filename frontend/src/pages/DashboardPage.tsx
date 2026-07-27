@@ -1595,7 +1595,7 @@ export default function DashboardPage() {
                 return <div key={p.id} className="arrival-batch-item">
                   <label className="schedule-radio"><input type="checkbox" checked={Boolean(selected)} onChange={(e) =>
                     setArrivalBatchReceived((items) => e.target.checked ? [...items, { id: p.id, daysAgo: 0 }] : items.filter((item) => item.id !== p.id))
-                  } />{p.itemName}</label>
+                  } />{p.itemName} · {p.type === 'RECURRING_DELIVERY' ? '정기배송' : '일반배송'}</label>
                   {selected && <select value={selected.daysAgo} onChange={(e) => setArrivalBatchReceived((items) => items.map((item) => item.id === p.id ? { ...item, daysAgo: Number(e.target.value) as 0 | 1 | 2 } : item))}>
                     <option value={0}>받았어요</option><option value={1}>하루 전 수령</option><option value={2}>이틀 전 수령</option>
                   </select>}
@@ -2300,7 +2300,7 @@ export default function DashboardPage() {
               return (
                 <li key={p.id}>
                   <div>
-                    <strong>{p.itemName}</strong>
+                    <strong>{p.itemName} · {p.type === 'RECURRING_DELIVERY' ? '정기배송' : '일반배송'}</strong>
                     <span>예상 도착일 · <span className="mono">{scheduledDate}</span></span>
                   </div>
                   <div className="arrival-check-section__actions">
