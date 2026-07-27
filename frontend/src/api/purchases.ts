@@ -57,6 +57,11 @@ export async function discontinuePurchase(id: number) {
   return data;
 }
 
+export async function disableDeadlineNotifications(id: number) {
+  const { data } = await apiClient.post<Purchase>(`/purchases/${id}/disable-deadline-notifications`);
+  return data;
+}
+
 export async function archivePurchase(id: number) {
   const { data } = await apiClient.post<Purchase>(`/purchases/${id}/archive`);
   return data;

@@ -851,6 +851,31 @@ button.summary-board__tile:hover {
 .summary-board__tile--calculator {
   border-left-color: #6b7dff;
   background: color-mix(in srgb, #6b7dff 7%, var(--paper-card));
+  align-items: flex-start;
+}
+
+.summary-board__tile--calculator .summary-board__text {
+  flex: 1;
+  padding-top: 1px;
+  transform: translateY(-2px);
+}
+
+.summary-board__tile--calculator .summary-board__value {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  font-size: 0.98rem;
+}
+
+.summary-board__tile--calculator .summary-board__calculator-period {
+  margin-left: 0;
+  white-space: nowrap;
+}
+
+.summary-board__calculator-amount {
+  white-space: nowrap;
 }
 
 .specific-spend-calculator__categories {
@@ -858,6 +883,67 @@ button.summary-board__tile:hover {
   flex-wrap: wrap;
   gap: 7px;
   margin-top: 12px;
+  padding: 11px;
+  background: color-mix(in srgb, #6b7dff 5%, var(--neutral-bg));
+  border: 1px solid color-mix(in srgb, #6b7dff 18%, var(--hairline));
+  border-radius: var(--radius-sm);
+}
+
+.specific-spend-calculator__types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.specific-spend-calculator__types button {
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--paper-card);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.specific-spend-calculator__types button.is-active {
+  border-color: #6b7dff;
+  background: #6b7dff;
+  color: white;
+}
+
+.specific-spend-calculator__selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.specific-spend-calculator__selection-bar > div {
+  display: flex;
+  gap: 5px;
+}
+
+.specific-spend-calculator__selection-bar button {
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: var(--paper-card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.specific-spend-calculator__selection-bar button:hover {
+  border-color: #6b7dff;
+  color: #4f61dc;
 }
 
 .specific-spend-calculator__items {
@@ -875,6 +961,18 @@ button.summary-board__tile:hover {
   border: 1px solid var(--hairline);
   border-radius: var(--radius-sm);
   cursor: pointer;
+  background: var(--paper-card);
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.specific-spend-calculator__item:hover {
+  border-color: color-mix(in srgb, #6b7dff 55%, var(--hairline));
+  transform: translateY(-1px);
+}
+
+.specific-spend-calculator__item:has(input:checked) {
+  border-color: #6b7dff;
+  background: color-mix(in srgb, #6b7dff 8%, var(--paper-card));
 }
 
 .specific-spend-calculator__item > span {
@@ -894,6 +992,7 @@ button.summary-board__tile:hover {
 .specific-spend-calculator__item strong {
   flex: 0 0 auto;
   font-size: 0.82rem;
+  color: #4f61dc;
 }
 
 .summary-board__tile--ai-summary {

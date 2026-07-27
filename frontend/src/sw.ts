@@ -63,6 +63,15 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
     return;
   }
 
+  if (event.action === 'deadline_disable' && notifData?.actionToken) {
+    event.waitUntil(
+      fetch(`${API_BASE}/push/disable-deadline-notifications`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: notifData.actionToken }),
+      }).catch(() => {})
+    );
+    return;
+  }
+
   // 묶인 배송의 "모두 받음"은 오늘 수령으로 즉시 처리한다.
   if (event.action === 'arrival_all_received' && notifData?.actionToken) {
     event.waitUntil(

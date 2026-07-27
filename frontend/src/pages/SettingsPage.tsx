@@ -4,6 +4,7 @@ import axios from 'axios';
 import {
   fetchNotificationDays,
   updateNotificationDays,
+  updateRenewalNotificationDays,
   updateNickname as apiUpdateNickname,
 } from '../api/settings';
 import { acceptInvite, fetchReceivedInvites, fetchSentInvites, inviteMember, revokeShare } from '../api/sharing';
@@ -44,6 +45,9 @@ export default function SettingsPage() {
   const [selectedDays, setSelectedDays] = useState<number[] | null>(null);
   const [savingDays, setSavingDays] = useState(false);
   const [daysMessage, setDaysMessage] = useState<string | null>(null);
+  const [renewalSelectedDays, setRenewalSelectedDays] = useState<number[] | null>(null);
+  const [savingRenewalDays, setSavingRenewalDays] = useState(false);
+  const [renewalDaysMessage, setRenewalDaysMessage] = useState<string | null>(null);
   const [sendingTestPush, setSendingTestPush] = useState(false);
   const [testPushMessage, setTestPushMessage] = useState<string | null>(null);
 
@@ -65,6 +69,7 @@ export default function SettingsPage() {
   const loadNotificationDays = async () => {
     const data = await fetchNotificationDays();
     setSelectedDays(data.notificationDays);
+    setRenewalSelectedDays(data.renewalNotificationDays);
   };
 
   const loadSharing = async () => {
@@ -122,6 +127,26 @@ export default function SettingsPage() {
       setDaysMessage(message ?? '저장하지 못했어요.');
     } finally {
       setSavingDays(false);
+    }
+  };
+
+  const toggleRenewalDay = (day: number) => {
+    setRenewalSelectedDays((prev) => (prev === null ? prev : prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
+  };
+
+  const handleSaveRenewalDays = async () => {
+    if (renewalSelectedDays === null) return;
+    setRenewalDaysMessage(null);
+    setSavingRenewalDays(true);
+    try {
+      const result = await updateRenewalNotificationDays(renewalSelectedDays);
+      setRenewalSelectedDays(result.notificationDays);
+      setRenewalDaysMessage('저장했어요.');
+    } catch (err) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setRenewalDaysMessage(message ?? '저장하지 못했어요.');
+    } finally {
+      setSavingRenewalDays(false);
     }
   };
 
@@ -292,7 +317,7 @@ export default function SettingsPage() {
           ) : (
             <>
               <p className="settings-section__hint">
-                반품 기한·A/S 보증이 며칠 남았을 때 요약 알림을 받을지 골라주세요. 정기배송·구독 유지 여부는 아래에서 따로 안내해요.
+                반품 기한·A/S 보증이 며칠 남았을 때 요약 알림을 받을지 골라주세요. AI가 주문 정보를 읽어도 실제 반품 기한·A/S 기간까지 정확히 알아내는 데는 한계가 있어, 미입력 항목은 반품 1주·A/S 1년을 기본값으로 적용합니다. 꼭 실제 조건을 확인해 수정해 주세요.
               </p>
               <div className="notification-day-options">
                 {NOTIFICATION_DAY_OPTIONS.map((day) => (
@@ -329,22 +354,41 @@ export default function SettingsPage() {
 
       <section className="settings-section">
         <h2>정기배송·구독 유지 확인</h2>
-        <p className="settings-section__hint">오전 10시에 “다음 배송·결제까지 D-n일 남았어요. 다음 회차도 유지할까요?”라고 안내해요.</p>
-        <div className="notification-day-options" aria-label="정기배송과 구독 유지 확인 알림">
-          {isPremium && selectedDays !== null ? (
-            selectedDays.map((day) => (
-              <label key={day} className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />{formatDayLabel(day)}</label>
-            ))
+        <p className="settings-section__hint">이미 등록된 정기배송·구독의 다음 배송·결제 회차를 기준으로 안내해요. 설정한 D-n일마다 “다음 회차까지 며칠 남았어요. 계속 유지할까요?”라고 묻고, 유지·중단을 선택하면 그 회차의 추가 확인은 멈춰요. 반품·A/S 기한 알림과는 별도 설정입니다.</p>
+        {isPremium ? (
+          renewalSelectedDays === null ? (
+            <div className="skeleton-block"><Skeleton width="80%" /></div>
           ) : (
+            <>
+              <div className="notification-day-options" aria-label="정기배송과 구독 유지 확인 알림">
+                {NOTIFICATION_DAY_OPTIONS.map((day) => (
+                  <label
+                    key={day}
+                    className={`notification-day-option${renewalSelectedDays.includes(day) ? ' notification-day-option--active' : ''}`}
+                  >
+                    <input type="checkbox" checked={renewalSelectedDays.includes(day)} onChange={() => toggleRenewalDay(day)} />
+                    {formatDayLabel(day)}
+                  </label>
+                ))}
+                <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미응답 시 D+7 절약 검토</label>
+              </div>
+              <button className="btn btn-sm" onClick={handleSaveRenewalDays} disabled={savingRenewalDays || renewalSelectedDays.length === 0}>
+                {savingRenewalDays ? '저장 중...' : '저장'}
+              </button>
+              {renewalDaysMessage && <p className="settings-section__message">{renewalDaysMessage}</p>}
+            </>
+          )
+        ) : (
+          <div className="notification-day-options" aria-label="무료 정기배송과 구독 유지 확인 알림">
             <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />예정일 당일</label>
-          )}
-          <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미응답 시 D+7 절약 검토</label>
-        </div>
+            <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미응답 시 D+7 절약 검토</label>
+          </div>
+        )}
       </section>
 
       <section className="settings-section">
         <h2>배송 수령 확인</h2>
-        <p className="settings-section__hint">일반배송과 정기배송의 실제 수령 여부를 확인해요.</p>
+        <p className="settings-section__hint">일반배송과 정기배송의 실제 수령 여부를 확인해요. 수령 확인을 거쳐야 반품 기한·A/S 기준일과 정기배송 다음 회차가 정확히 이어져, 더 안정적으로 주기를 관리할 수 있어요.</p>
         <div className="notification-day-options" aria-label="배송 수령 확인 알림">
           <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />예상 도착일 당일 오후 7시</label>
           <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미수령 시 다음 날 재알림</label>

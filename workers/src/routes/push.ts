@@ -193,6 +193,20 @@ push.post('/confirm-action', async (c) => {
   return c.body(null, 204);
 });
 
+/** 기한 알림에서 "알림 더는 안 받기"를 누른 GENERAL 항목은 남은 반품/A·S 알림을 모두 제외한다. */
+push.post('/disable-deadline-notifications', async (c) => {
+  const body = await c.req.json<{ token?: string }>().catch(() => ({} as { token?: string }));
+  if (!body.token) throw new BadRequestError('token은 필수입니다.');
+  const purchaseId = await consumeActionToken(c.env.DB, body.token);
+  if (purchaseId === null) throw new BadRequestError('유효하지 않거나 이미 사용한 토큰입니다.');
+  const result = await c.env.DB.prepare(
+    `UPDATE purchases SET deadline_notifications_disabled_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ? AND type = 'GENERAL'`
+  ).bind(purchaseId).run();
+  if (result.meta.changes === 0) throw new BadRequestError('기한 알림을 끌 수 있는 항목이 아닙니다.');
+  return c.body(null, 204);
+});
+
 /**
  * "오늘 주문하신 물건이 오셨나요?" 알림의 "아직요" — 인증 없이 토큰만으로 처리(위 confirm-action과
  * 같은 이유). 내일 다시 물어보도록 arrival_check_snoozed_until을 채운다. 스케줄 자체(도착 앵커)는

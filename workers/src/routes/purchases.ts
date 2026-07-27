@@ -367,6 +367,19 @@ purchases.post('/:id/discontinue', async (c) => {
   return c.json(toPurchaseResponse(updated!));
 });
 
+/** 반품 신청/A·S 접수 뒤에는 해당 일반구매의 남은 기한 알림을 모두 끈다. */
+purchases.post('/:id/disable-deadline-notifications', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const id = Number(c.req.param('id'));
+  const existing = await getOwnedPurchase(c.env.DB, user.id, id);
+  if (existing.type !== 'GENERAL') throw new BadRequestError('일반구매 항목의 기한 알림만 끌 수 있습니다.');
+  await c.env.DB.prepare(
+    `UPDATE purchases SET deadline_notifications_disabled_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`
+  ).bind(id).run();
+  const updated = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<PurchaseRow>();
+  return c.json(toPurchaseResponse(updated!));
+});
+
 /**
  * 이력 보관(프리미엄 전용) — 삭제 대신 archived_at을 채운다. 보관된 항목은 기본 목록
  * 조회(GET /)와 D-day 알림 대상에서 빠지지만 ?archived=true로 계속 조회할 수 있다.

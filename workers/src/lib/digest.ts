@@ -10,6 +10,7 @@ import { buildDigestEmailHtml, sendDigestEmail } from './email';
 import { buildDigestTitle, buildItemMessage, type DigestItem } from './messages';
 import { sendPush } from './push';
 import { effectiveNotificationDays } from './notification-prefs';
+import { createActionToken } from './action-tokens';
 import type { Env, PurchaseRow, PushSubscriptionRow } from '../types';
 
 const PUSH_BODY_MAX_LENGTH = 120;
@@ -27,6 +28,7 @@ interface UserDigestBucket {
   nickname: string;
   emailEnabled: boolean;
   items: DigestItem[];
+  purchaseIds: number[];
 }
 
 export interface DigestRunResult {
@@ -53,6 +55,7 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
         AND p.archived_at IS NULL
         AND p.discarded_at IS NULL
         AND p.discontinued_at IS NULL
+        AND p.deadline_notifications_disabled_at IS NULL
 `
   ).all<PurchaseWithUser>();
 
@@ -72,8 +75,10 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
         nickname: row.user_nickname,
         emailEnabled: row.user_email_notifications_enabled === 1,
         items: [],
+        purchaseIds: [],
       };
       bucket.items.push({ itemName: row.item_name, type: row.type, kind: instance.kind, dDay, deadline: instance.deadline });
+      if (!bucket.purchaseIds.includes(row.id)) bucket.purchaseIds.push(row.id);
       itemsByUserId.set(row.user_id, bucket);
     }
   }
@@ -83,7 +88,7 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
   let pushSent = 0;
   let pushSubscriptionsPruned = 0;
 
-  for (const [userId, { email, nickname, emailEnabled, items }] of itemsByUserId) {
+  for (const [userId, { email, nickname, emailEnabled, items, purchaseIds }] of itemsByUserId) {
     // 급한 순서(0 → 1 → 3 → 7)로 정렬 — 다이제스트 상단과 제목 모두 이 순서를 기준으로 삼는다.
     items.sort((a, b) => a.dDay - b.dDay);
     const subject = `${buildDigestTitle(items)} — Remindue`;
@@ -99,10 +104,13 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
       .all<PushSubscriptionRow>();
 
     for (const sub of subs) {
+      // 한 항목만 담긴 기한 알림은 알림 창에서 바로 이후 알림을 끌 수 있다.
+      const actionToken = purchaseIds.length === 1 ? await createActionToken(env.DB, purchaseIds[0]) : undefined;
       const { sent, gone } = await sendPush(env, sub, {
         title: subject,
         body: buildPushBody(items),
         url: dashboardUrl,
+        ...(actionToken ? { actions: [{ action: 'deadline_disable', title: '알림 더는 안 받기' }], actionToken } : {}),
       });
       if (sent) pushSent += 1;
       if (gone) {

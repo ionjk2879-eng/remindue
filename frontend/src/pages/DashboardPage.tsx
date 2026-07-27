@@ -13,6 +13,7 @@ import {
   markDelivered,
   confirmAllDelivered,
   discontinuePurchase,
+  disableDeadlineNotifications,
   archivePurchase,
   unarchivePurchase,
   downloadExport,
@@ -579,9 +580,10 @@ export default function DashboardPage() {
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
   const [showSavingsDetail, setShowSavingsDetail] = useState(false);
   const [showSpecificSpendCalculator, setShowSpecificSpendCalculator] = useState(false);
-  /** 빈 배열은 카테고리를 제한하지 않는다는 뜻이며, null은 현재 필터 항목 전체 선택이다. */
+  /** 카테고리를 고르지 않으면 전체 범위를 보여 주되, 계산할 항목은 기본으로 선택하지 않는다. */
+  const [calculatorType, setCalculatorType] = useState<FilterType>('ALL');
   const [calculatorCategories, setCalculatorCategories] = useState<PurchaseCategory[]>([]);
-  const [calculatorSelectedItemIds, setCalculatorSelectedItemIds] = useState<number[] | null>(null);
+  const [calculatorSelectedItemIds, setCalculatorSelectedItemIds] = useState<number[]>([]);
   const [showPriceStatusDetail, setShowPriceStatusDetail] = useState(false);
   const [showRecurringDeliveryDetail, setShowRecurringDeliveryDetail] = useState(false);
   const [showSubscriptionDetail, setShowSubscriptionDetail] = useState(false);
@@ -1235,6 +1237,11 @@ export default function DashboardPage() {
     await Promise.all([load(), loadSpendHistory()]);
   };
 
+  const handleDisableDeadlineNotifications = async (id: number) => {
+    await disableDeadlineNotifications(id);
+    await load();
+  };
+
   /**
    * "전체 확인" — 확인이 필요한(연속 미확인) 정기배송/구독을 한 번에 "유지하기" 처리한다.
    * 하나씩 누르기 번거롭다는 피드백으로 추가. 처리 후 몇 개월째 이용 중인지 한 줄로 알려준다.
@@ -1430,11 +1437,17 @@ export default function DashboardPage() {
 
   /** 특정 지출 계산기: 활성 항목을 카테고리와 개별 항목으로 좁혀 이번 달 발생 예정액을 계산한다. */
   const calculatorCandidates = purchases.filter((p) => p.amount !== null && p.discontinuedAt === null);
-  const calculatorCategoryFiltered = calculatorCandidates.filter(
+  const calculatorTypeFiltered = calculatorCandidates.filter(
+    (p) => calculatorType === 'ALL' || p.type === calculatorType
+  );
+  const calculatorAvailableCategories = PURCHASE_CATEGORIES.filter((cat) =>
+    calculatorTypeFiltered.some((p) => p.category === cat)
+  );
+  const calculatorCategoryFiltered = calculatorTypeFiltered.filter(
     (p) => calculatorCategories.length === 0 || (p.category !== null && calculatorCategories.includes(p.category))
   );
   const calculatorSelectedItems = calculatorCategoryFiltered.filter(
-    (p) => calculatorSelectedItemIds === null || calculatorSelectedItemIds.includes(p.id)
+    (p) => calculatorSelectedItemIds.includes(p.id)
   );
   const calculatorAmount = Math.round(calculatorSelectedItems.reduce((sum, p) => {
     if (isRecurringType(p.type)) return sum + occurrencesInMonth(p, currentYearNum, currentMonthNum) * p.amount!;
@@ -1865,8 +1878,8 @@ export default function DashboardPage() {
             <div className="summary-board__text">
               <span className="summary-board__label">특정 지출 계산기</span>
               <span className="summary-board__value mono">
-                {calculatorAmount.toLocaleString('ko-KR')}
-                <span className="summary-board__unit">원 · 이번 달</span>
+                <span className="summary-board__unit summary-board__calculator-period">이번 달</span>
+                <span className="summary-board__calculator-amount">{calculatorAmount.toLocaleString('ko-KR')}원</span>
               </span>
             </div>
             <span className="summary-board__chevron" aria-hidden="true">{showSpecificSpendCalculator ? '▲' : '▾'}</span>
@@ -2098,8 +2111,32 @@ export default function DashboardPage() {
             <p className="spending-detail__heading">🧮 특정 지출 계산기</p>
             <p className="spending-detail__hint">카테고리를 고르면 해당 항목만 자동으로 걸러집니다. 이어서 필요한 항목만 선택해 이번 달 예상 지출을 계산하세요.</p>
 
+            <div className="specific-spend-calculator__types" role="group" aria-label="지출 유형 필터">
+              <button
+                type="button"
+                className={calculatorType === 'ALL' ? 'is-active' : ''}
+                onClick={() => { setCalculatorType('ALL'); setCalculatorCategories([]); setCalculatorSelectedItemIds([]); }}
+              >전체 유형</button>
+              {PURCHASE_TYPES.map((purchaseType) => (
+                <button
+                  type="button"
+                  key={purchaseType}
+                  className={calculatorType === purchaseType ? 'is-active' : ''}
+                  onClick={() => { setCalculatorType(purchaseType); setCalculatorCategories([]); setCalculatorSelectedItemIds([]); }}
+                >{TYPE_SHORT_LABEL[purchaseType]}</button>
+              ))}
+            </div>
+
+            <div className="specific-spend-calculator__selection-bar">
+              <span>표시된 항목 선택</span>
+              <div>
+                <button type="button" onClick={() => setCalculatorSelectedItemIds(calculatorCategoryFiltered.map((item) => item.id))}>전체 선택</button>
+                <button type="button" onClick={() => setCalculatorSelectedItemIds([])}>전체 해제</button>
+              </div>
+            </div>
+
             <div className="specific-spend-calculator__categories" aria-label="카테고리 필터">
-              {PURCHASE_CATEGORIES.map((cat) => {
+              {calculatorAvailableCategories.map((cat) => {
                 const checked = calculatorCategories.length === 0 || calculatorCategories.includes(cat);
                 return (
                   <label key={cat} className={`notification-day-option${checked ? ' notification-day-option--active' : ''}`}>
@@ -2115,7 +2152,7 @@ export default function DashboardPage() {
                               : [...current, cat];
                           return next.length === PURCHASE_CATEGORIES.length ? [] : next;
                         });
-                        setCalculatorSelectedItemIds(null);
+                        setCalculatorSelectedItemIds([]);
                       }}
                     />
                     {CATEGORY_ICON[cat]} {CATEGORY_LABEL[cat]}
@@ -2129,7 +2166,7 @@ export default function DashboardPage() {
                 <p className="spending-detail__empty">선택한 카테고리에 금액이 등록된 활성 항목이 없어요.</p>
               ) : (
                 calculatorCategoryFiltered.map((p) => {
-                  const checked = calculatorSelectedItemIds === null || calculatorSelectedItemIds.includes(p.id);
+                  const checked = calculatorSelectedItemIds.includes(p.id);
                   const itemAmount = isRecurringType(p.type)
                     ? occurrencesInMonth(p, currentYearNum, currentMonthNum) * p.amount!
                     : p.baseDate.startsWith(`${currentYearNum}-${String(currentMonthNum).padStart(2, '0')}`) ? p.amount! : 0;
@@ -2138,10 +2175,9 @@ export default function DashboardPage() {
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={() => setCalculatorSelectedItemIds((current) => {
-                          const selected = current ?? calculatorCategoryFiltered.map((item) => item.id);
-                          return selected.includes(p.id) ? selected.filter((id) => id !== p.id) : [...selected, p.id];
-                        })}
+                        onChange={() => setCalculatorSelectedItemIds((current) =>
+                          current.includes(p.id) ? current.filter((id) => id !== p.id) : [...current, p.id]
+                        )}
                       />
                       <span>{p.itemName}{p.category && <small>{CATEGORY_ICON[p.category]} {CATEGORY_LABEL[p.category]}</small>}</span>
                       <strong className="mono">{itemAmount.toLocaleString('ko-KR')}원</strong>
@@ -2987,6 +3023,11 @@ export default function DashboardPage() {
                     </p>
                   )}
                   <div className="ticket-card__actions">
+                    {p.type === 'GENERAL' && p.deadlineNotificationsDisabledAt === null && (
+                      <button className="btn-text" onClick={() => handleDisableDeadlineNotifications(p.id)}>
+                        기한 알림 끄기
+                      </button>
+                    )}
                     {isRecurringType(p.type) && !p.isOneTime && p.dDay <= 0 &&
                       (isFullyConfirmed(p) ? (
                         <span className="confirm-badge">✓ 확인완료</span>

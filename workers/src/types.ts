@@ -68,6 +68,8 @@ export interface PurchaseRow {
   /** 유지 확인에서 "모두 중단"을 선택했을 때, 현재 회차를 마친 뒤 종료할 예정일. */
   stop_after_current_at: string | null;
   renewal_decision_for: string | null;
+  /** GENERAL 항목의 반품/A·S 기한 알림을 사용자가 더는 받지 않기로 한 시각. */
+  deadline_notifications_disabled_at: string | null;
   /** 이력 보관(프리미엄). NULL이면 활성 항목, 값이 있으면 그 시각에 보관 처리됨 — dDay/알림 대상에서 제외. */
   archived_at: string | null;
   /**
@@ -122,6 +124,8 @@ export interface UserRow {
    * 되살아난다(무료로 내려갔다고 값을 지우지 않는다).
    */
   notification_days: string;
+  /** 정기배송·구독 유지 확인 전용 D-day 설정. */
+  renewal_notification_days: string;
   /**
    * "확인이 필요한 항목" 예고 알림(confirmation-nudge.ts)이 결제/배송 며칠 전에 올지. 기본 3.
    * notification_days와 같은 원칙 — 무료는 항상 3으로 강제(effectiveConfirmationAdvanceDays),
@@ -266,6 +270,7 @@ export interface PurchaseResponse {
   /** 사용자가 "유지 안 함"을 누른 시각. null이면 미확인일 뿐(사용 안 함으로 해석 금지). */
   discontinuedAt: string | null;
   stopAfterCurrentAt: string | null;
+  deadlineNotificationsDisabledAt: string | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */

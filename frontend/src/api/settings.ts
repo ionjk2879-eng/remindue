@@ -3,6 +3,8 @@ import { apiClient } from './client';
 export interface NotificationDaysResponse {
   notificationDays: number[];
   savedNotificationDays: number[];
+  renewalNotificationDays: number[];
+  savedRenewalNotificationDays: number[];
   isPremium: boolean;
 }
 
@@ -13,6 +15,13 @@ export async function fetchNotificationDays() {
 
 export async function updateNotificationDays(days: number[]) {
   const { data } = await apiClient.put<{ notificationDays: number[]; isPremium: boolean }>('/settings/notification-days', {
+    notificationDays: days,
+  });
+  return data;
+}
+
+export async function updateRenewalNotificationDays(days: number[]) {
+  const { data } = await apiClient.put<{ notificationDays: number[]; isPremium: boolean }>('/settings/renewal-notification-days', {
     notificationDays: days,
   });
   return data;

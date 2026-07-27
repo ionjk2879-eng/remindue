@@ -40,6 +40,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     deliveryConfirmCount: row.delivery_confirm_count,
     discontinuedAt: row.discontinued_at,
     stopAfterCurrentAt: row.stop_after_current_at,
+    deadlineNotificationsDisabledAt: row.deadline_notifications_disabled_at,
     brand: row.brand,
     brandDomain: row.brand_domain,
     originalAmount: row.original_amount,

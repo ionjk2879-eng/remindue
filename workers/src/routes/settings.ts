@@ -32,6 +32,8 @@ settings.get('/notification-days', async (c) => {
     // 무료 플랜이어도 예전에 프리미엄이었을 때 저장해둔 값은 그대로 보여준다 — 다시 프리미엄이
     // 되면 이 값이 살아난다는 걸 설정 화면에서 알 수 있게. 실제 알림에는 위 notificationDays만 쓰인다.
     savedNotificationDays: parseNotificationDays(user.notification_days),
+    renewalNotificationDays: effectiveNotificationDays(user.is_premium === 1, user.renewal_notification_days),
+    savedRenewalNotificationDays: parseNotificationDays(user.renewal_notification_days),
     isPremium: user.is_premium === 1,
   });
 });
@@ -56,6 +58,26 @@ settings.put('/notification-days', async (c) => {
     .bind(serializeNotificationDays(days), user.id)
     .run();
 
+  return c.json({ notificationDays: days.sort((a, b) => b - a), isPremium: true });
+});
+
+/** 정기배송·구독 유지 확인의 D-day는 반품/A·S 기한 알림과 별도로 저장한다. */
+settings.put('/renewal-notification-days', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  if (user.is_premium !== 1) {
+    throw new PaymentRequiredError('정기배송·구독 유지 확인 시점 설정은 프리미엄 전용 기능입니다. 무료 플랜은 예정일 당일에 안내합니다.');
+  }
+  const body = await c.req.json<{ notificationDays?: unknown }>().catch(() => ({}) as { notificationDays?: unknown });
+  let days: number[];
+  try {
+    days = validateNotificationDaysInput(body.notificationDays);
+  } catch (err) {
+    if (err instanceof InvalidNotificationDaysError) throw new BadRequestError(err.message);
+    throw err;
+  }
+  await c.env.DB.prepare('UPDATE users SET renewal_notification_days = ? WHERE id = ?')
+    .bind(serializeNotificationDays(days), user.id)
+    .run();
   return c.json({ notificationDays: days.sort((a, b) => b - a), isPremium: true });
 });
 

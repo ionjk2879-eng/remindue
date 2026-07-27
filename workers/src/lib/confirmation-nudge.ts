@@ -35,7 +35,7 @@ interface RecurringPurchaseWithUser extends PurchaseRow {
   user_nickname: string;
   user_email_notifications_enabled: number;
   user_is_premium: number;
-  user_notification_days: string;
+  user_renewal_notification_days: string;
 }
 
 /** DashboardPage.tsx의 missedRoundsFor와 동일한 계산 — 서버에는 그 함수가 없어 여기서 복제한다. */
@@ -110,7 +110,7 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
   const { results } = await env.DB.prepare(
     `SELECT p.*, u.email AS user_email, u.nickname AS user_nickname,
             u.email_notifications_enabled AS user_email_notifications_enabled,
-            u.is_premium AS user_is_premium, u.notification_days AS user_notification_days
+            u.is_premium AS user_is_premium, u.renewal_notification_days AS user_renewal_notification_days
        FROM purchases p
        JOIN users u ON u.id = p.user_id
       WHERE p.type IN ('RECURRING_DELIVERY', 'SUBSCRIPTION')
@@ -133,7 +133,7 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
     const missedRounds = missedRoundsFor(deliveryRound, row.delivery_confirm_count, dDay);
     // 무료는 당일 한 번만 안내한다. 프리미엄은 전날에 먼저 묻고, 미응답일 때만 당일 재알림한다.
     const renewalDays = row.user_is_premium === 1
-      ? effectiveNotificationDays(true, row.user_notification_days)
+      ? effectiveNotificationDays(true, row.user_renewal_notification_days)
       : [RENEWAL_DAY_DDAY];
     const shouldAskForRenewal = renewalDays.includes(dDay) && row.renewal_decision_for !== deadline;
     if (shouldAskForRenewal) {
