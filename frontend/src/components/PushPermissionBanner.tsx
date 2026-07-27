@@ -20,7 +20,22 @@ export default function PushPermissionBanner() {
 
     navigator.serviceWorker.ready
       .then((registration) => registration.pushManager.getSubscription())
-      .then((existing) => setVisible(!existing))
+      .then(async (existing) => {
+        if (!existing) {
+          setVisible(true);
+          return;
+        }
+
+        // 브라우저에는 구독이 남아 있어도 서버 DB에서 만료/삭제됐을 수 있다.
+        // 로그인한 계정에 현재 구독을 다시 upsert해 테스트 알림이 "구독 없음"으로
+        // 끝나지 않도록 페이지 진입 시 동기화한다.
+        try {
+          await subscribePush(existing.toJSON());
+          setVisible(false);
+        } catch {
+          setVisible(true);
+        }
+      })
       .catch(() => setVisible(true));
   }, []);
 
