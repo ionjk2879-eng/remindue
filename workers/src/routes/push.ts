@@ -110,6 +110,8 @@ push.post('/test', async (c) => {
     `${label} ${items.length}건`,
     ...items.slice(0, 3).map((item) => `• ${item.itemName} — ${item.date.slice(5)}`),
   ];
+  deliveries.sort((a, b) => a.date.localeCompare(b.date));
+  payments.sort((a, b) => a.date.localeCompare(b.date));
   const body = deliveries.length || payments.length
     ? [...(deliveries.length ? render('📦 이번 주 도착 예정', deliveries) : []), ...(payments.length ? ['', ...render('💳 이번 주 결제 예정', payments)] : [])].join('\n')
     : '오늘부터 7일 안에 예정된 도착·결제 항목이 없습니다.';
