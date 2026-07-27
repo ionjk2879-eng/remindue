@@ -42,34 +42,3 @@ export function validateNotificationDaysInput(value: unknown): number[] {
   }
   return Array.from(new Set(days));
 }
-
-// "확인이 필요한 항목" 예고 알림(confirmation-nudge.ts)이 결제/배송 며칠 전에 올지 — 위
-// notification_days(다중 선택 D-day 알림)와는 별개의 단일 값 설정이다. 무료는 3일 고정,
-// 프리미엄만 바꿀 수 있다 — 패턴은 위와 동일(무료는 저장값 무시하고 항상 기본값).
-
-export const DEFAULT_CONFIRMATION_ADVANCE_DAYS = 3;
-export const MIN_CONFIRMATION_ADVANCE_DAYS = 1;
-export const MAX_CONFIRMATION_ADVANCE_DAYS = 14;
-
-/** 무료 플랜은 저장된 값과 무관하게 항상 3일 고정 — confirmation-nudge.ts는 반드시 이 함수를 통해서만 값을 얻어야 한다. */
-export function effectiveConfirmationAdvanceDays(isPremium: boolean, rawConfirmationAdvanceDays: number): number {
-  if (!isPremium) return DEFAULT_CONFIRMATION_ADVANCE_DAYS;
-  return Number.isInteger(rawConfirmationAdvanceDays) &&
-    rawConfirmationAdvanceDays >= MIN_CONFIRMATION_ADVANCE_DAYS &&
-    rawConfirmationAdvanceDays <= MAX_CONFIRMATION_ADVANCE_DAYS
-    ? rawConfirmationAdvanceDays
-    : DEFAULT_CONFIRMATION_ADVANCE_DAYS;
-}
-
-export class InvalidConfirmationAdvanceDaysError extends Error {}
-
-/** PUT 요청 바디 검증 — 정수 하나, 범위 안이어야 한다. */
-export function validateConfirmationAdvanceDaysInput(value: unknown): number {
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < MIN_CONFIRMATION_ADVANCE_DAYS || n > MAX_CONFIRMATION_ADVANCE_DAYS) {
-    throw new InvalidConfirmationAdvanceDaysError(
-      `confirmationAdvanceDays는 ${MIN_CONFIRMATION_ADVANCE_DAYS}~${MAX_CONFIRMATION_ADVANCE_DAYS} 사이의 정수여야 합니다`
-    );
-  }
-  return n;
-}

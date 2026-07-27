@@ -10,9 +10,6 @@ import {
   serializeNotificationDays,
   validateNotificationDaysInput,
   InvalidNotificationDaysError,
-  effectiveConfirmationAdvanceDays,
-  validateConfirmationAdvanceDaysInput,
-  InvalidConfirmationAdvanceDaysError,
 } from '../lib/notification-prefs';
 import { generateForwardingToken } from './auth';
 import type { Env, UserRow } from '../types';
@@ -60,38 +57,6 @@ settings.put('/notification-days', async (c) => {
     .run();
 
   return c.json({ notificationDays: days.sort((a, b) => b - a), isPremium: true });
-});
-
-settings.get('/confirmation-advance-days', async (c) => {
-  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
-  return c.json({
-    confirmationAdvanceDays: effectiveConfirmationAdvanceDays(user.is_premium === 1, user.confirmation_advance_days),
-    savedConfirmationAdvanceDays: user.confirmation_advance_days,
-    isPremium: user.is_premium === 1,
-  });
-});
-
-/** 프리미엄만 실제로 값을 바꿀 수 있다 — 무료 플랜이 호출하면 402로 막고 업그레이드를 안내한다. */
-settings.put('/confirmation-advance-days', async (c) => {
-  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
-  if (user.is_premium !== 1) {
-    throw new PaymentRequiredError('알림 시점 커스텀은 프리미엄 전용 기능이에요. 무료 플랜은 3일 전으로 고정됩니다.');
-  }
-
-  const body = await c.req
-    .json<{ confirmationAdvanceDays?: unknown }>()
-    .catch(() => ({}) as { confirmationAdvanceDays?: unknown });
-  let days: number;
-  try {
-    days = validateConfirmationAdvanceDaysInput(body.confirmationAdvanceDays);
-  } catch (err) {
-    if (err instanceof InvalidConfirmationAdvanceDaysError) throw new BadRequestError(err.message);
-    throw err;
-  }
-
-  await c.env.DB.prepare('UPDATE users SET confirmation_advance_days = ? WHERE id = ?').bind(days, user.id).run();
-
-  return c.json({ confirmationAdvanceDays: days, isPremium: true });
 });
 
 settings.post('/forwarding-address/regenerate', async (c) => {

@@ -18,25 +18,6 @@ export async function updateNotificationDays(days: number[]) {
   return data;
 }
 
-export interface ConfirmationAdvanceDaysResponse {
-  confirmationAdvanceDays: number;
-  savedConfirmationAdvanceDays: number;
-  isPremium: boolean;
-}
-
-export async function fetchConfirmationAdvanceDays() {
-  const { data } = await apiClient.get<ConfirmationAdvanceDaysResponse>('/settings/confirmation-advance-days');
-  return data;
-}
-
-export async function updateConfirmationAdvanceDays(days: number) {
-  const { data } = await apiClient.put<{ confirmationAdvanceDays: number; isPremium: boolean }>(
-    '/settings/confirmation-advance-days',
-    { confirmationAdvanceDays: days }
-  );
-  return data;
-}
-
 export async function updateNickname(nickname: string) {
   const { data } = await apiClient.put<{ nickname: string }>('/settings/nickname', { nickname });
   return data;
