@@ -397,12 +397,13 @@ export default function SettingsPage() {
 
       <section className="settings-section">
         <h2>알림 테스트</h2>
-        <p className="settings-section__hint">현재 로그인한 계정에만 유형별 색 시계 아이콘 테스트 알림을 보냅니다. 주간 요약은 제외합니다.</p>
+        <p className="settings-section__hint">현재 로그인한 계정에만 유형별 색 시계 아이콘 테스트 알림을 보냅니다.</p>
         <div className="settings-test-pushes">
           {([
             ['DEADLINE', '기한 예정 알림'],
             ['RENEWAL', '정기배송·구독 유지 확인'],
             ['ARRIVAL', '배송 수령 확인'],
+            ...(isPremium ? ([['WEEKLY_SUMMARY', '주간 요약']] as const) : []),
           ] as const).map(([kind, label]) => (
             <button key={kind} className="btn btn-sm" onClick={() => handleSendTestPush(kind)} disabled={sendingTestPush !== null}>
               {sendingTestPush === kind ? '발송 중...' : `${label} 테스트`}

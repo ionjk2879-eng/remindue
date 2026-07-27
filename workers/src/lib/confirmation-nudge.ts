@@ -188,7 +188,12 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
       .all<PushSubscriptionRow>();
 
     for (const sub of subs) {
-      const { sent, gone } = await sendPush(env, sub, { title: subject, body: pushBody, url: dashboardUrl });
+      const { sent, gone } = await sendPush(env, sub, {
+        title: subject,
+        body: pushBody,
+        url: dashboardUrl,
+        notificationKind: 'RENEWAL',
+      });
       if (sent) pushSent += 1;
       if (gone) {
         await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(sub.id).run();

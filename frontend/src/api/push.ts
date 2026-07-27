@@ -13,7 +13,7 @@ export async function unsubscribePush(endpoint: string) {
   await apiClient.post('/push/unsubscribe', { endpoint });
 }
 
-export type PushTestKind = 'DEADLINE' | 'RENEWAL' | 'ARRIVAL';
+export type PushTestKind = 'DEADLINE' | 'RENEWAL' | 'ARRIVAL' | 'WEEKLY_SUMMARY';
 
 export async function sendTestPush(kind?: PushTestKind) {
   const { data } = await apiClient.post<{ sent: number }>('/push/test', kind ? { kind } : {});

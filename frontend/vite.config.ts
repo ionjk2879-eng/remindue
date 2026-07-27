@@ -10,6 +10,11 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.ts',
       injectRegister: 'script',
+      includeAssets: [
+        'notification-deadline.svg',
+        'notification-arrival.svg',
+        'notification-weekly-summary.svg',
+      ],
       manifest: {
         name: 'Remindue',
         short_name: 'Remindue',
@@ -25,10 +30,8 @@ export default defineConfig({
         ],
       },
       injectManifest: {
-        // png/svg는 넣지 않는다 — manifest.icons에 있는 파일들은 플러그인이 이미
-        // 자동으로 프리캐시 목록에 넣어주기 때문에, 여기서 또 넣으면 같은 revision의
-        // 항목이 중복 등록되어 워크박스 설치 단계에서 Cache.put()이 두 번 호출되며 깨진다
-        // (InvalidAccessError: Entry already exists).
+        // SVG는 includeAssets와 manifest.icons에서 별도로 프리캐시한다. 여기에도 넣으면
+        // 같은 revision의 항목이 중복 등록되어 워크박스 설치 단계에서 깨질 수 있다.
         globPatterns: ['**/*.{js,css,html}'],
       },
       devOptions: {

@@ -23,14 +23,21 @@ interface PushPayload {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787/api';
 
+const NOTIFICATION_ICONS: Record<NonNullable<PushPayload['notificationKind']>, string> = {
+  DEADLINE: '/notification-deadline.svg',
+  RENEWAL: '/notification-renewal.svg',
+  ARRIVAL: '/notification-arrival.svg',
+  WEEKLY_SUMMARY: '/notification-weekly-summary.svg',
+};
+
 self.addEventListener('push', (event: PushEvent) => {
   const data: PushPayload = event.data ? event.data.json() : {};
   const title = data.title ?? 'Remindue';
   const options: NotificationOptions = {
     body: data.body ?? '',
-    // One UI는 `icon`을 알림 오른쪽의 큰 사각형으로 표시하므로 생략한다.
-    // 왼쪽에는 설치된 PWA의 공통 색 시계 앱 아이콘만 표시된다.
-    // badge도 지정하지 않아 상태 영역에 로고가 중복되지 않는다.
+    // 알림 유형마다 투명 배경의 색상 시계 아이콘을 사용한다.
+    ...(data.notificationKind ? { icon: NOTIFICATION_ICONS[data.notificationKind] } : {}),
+    // badge는 지정하지 않아 상태 영역에 로고가 중복되지 않게 한다.
     data: { url: data.url ?? '/', actionToken: data.actionToken },
     ...(data.actions ? { actions: data.actions } : {}),
   };
