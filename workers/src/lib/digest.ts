@@ -51,6 +51,7 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
        JOIN users u ON u.id = p.user_id
       WHERE p.archived_at IS NULL
         AND p.discarded_at IS NULL
+        AND p.discontinued_at IS NULL
         AND (p.type = 'GENERAL' OR p.is_one_time = 0)`
   ).all<PurchaseWithUser>();
 

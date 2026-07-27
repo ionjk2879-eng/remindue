@@ -125,7 +125,13 @@ export interface WeeklyItem {
  * 이번 주(7일 이내) 배송 예정 항목만 모아 보여준다. upcoming이 비어 있으면 이 함수는
  * 호출하지 않는다고 가정한다(weekly-digest.ts가 빈 버킷은 애초에 만들지 않음).
  */
-export function buildWeeklyDigestEmailHtml(nickname: string, upcoming: WeeklyItem[], dashboardUrl: string): string {
+export function buildWeeklyDigestEmailHtml(
+  nickname: string,
+  deliveries: WeeklyItem[],
+  subscriptions: WeeklyItem[],
+  dashboardUrl: string
+): string {
+  const upcoming = [...deliveries, ...subscriptions].sort((a, b) => a.deadline.localeCompare(b.deadline));
   const upcomingRows = upcoming
     .map(
       (item) => `

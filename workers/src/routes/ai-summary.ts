@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
-import { PaymentRequiredError } from '../lib/errors';
+import { BadRequestError, PaymentRequiredError } from '../lib/errors';
 import type { Env, UserRow } from '../types';
 
 const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
@@ -20,6 +20,32 @@ interface SpendingSummaryInput {
   nextPaymentDate: string | null;
   nextPaymentItem: string | null;
   priceIncreaseItems: string[];
+}
+
+function validateSpendingSummaryInput(value: unknown): SpendingSummaryInput {
+  if (!value || typeof value !== 'object') throw new BadRequestError('분석할 소비 정보를 확인할 수 없습니다.');
+  const input = value as Record<string, unknown>;
+  const isAmount = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1_000_000_000_000;
+  const isCount = (v: unknown) => Number.isInteger(v) && Number(v) >= 0 && Number(v) <= 10_000;
+  const isNullableNumber = (v: unknown) => v === null || (typeof v === 'number' && Number.isFinite(v));
+  const isNullableString = (v: unknown, maxLength: number) => v === null || (typeof v === 'string' && v.length <= maxLength);
+
+  if (!Number.isInteger(input.month) || Number(input.month) < 1 || Number(input.month) > 12) {
+    throw new BadRequestError('분석 월이 올바르지 않습니다.');
+  }
+  if (!isCount(input.recurringDeliveryCount) || !isCount(input.subscriptionCount) || !isCount(input.reviewCount) || !isCount(input.totalItems)) {
+    throw new BadRequestError('항목 수가 올바르지 않습니다.');
+  }
+  if (!isAmount(input.monthlySpend) || !isAmount(input.yearlySpend) || !isNullableNumber(input.monthTrendPercent) || !isNullableNumber(input.topCategoryAmount) || !isNullableNumber(input.topCategoryShare)) {
+    throw new BadRequestError('지출 금액이 올바르지 않습니다.');
+  }
+  if (!isNullableString(input.topCategory, 50) || !isNullableString(input.nextPaymentDate, 10) || !isNullableString(input.nextPaymentItem, 120)) {
+    throw new BadRequestError('분석 항목이 올바르지 않습니다.');
+  }
+  if (!Array.isArray(input.priceIncreaseItems) || input.priceIncreaseItems.length > 20 || input.priceIncreaseItems.some((item) => typeof item !== 'string' || item.length > 120)) {
+    throw new BadRequestError('가격 인상 항목이 올바르지 않습니다.');
+  }
+  return input as unknown as SpendingSummaryInput;
 }
 
 function parseTag(text: string, tag: string): string | null {
@@ -73,8 +99,20 @@ aiSummary.post('/spending-summary', async (c) => {
     throw new PaymentRequiredError('AI 소비 매니저는 프리미엄 전용 기능이에요.');
   }
 
+  const body = validateSpendingSummaryInput(await c.req.json<unknown>().catch(() => null));
+  const rateLimit = await c.env.DB.prepare(
+    `INSERT INTO ai_summary_requests (user_id, last_requested_at)
+     VALUES (?, datetime('now'))
+     ON CONFLICT(user_id) DO UPDATE SET last_requested_at = datetime('now')
+     WHERE ai_summary_requests.last_requested_at <= datetime('now', '-10 seconds')`
+  )
+    .bind(user.id)
+    .run();
+  if (rateLimit.meta.changes === 0) {
+    return c.json({ message: 'AI 분석은 잠시 후 다시 요청할 수 있어요.' }, 429);
+  }
+
   try {
-    const body = await c.req.json<SpendingSummaryInput>();
     const {
       month,
       recurringDeliveryCount,

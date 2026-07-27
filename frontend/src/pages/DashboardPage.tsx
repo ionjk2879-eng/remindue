@@ -440,10 +440,12 @@ function daysSinceBaseDate(baseDate: string): number {
   return Math.floor((now - start) / 86_400_000);
 }
 
-/** 보관·삭제된 정기 항목은 그 시각 이후 회차가 지출 집계에서 빠진다(이미 지난 회차는 실제로
- *  발생한 지출이니 그대로 잡힌다) — 둘 다 있으면 더 이른(먼저 멈춘) 시각을 기준으로 삼는다. */
+/** 보관·삭제·유지 안 함 처리된 정기 항목은 그 시각 이후 회차가 지출 집계에서 빠진다(이미 지난
+ *  회차는 실제로 발생한 지출이니 그대로 잡힌다) — 가장 먼저 멈춘 시각을 기준으로 삼는다. */
 function spendCutoffDate(p: Purchase): string | null {
-  const dates = [p.archivedAt, p.discardedAt].filter((d): d is string => d !== null).map((d) => d.slice(0, 10));
+  const dates = [p.archivedAt, p.discardedAt, p.discontinuedAt]
+    .filter((d): d is string => d !== null)
+    .map((d) => d.slice(0, 10));
   return dates.length === 0 ? null : dates.sort()[0];
 }
 
@@ -568,6 +570,7 @@ export default function DashboardPage() {
   const [showSpendingDetail, setShowSpendingDetail] = useState(false);
   const [aiBrief, setAiBrief] = useState<AiBriefData | null>(null);
   const [aiBriefTextLoading, setAiBriefTextLoading] = useState(false);
+  const aiSummaryInFlightRef = useRef(false);
   const [brand, setBrand] = useState('');
   const [brandDomain, setBrandDomain] = useState<string | null>(null);
   const [originalAmount, setOriginalAmount] = useState<number | null>(null);
@@ -706,15 +709,18 @@ export default function DashboardPage() {
   }, [view]);
 
   const handleAiSummary = () => {
+    if (aiSummaryInFlightRef.current) return;
+    aiSummaryInFlightRef.current = true;
     const today = todayDateOnly();
     const [yr, mo] = today.split('-').map(Number);
-    const rcCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
-    const subCount = purchases.filter((p) => p.type === 'SUBSCRIPTION').length;
+    // "한 번만 사용"은 해당 구독의 첫 달까지 관리 대상이므로 포함한다. 다만 "유지 안 함"은
+    // 다음 갱신부터 중단된 상태라 구독 수·AI 분석 대상에서 제외한다.
+    const rcCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY' && p.discontinuedAt === null).length;
+    const subCount = purchases.filter((p) => p.type === 'SUBSCRIPTION' && p.discontinuedAt === null).length;
     const totalRecurring = rcCount + subCount;
-    const moSpend = spendHistoryPurchases.reduce((sum, p) => {
-      if (p.amount === null || !isRecurringType(p.type)) return sum;
-      return sum + occurrencesInMonth(p, yr, mo) * p.amount;
-    }, 0);
+    // 요약 카드와 AI 소비 매니저의 수치가 달라지지 않도록, 일반 구매와 정기 항목을 포함하는
+    // 대시보드의 월별 지출 계산(totalSpendInMonth)을 그대로 사용한다.
+    const moSpend = totalSpendInMonth(spendHistoryPurchases, yr, mo);
     const yrSpend = Array.from({ length: 12 }, (_, i) =>
       totalSpendInMonth(spendHistoryPurchases, yr, i + 1),
     ).reduce((a, b) => a + b, 0);
@@ -723,8 +729,12 @@ export default function DashboardPage() {
 
     const catAmounts = PURCHASE_CATEGORIES.map((cat) => {
       const total = spendHistoryPurchases
-        .filter((p) => isRecurringType(p.type) && p.category === cat && p.amount !== null)
-        .reduce((sum, p) => sum + occurrencesInMonth(p, yr, mo) * p.amount!, 0);
+        .filter((p) => p.category === cat && p.amount !== null)
+        .reduce((sum, p) => {
+          if (isRecurringType(p.type)) return sum + occurrencesInMonth(p, yr, mo) * p.amount!;
+          const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
+          return baseYear === yr && baseMonth === mo ? sum + p.amount! : sum;
+        }, 0);
       return { cat, total: Math.round(total) };
     }).filter((c) => c.total > 0);
     const topCat = catAmounts.sort((a, b) => b.total - a.total)[0] ?? null;
@@ -846,7 +856,10 @@ export default function DashboardPage() {
       .catch(() => {
         setAiBrief((prev) => (prev ? { ...prev, ...buildFallback() } : prev));
       })
-      .finally(() => setAiBriefTextLoading(false));
+      .finally(() => {
+        aiSummaryInFlightRef.current = false;
+        setAiBriefTextLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -1213,7 +1226,9 @@ export default function DashboardPage() {
   /** "유지 안 함" — 확인 필요 목록에서 이 항목만 제외하고, 절약 후보 쪽으로 확정 이동시킨다. */
   const handleDiscontinue = async (id: number) => {
     await discontinuePurchase(id);
-    await load();
+    // 지출 집계는 별도 scope=spend 응답을 사용하므로, 목록만 갱신하면 중단한 항목이 예상
+    // 지출에 잠시 남을 수 있다. 두 데이터를 함께 새로고침한다.
+    await Promise.all([load(), loadSpendHistory()]);
   };
 
   /**
@@ -1288,7 +1303,7 @@ export default function DashboardPage() {
 
   /** 프리미엄 알림 기능(주간 요약) — 이번 주(오늘부터 7일 이내) 예정인 정기배송·구독. */
   const weeklyRecurring = purchases
-    .filter((p) => isRecurringType(p.type) && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
+    .filter((p) => isRecurringType(p.type) && p.discontinuedAt === null && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
   /**
    * 배송 예정에는 정기배송뿐 아니라 도착 예정일이 있는 일반 구매도 포함한다.
@@ -1296,16 +1311,17 @@ export default function DashboardPage() {
    */
   const weeklyDeliveries = purchases
     .filter((p) =>
-      p.type === 'RECURRING_DELIVERY'
+      p.discontinuedAt === null && (p.type === 'RECURRING_DELIVERY'
         ? p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS
-        : p.type === 'GENERAL' && p.expectedDeliveryDate !== null && isWithinUpcomingDays(p.expectedDeliveryDate, URGENT_WINDOW_DAYS)
+        : p.type === 'GENERAL' && p.expectedDeliveryDate !== null && isWithinUpcomingDays(p.expectedDeliveryDate, URGENT_WINDOW_DAYS))
     )
     .sort((a, b) => {
       const aDate = a.type === 'GENERAL' ? a.expectedDeliveryDate! : a.deadline;
       const bDate = b.type === 'GENERAL' ? b.expectedDeliveryDate! : b.deadline;
       return aDate.localeCompare(bDate);
     });
-  const weeklySubscriptions = weeklyRecurring.filter((p) => p.type === 'SUBSCRIPTION');
+  // "한 번만 사용"은 이용 기간에는 남아 있지만 다음 결제가 없으므로 결제 예정에는 넣지 않는다.
+  const weeklySubscriptions = weeklyRecurring.filter((p) => p.type === 'SUBSCRIPTION' && !p.isOneTime);
   const today = todayDateOnly();
   type WeeklyEntry = { purchase: Purchase; completed: boolean; completedAt: string | null };
   const completedThisWeek = (purchase: Purchase) => purchase.lastDeliveredDate !== null && isWithinRecentDays(purchase.lastDeliveredDate, URGENT_WINDOW_DAYS);
@@ -1360,8 +1376,8 @@ export default function DashboardPage() {
   const arrivalSnoozedCount = arrivalChecks.filter((p) => p.arrivalCheckSnoozedUntil !== null).length;
 
   /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
-  const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY').length;
-  const subscriptionCount = purchases.filter((p) => p.type === 'SUBSCRIPTION').length;
+  const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY' && p.discontinuedAt === null).length;
+  const subscriptionCount = purchases.filter((p) => p.type === 'SUBSCRIPTION' && p.discontinuedAt === null).length;
   /** "정기배송"/"정기구독" 타일 상세 — 아래 목록과 달리 날짜순이 아니라 카테고리별로 묶어서 보여준다. */
   const recurringDeliveryGroups = groupByCategory(purchases.filter((p) => p.type === 'RECURRING_DELIVERY'));
   const subscriptionGroups = groupByCategory(purchases.filter((p) => p.type === 'SUBSCRIPTION'));
@@ -1441,14 +1457,14 @@ export default function DashboardPage() {
    * 항목들의 금액 합(occurrencesInMonth 기준 — 이번 달에 결제가 없는 항목은 개수엔 잡히되 금액엔 0으로 반영).
    */
   const categoryCounts = PURCHASE_CATEGORIES.map((cat) => {
-    const items = purchases.filter((p) => isRecurringType(p.type) && p.category === cat);
+    const items = purchases.filter((p) => isRecurringType(p.type) && p.discontinuedAt === null && p.category === cat);
     const amount = items.reduce((sum, p) => {
       if (p.amount === null) return sum;
       return sum + occurrencesInMonth(p, currentYearNum, currentMonthNum) * p.amount;
     }, 0);
     return { category: cat, count: items.length, amount: Math.round(amount) };
   }).filter((c) => c.count > 0);
-  const uncategorizedRecurringCount = purchases.filter((p) => isRecurringType(p.type) && p.category === null).length;
+  const uncategorizedRecurringCount = purchases.filter((p) => isRecurringType(p.type) && p.discontinuedAt === null && p.category === null).length;
 
   /** 확인 대기 중인 "가격 인상 감지" 건수 — pending-purchase-intake.ts가 matched_purchase_id를 채운 것만. */
   const priceChangeCount = pendingItems.filter((item) => item.matchedPurchaseId !== null).length;
@@ -1893,6 +1909,38 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {showYearlyDetail && (
+        <div className="spending-detail">
+          <div className="spending-detail__section spending-detail__section--yearly">
+            <p className="spending-detail__heading">📈 올해 예상 지출 — 월별 내역</p>
+            <ul className="spending-detail__month-list">
+              {monthlySpendDetails.map(({ month, total, trend, percentLabel, isFuture }) => (
+                <li
+                  key={month}
+                  className={`spending-detail__month-item${
+                    month === currentMonthNum ? ' spending-detail__month-item--current' : ''
+                  }`}
+                >
+                  <span>{month}월</span>
+                  <span className="mono">{total.toLocaleString('ko-KR')}원</span>
+                  <span
+                    className={`spending-detail__month-change ${
+                      isFuture ? 'spending-detail__month-change--neutral' : `spending-detail__month-change--${trend}`
+                    }`}
+                  >
+                    {percentLabel}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="spending-detail__total">
+              올해 예상 지출{' '}
+              <span className="mono">{yearlySpendEstimate.toLocaleString('ko-KR')}원</span>
+            </p>
+          </div>
+        </div>
+      )}
+
       {showRecurringDeliveryDetail && (
         <div className="spending-detail">
           <div className="spending-detail__section">
@@ -1957,41 +2005,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {showSavingsDetail && (
-        <div className="spending-detail">
-          <div className="spending-detail__section">
-            <p className="spending-detail__heading">💡 절약 제안</p>
-            {reviewCandidates.length === 0 ? (
-              <p className="spending-detail__empty">
-                절약 제안할 항목이 없어요 — 유지 안 함으로 표시했거나 3회차 이상 확인이 안 된
-                구독/정기배송이 없습니다.
-              </p>
-            ) : (
-              <>
-                <ul className="spending-detail__save-list">
-                  {reviewCandidates.map((item) => (
-                    <li key={item.id}>
-                      <div className="spending-detail__save-item-info">
-                        <p className="spending-detail__save-item-name">{item.itemName}</p>
-                        <p className="spending-detail__save-item-reason">
-                          {item.isExplicit
-                            ? '유지 안 함으로 표시했어요 — 해지를 진행해보세요.'
-                            : `${item.missedRounds}회차 연속 확인이 안 됐어요 — 최근 이용 상태가 확인되지 않았습니다. 계속 쓰고 계신다면 "유지하기"를 눌러주세요.`}
-                        </p>
-                      </div>
-                      <span className="mono spending-detail__save-item-amount">월 {item.monthly.toLocaleString('ko-KR')}원</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="spending-detail__total">
-                  {currentMonthNum}월 약 <span className="mono">{savingsEstimate.toLocaleString('ko-KR')}원</span>을 절약할 수 있어요
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
       {showPriceStatusDetail && (
         <div className="spending-detail">
           <div className="spending-detail__section">
@@ -2045,34 +2058,37 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {showYearlyDetail && (
+      {showSavingsDetail && (
         <div className="spending-detail">
-          <div className="spending-detail__section spending-detail__section--yearly">
-            <p className="spending-detail__heading">📈 올해 예상 지출 — 월별 내역</p>
-            <ul className="spending-detail__month-list">
-              {monthlySpendDetails.map(({ month, total, trend, percentLabel, isFuture }) => (
-                <li
-                  key={month}
-                  className={`spending-detail__month-item${
-                    month === currentMonthNum ? ' spending-detail__month-item--current' : ''
-                  }`}
-                >
-                  <span>{month}월</span>
-                  <span className="mono">{total.toLocaleString('ko-KR')}원</span>
-                  <span
-                    className={`spending-detail__month-change ${
-                      isFuture ? 'spending-detail__month-change--neutral' : `spending-detail__month-change--${trend}`
-                    }`}
-                  >
-                    {percentLabel}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <p className="spending-detail__total">
-              올해 예상 지출{' '}
-              <span className="mono">{yearlySpendEstimate.toLocaleString('ko-KR')}원</span>
-            </p>
+          <div className="spending-detail__section">
+            <p className="spending-detail__heading">💡 절약 제안</p>
+            {reviewCandidates.length === 0 ? (
+              <p className="spending-detail__empty">
+                절약 제안할 항목이 없어요 — 유지 안 함으로 표시했거나 3회차 이상 확인이 안 된
+                구독/정기배송이 없습니다.
+              </p>
+            ) : (
+              <>
+                <ul className="spending-detail__save-list">
+                  {reviewCandidates.map((item) => (
+                    <li key={item.id}>
+                      <div className="spending-detail__save-item-info">
+                        <p className="spending-detail__save-item-name">{item.itemName}</p>
+                        <p className="spending-detail__save-item-reason">
+                          {item.isExplicit
+                            ? '유지 안 함으로 표시했어요 — 해지를 진행해보세요.'
+                            : `${item.missedRounds}회차 연속 확인이 안 됐어요 — 최근 이용 상태가 확인되지 않았습니다. 계속 쓰고 계신다면 "유지하기"를 눌러주세요.`}
+                        </p>
+                      </div>
+                      <span className="mono spending-detail__save-item-amount">월 {item.monthly.toLocaleString('ko-KR')}원</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="spending-detail__total">
+                  {currentMonthNum}월 약 <span className="mono">{savingsEstimate.toLocaleString('ko-KR')}원</span>을 절약할 수 있어요
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -2103,7 +2119,9 @@ export default function DashboardPage() {
                   <span>🤖 AI 소비 매니저 <span className="ai-brief__header-sub">· 오늘의 브리핑</span></span>
                   <span aria-hidden="true">⌃</span>
                 </button>
-                <button type="button" className="ai-brief__refresh" onClick={handleAiSummary}>↻ 다시 분석</button>
+                <button type="button" className="ai-brief__refresh" onClick={handleAiSummary} disabled={aiBriefTextLoading}>
+                  {aiBriefTextLoading ? '분석 중...' : '↻ 다시 분석'}
+                </button>
               </div>
               <div className="ai-brief__divider" />
               {/* "AI가 매기는 점수"처럼 보이지만 실제로는 가격 인상/미사용 의심/지출 급증/과다구독
@@ -2142,8 +2160,10 @@ export default function DashboardPage() {
                 )}
                 {aiBrief.topCategory && (
                   <div className="ai-brief__metric">
-                    <span className="ai-brief__metric-label">🏆 최다 지출</span>
-                    <strong className="ai-brief__metric-value ai-brief__metric-value--cat">{aiBrief.topCategory}</strong>
+                    <span className="ai-brief__metric-label">🏆 최다 지출 카테고리</span>
+                    <strong className="ai-brief__metric-value ai-brief__metric-value--cat">
+                      {aiBrief.topCategory} · {(aiBrief.topCategoryAmount ?? 0).toLocaleString('ko-KR')}원
+                    </strong>
                   </div>
                 )}
               </div>
@@ -2202,7 +2222,7 @@ export default function DashboardPage() {
               ) : (
                 <>
                   <div className="ai-brief__section">
-                    <span className="ai-brief__section-label">😊 좋은 소식</span>
+                    <span className="ai-brief__section-label">🤖 AI 분석 결과</span>
                     <p className="ai-brief__section-text">{aiBrief.goodNews ?? '—'}</p>
                   </div>
                   <div className="ai-brief__section">
@@ -2227,41 +2247,36 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {isPremium && (weeklyDeliveryEntries.length > 0 || weeklySubscriptionEntries.length > 0) && (
+      {isPremium && (weeklyDeliveries.length > 0 || weeklySubscriptions.length > 0) && (
         <div className="weekly-summary-banner">
-          {weeklyDeliveryEntries.length > 0 && (
+          {weeklyDeliveries.length > 0 && (
             <section className="weekly-summary-banner__section" aria-labelledby="weekly-delivery-title">
               <span id="weekly-delivery-title" className="weekly-summary-banner__tag">
-                📦 이번 주 배송 예정 <span><span className="mono">{weeklyDeliveryEntries.length}</span>건</span>
+                📦 이번 주 도착 예정 <span><span className="mono">{weeklyDeliveries.length}</span>건</span>
               </span>
               <ul>
-                {weeklyDeliveryEntries.map(({ purchase: p, completed, completedAt }) => (
-                  <li key={p.id} className={completed ? 'weekly-summary-banner__item--completed' : ''}>
-                    {p.itemName} — <span className="mono">{formatShortDate(completed && completedAt ? completedAt : p.type === 'GENERAL' ? p.expectedDeliveryDate! : p.deadline)}</span>
-                    {completed && <span className="weekly-summary-banner__complete">받음</span>}
+                {weeklyDeliveries.map((p) => (
+                  <li key={p.id}>
+                    {p.itemName} — <span className="mono">{formatShortDate(p.type === 'GENERAL' ? p.expectedDeliveryDate! : p.deadline)}</span>
                   </li>
                 ))}
               </ul>
             </section>
           )}
-          {weeklyDeliveryEntries.length > 0 && weeklySubscriptionEntries.length > 0 && (
+          {weeklyDeliveries.length > 0 && weeklySubscriptions.length > 0 && (
             <div className="weekly-summary-banner__perforation" aria-hidden="true" />
           )}
-          {weeklySubscriptionEntries.length > 0 && (
+          {weeklySubscriptions.length > 0 && (
             <section className="weekly-summary-banner__section" aria-labelledby="weekly-subscription-title">
               <span id="weekly-subscription-title" className="weekly-summary-banner__tag weekly-summary-banner__tag--subscription">
-                💳 이번 주 구독 예정 <span><span className="mono">{weeklySubscriptionEntries.length}</span>건</span>
+                💳 이번 주 결제 예정 <span><span className="mono">{weeklySubscriptions.length}</span>건</span>
               </span>
               <ul>
-                {weeklySubscriptionEntries.map(({ purchase: p, completed, completedAt }) => {
-                  const discontinued = p.isOneTime || p.discontinuedAt !== null;
-                  return (
-                  <li key={p.id} className={completed ? 'weekly-summary-banner__item--completed' : ''}>
-                    {p.itemName} — <span className="mono">{formatShortDate(completed && completedAt ? completedAt : p.deadline)}</span>
-                    {completed && <span className="weekly-summary-banner__complete">{discontinued ? '유지 안 함' : '유지 완료'}</span>}
+                {weeklySubscriptions.map((p) => (
+                  <li key={p.id}>
+                    {p.itemName} — <span className="mono">{formatShortDate(p.deadline)}</span>
                   </li>
-                  );
-                })}
+                ))}
               </ul>
             </section>
           )}
