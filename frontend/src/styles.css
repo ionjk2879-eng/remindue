@@ -851,31 +851,10 @@ button.summary-board__tile:hover {
 .summary-board__tile--calculator {
   border-left-color: #6b7dff;
   background: color-mix(in srgb, #6b7dff 7%, var(--paper-card));
-  align-items: flex-start;
 }
 
 .summary-board__tile--calculator .summary-board__text {
   flex: 1;
-  padding-top: 1px;
-  transform: translateY(-2px);
-}
-
-.summary-board__tile--calculator .summary-board__value {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-  width: 100%;
-  font-size: 0.98rem;
-}
-
-.summary-board__tile--calculator .summary-board__calculator-period {
-  margin-left: 0;
-  white-space: nowrap;
-}
-
-.summary-board__calculator-amount {
-  white-space: nowrap;
 }
 
 .specific-spend-calculator__categories {
@@ -2293,6 +2272,12 @@ button.summary-board__tile:hover {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.summary-board__value-caption {
+  display: block;
+  margin-left: 0;
+  line-height: 1.15;
 }
 
 .arrival-check-section__date-select {

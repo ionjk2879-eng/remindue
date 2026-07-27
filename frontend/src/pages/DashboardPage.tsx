@@ -1876,9 +1876,9 @@ export default function DashboardPage() {
             <div className="summary-board__text">
               <span className="summary-board__label">AI 절약 제안</span>
               <span className="summary-board__value mono">
-                {savingsEstimate.toLocaleString('ko-KR')}
-                <span className="summary-board__unit">원 절약 가능</span>
+                {savingsEstimate.toLocaleString('ko-KR')}원
               </span>
+              <span className="summary-board__unit summary-board__value-caption">절약 가능</span>
             </div>
             <span className="summary-board__chevron" aria-hidden="true">{showSavingsDetail ? '▲' : '▾'}</span>
           </button>
@@ -1892,9 +1892,9 @@ export default function DashboardPage() {
             <div className="summary-board__text">
               <span className="summary-board__label">특정 지출 계산기</span>
               <span className="summary-board__value mono">
-                <span className="summary-board__unit summary-board__calculator-period">이번 달</span>
-                <span className="summary-board__calculator-amount">{calculatorAmount.toLocaleString('ko-KR')}원</span>
+                {calculatorAmount.toLocaleString('ko-KR')}원
               </span>
+              <span className="summary-board__unit summary-board__value-caption">이번 달</span>
             </div>
             <span className="summary-board__chevron" aria-hidden="true">{showSpecificSpendCalculator ? '▲' : '▾'}</span>
           </button>
