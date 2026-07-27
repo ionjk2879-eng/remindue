@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { isPushSupported, urlBase64ToUint8Array } from '../lib/push';
+import { getNotificationPermission, isPushSupported, urlBase64ToUint8Array } from '../lib/push';
 
 export async function fetchVapidPublicKey() {
   const { data } = await apiClient.get<{ publicKey: string }>('/push/vapid-public-key');
@@ -14,7 +14,7 @@ export async function subscribePush(subscription: PushSubscriptionJSON) {
 export async function ensurePushSubscription(requestPermission = false) {
   if (!isPushSupported()) throw new Error('이 브라우저는 알림을 지원하지 않습니다.');
 
-  let permission = Notification.permission;
+  let permission = await getNotificationPermission();
   if (permission === 'default' && requestPermission) {
     permission = await Notification.requestPermission();
   }

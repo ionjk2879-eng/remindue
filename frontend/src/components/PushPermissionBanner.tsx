@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ensurePushSubscription } from '../api/push';
-import { isPushSupported } from '../lib/push';
+import { getNotificationPermission, isPushSupported } from '../lib/push';
 
 /** 브라우저 알림 권한과 서버의 푸시 구독을 동기화하는 안내 배너. */
 export default function PushPermissionBanner() {
@@ -13,7 +13,7 @@ export default function PushPermissionBanner() {
 
     let active = true;
     const sync = async () => {
-      const currentPermission = Notification.permission;
+      const currentPermission = await getNotificationPermission();
       if (!active) return;
 
       if (currentPermission !== 'granted') {
@@ -30,11 +30,18 @@ export default function PushPermissionBanner() {
     };
 
     void sync();
+    let permissionStatus: PermissionStatus | undefined;
+    void navigator.permissions?.query({ name: 'notifications' }).then((status) => {
+      if (!active) return;
+      permissionStatus = status;
+      status.addEventListener('change', sync);
+    }).catch(() => undefined);
     window.addEventListener('focus', sync);
     window.addEventListener('pageshow', sync);
     document.addEventListener('visibilitychange', sync);
     return () => {
       active = false;
+      permissionStatus?.removeEventListener('change', sync);
       window.removeEventListener('focus', sync);
       window.removeEventListener('pageshow', sync);
       document.removeEventListener('visibilitychange', sync);
@@ -46,7 +53,7 @@ export default function PushPermissionBanner() {
     setError(null);
     try {
       const subscription = await ensurePushSubscription(true);
-      const currentPermission = Notification.permission;
+      const currentPermission = await getNotificationPermission();
       if (!subscription) {
         setVisible(true);
         setError(currentPermission === 'denied'

@@ -14,6 +14,7 @@ import { ensurePushSubscription, sendTestPush, type PushTestKind } from '../api/
 import { useAuth } from '../context/AuthContext';
 import Skeleton from '../components/Skeleton';
 import type { SharedAccess } from '../types';
+import { getNotificationPermission } from '../lib/push';
 
 const PLAN_LABEL: Record<'ONE_TIME' | 'MONTHLY' | 'ANNUAL', string> = {
   ONE_TIME: '1회성 이용권',
@@ -156,7 +157,7 @@ export default function SettingsPage() {
     try {
       const subscription = await ensurePushSubscription(true);
       if (!subscription) {
-        setTestPushMessage(Notification.permission === 'denied'
+        setTestPushMessage((await getNotificationPermission()) === 'denied'
           ? '브라우저 사이트 설정에서 알림을 허용한 뒤 다시 시도해 주세요.'
           : '알림 권한을 허용해야 테스트 알림을 보낼 수 있어요.');
         return;
