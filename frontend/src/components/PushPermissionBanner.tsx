@@ -7,7 +7,6 @@ export default function PushPermissionBanner() {
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [permission, setPermission] = useState<NotificationPermission>('default');
 
   useEffect(() => {
     if (!isPushSupported()) return;
@@ -16,7 +15,6 @@ export default function PushPermissionBanner() {
     const sync = async () => {
       const currentPermission = Notification.permission;
       if (!active) return;
-      setPermission(currentPermission);
 
       if (currentPermission !== 'granted') {
         setVisible(true);
@@ -49,7 +47,6 @@ export default function PushPermissionBanner() {
     try {
       const subscription = await ensurePushSubscription(true);
       const currentPermission = Notification.permission;
-      setPermission(currentPermission);
       if (!subscription) {
         setVisible(true);
         setError(currentPermission === 'denied'
@@ -70,15 +67,11 @@ export default function PushPermissionBanner() {
 
   return (
     <div className="push-banner">
-      <span className="push-banner__text">
-        {permission === 'denied'
-          ? '브라우저 사이트 설정에서 Remindue 알림을 허용해 주세요.'
-          : '놓치기 쉬운 기한, 브라우저 알림으로 바로 받아보세요.'}
-      </span>
+      <span className="push-banner__text">놓치기 쉬운 기한, 브라우저 알림으로 바로 받아보세요.</span>
       <div className="push-banner__actions">
         {error && <span className="push-banner__error">{error}</span>}
         <button className="btn btn-sm" onClick={handleEnable} disabled={busy}>
-          {busy ? '설정 중…' : permission === 'denied' ? '권한 다시 확인' : '알림 받기'}
+          {busy ? '설정 중…' : '알림 허용 받기'}
         </button>
       </div>
     </div>
