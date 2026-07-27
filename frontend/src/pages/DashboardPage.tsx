@@ -394,6 +394,14 @@ function renderCategoryBadge(p: Purchase) {
   ));
 }
 
+/** KST 달력의 이번 주 범위(월요일~일요일). "오늘부터 7일"처럼 다음 주를 섞지 않는다. */
+function currentCalendarWeekRange(today = todayDateOnly()): { start: string; end: string } {
+  const weekday = new Date(`${today}T00:00:00+09:00`).getDay(); // Sun=0, Mon=1
+  const daysSinceMonday = (weekday + 6) % 7;
+  const start = shiftDateOnly(today, -daysSinceMonday);
+  return { start, end: shiftDateOnly(start, 6) };
+}
+
 /**
  * "정기배송"/"정기구독" 요약 타일 상세용 — 날짜순이 아니라 서비스 카테고리별로 묶어서
  * 한눈에 보여준다(같은 유형·같은 서비스끼리 정렬). 그룹 내부는 dDay 오름차순.
@@ -1342,6 +1350,24 @@ export default function DashboardPage() {
   // "한 번만 사용"도 이번 이용 기간의 예정에는 포함한다. 다음 갱신이 없다는 점은 목록에서 표시한다.
   const weeklySubscriptions = weeklyRecurring.filter((p) => p.type === 'SUBSCRIPTION');
   const today = todayDateOnly();
+  const calendarWeek = currentCalendarWeekRange(today);
+  /**
+   * 요약 카드의 결제 건수는 사용자 접속일부터 7일이 아니라 이번 주 월~일 달력 범위다.
+   * 같은 정기구독이 짧은 주기로 두 번 결제되면 각각 한 건으로 센다.
+   */
+  const weeklyPaymentCount = purchases
+    .filter((purchase) => purchase.type === 'SUBSCRIPTION' && purchase.discontinuedAt === null)
+    .reduce((count, purchase) => {
+      const startYear = Number(calendarWeek.start.slice(0, 4));
+      const startMonth = Number(calendarWeek.start.slice(5, 7));
+      const endYear = Number(calendarWeek.end.slice(0, 4));
+      const endMonth = Number(calendarWeek.end.slice(5, 7));
+      const dates = [
+        ...occurrenceDatesInMonth(purchase, startYear, startMonth),
+        ...(startYear === endYear && startMonth === endMonth ? [] : occurrenceDatesInMonth(purchase, endYear, endMonth)),
+      ];
+      return count + dates.filter((date) => date >= calendarWeek.start && date <= calendarWeek.end).length;
+    }, 0);
   type WeeklyEntry = { purchase: Purchase; completed: boolean; completedAt: string | null };
   const completedThisWeek = (purchase: Purchase) => purchase.lastDeliveredDate !== null && isWithinRecentDays(purchase.lastDeliveredDate, URGENT_WINDOW_DAYS);
   // "유지 안 함"을 누르면 정기 스케줄은 곧바로 다음 회차를 가리킬 수 있다. 그 때문에
@@ -1801,9 +1827,10 @@ export default function DashboardPage() {
             <div className="summary-board__text">
               <span className="summary-board__label">이번 주 결제</span>
               <span className="summary-board__value mono">
-                {weeklyRecurring.length}
+                {weeklyPaymentCount}
                 <span className="summary-board__unit">건</span>
               </span>
+              <span className="summary-board__unit summary-board__value-caption">월~일 기준</span>
             </div>
           </div>
           <button
