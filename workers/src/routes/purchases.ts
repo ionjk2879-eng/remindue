@@ -290,7 +290,7 @@ purchases.post('/:id/mark-delivered', async (c) => {
   await c.env.DB.prepare(
     `UPDATE purchases
         SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
-            discontinued_at = NULL, updated_at = datetime('now')
+            stop_after_current_at = NULL, discontinued_at = NULL, updated_at = datetime('now')
       WHERE id = ?`
   )
     .bind(today, id)
@@ -328,7 +328,7 @@ purchases.post('/confirm-all', async (c) => {
       c.env.DB.prepare(
         `UPDATE purchases
             SET last_delivered_date = ?, delivery_confirm_count = ?,
-                discontinued_at = NULL, updated_at = datetime('now')
+                stop_after_current_at = NULL, discontinued_at = NULL, updated_at = datetime('now')
           WHERE id = ?`
       ).bind(today, confirmedRoundsAfterConfirmAll(row), row.id)
     )

@@ -1563,8 +1563,8 @@ export default function DashboardPage() {
       {confirmRecurringIds.length > 0 && (
         <div className="onboarding-overlay" role="dialog" aria-modal="true">
           <div className="onboarding-modal">
-            <p className="onboarding-modal__title">🔔 오늘 유지할 항목을 선택하세요</p>
-            <p className="onboarding-modal__body">유지할 항목만 체크하세요. 체크하지 않은 항목은 유지 안 함으로 처리돼요.</p>
+            <p className="onboarding-modal__title">🔔 다음 회차에도 유지할 항목을 선택하세요</p>
+            <p className="onboarding-modal__body">다음 배송·결제가 예정된 항목이에요. 유지할 항목만 체크하세요.</p>
             <div className="arrival-modal__choices">
               {recurringSelectionItems.map((p) => (
                 <label key={p.id} className="schedule-radio">
@@ -1577,7 +1577,7 @@ export default function DashboardPage() {
               {recurringSelectionItems.length === 0 && <p className="onboarding-modal__body">처리할 항목이 없어요.</p>}
             </div>
             <div className="onboarding-modal__actions">
-              {confirmRecurringBatchToken && <button type="button" className="btn" disabled={arrivalConfirmSubmitting} onClick={handleRecurringBatchConfirm}>선택한 {recurringBatchMaintainedIds.length}건 유지 · 나머지 {Math.max(0, recurringSelectionItems.length - recurringBatchMaintainedIds.length)}건 유지 안 함</button>}
+              {confirmRecurringBatchToken && <button type="button" className="btn" disabled={arrivalConfirmSubmitting} onClick={handleRecurringBatchConfirm}>선택한 {recurringBatchMaintainedIds.length}건 다음 회차 유지 · 나머지 {Math.max(0, recurringSelectionItems.length - recurringBatchMaintainedIds.length)}건 중단</button>}
               <button type="button" className="btn-text" onClick={closeRecurringConfirmModal}>닫기</button>
             </div>
           </div>
@@ -1644,7 +1644,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="onboarding-modal__actions">
                   <button type="button" className="btn-text" onClick={closeArrivalConfirmModal}>
-                    아직 안 왔어요 / 나중에
+                    아직 미도착 / 나중에
                   </button>
                 </div>
               </>
@@ -2307,7 +2307,7 @@ export default function DashboardPage() {
                     <button type="button" className="btn btn-sm" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 0)}>받았어요</button>
                     <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 1)}>하루 전에 받았어요</button>
                     <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalConfirm(p.id, 2)}>이틀 전에 받았어요</button>
-                    <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalSnooze(p.id)}>아직 안 왔어요</button>
+                    <button type="button" className="btn-text" disabled={isSubmitting} onClick={() => handleDashboardArrivalSnooze(p.id)}>아직 미도착</button>
                   </div>
                 </li>
               );

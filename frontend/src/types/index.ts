@@ -45,6 +45,7 @@ export interface Purchase {
   deliveryConfirmCount: number;
   /** 사용자가 "유지 안 함"을 누른 시각. null이면 미확인일 뿐(사용 안 함으로 해석 금지). */
   discontinuedAt: string | null;
+  stopAfterCurrentAt: string | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */

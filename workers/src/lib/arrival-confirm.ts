@@ -121,12 +121,12 @@ export async function runArrivalConfirm(env: Env): Promise<ArrivalConfirmRunResu
     for (const sub of subs) {
       const { sent, gone } = await sendPush(env, sub, {
         title: `📦 오늘 배송 확인 ${items.length}건`,
-        body: `${itemSummary}${more} — 전부 또는 일부 수령 여부를 알려주세요.`,
+        body: `${itemSummary}${more} — 수령한 배송만 처리해 주세요. 미도착 항목은 내일 다시 알려드려요.`,
         url: dashboardUrl,
         actions: [
           { action: 'arrival_all_received', title: '모두 받음' },
           { action: 'arrival_partial', title: '일부 받음' },
-          { action: 'arrival_not_yet', title: '아직요' },
+          { action: 'arrival_not_yet', title: '아직 미도착' },
         ],
         actionToken,
       });

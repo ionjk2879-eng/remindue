@@ -81,6 +81,18 @@ export default {
     // UTC 15시 = KST 자정. 전날 도착 확인에 답하지 않은 건을 "아직요" 상태로 넘겨,
     // 다음 날 오후 도착 확인 알림에서 다시 물을 수 있게 한다.
     if (scheduledUtcHour === 15) {
+      // "모두 중단"은 해당 회차일까지는 보존하고, 다음 날 자정에 목록과 알림 대상에서 종료한다.
+      ctx.waitUntil(
+        env.DB.prepare(
+          `UPDATE purchases
+              SET discontinued_at = datetime('now'), updated_at = datetime('now')
+            WHERE stop_after_current_at IS NOT NULL
+              AND stop_after_current_at < date('now', '+9 hours')
+              AND discontinued_at IS NULL`
+        ).run().then((result) => {
+          console.log(`[recurring-stop-after-current] ended ${result.meta.changes ?? 0}`);
+        })
+      );
       ctx.waitUntil(
         rollOverUnansweredArrivals(env).then((count) => {
           console.log(`[arrival-confirm-rollover] 무응답 항목 ${count}건을 다음 날 재확인 대상으로 전환`);

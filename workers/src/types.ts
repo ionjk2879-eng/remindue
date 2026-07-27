@@ -65,6 +65,9 @@ export interface PurchaseRow {
    * "사용 안 함"으로 해석하지 않는다. "유지하기"(mark-delivered)를 다시 누르면 NULL로 되돌아간다.
    */
   discontinued_at: string | null;
+  /** 유지 확인에서 "모두 중단"을 선택했을 때, 현재 회차를 마친 뒤 종료할 예정일. */
+  stop_after_current_at: string | null;
+  renewal_decision_for: string | null;
   /** 이력 보관(프리미엄). NULL이면 활성 항목, 값이 있으면 그 시각에 보관 처리됨 — dDay/알림 대상에서 제외. */
   archived_at: string | null;
   /**
@@ -262,6 +265,7 @@ export interface PurchaseResponse {
   deliveryConfirmCount: number;
   /** 사용자가 "유지 안 함"을 누른 시각. null이면 미확인일 뿐(사용 안 함으로 해석 금지). */
   discontinuedAt: string | null;
+  stopAfterCurrentAt: string | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */

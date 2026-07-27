@@ -183,7 +183,7 @@ push.post('/confirm-action', async (c) => {
   await c.env.DB.prepare(
     `UPDATE purchases
         SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
-            discontinued_at = NULL, updated_at = datetime('now')
+            stop_after_current_at = NULL, discontinued_at = NULL, updated_at = datetime('now')
       WHERE id = ?`
   )
     .bind(today, purchaseId)
@@ -329,18 +329,20 @@ push.post('/recurring-batch/:action', async (c) => {
   if (![...maintained].every((id) => batch.purchaseIds.includes(id))) throw new BadRequestError('알림에 없는 항목입니다');
   const today = todayDateOnly();
   for (const id of batch.purchaseIds) {
+    const purchase = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ? AND user_id = ?')
+      .bind(id, batch.userId)
+      .first<PurchaseRow>();
+    if (!purchase) continue;
+    const decisionFor = computeDeadline(purchase).deadline;
     if (maintained.has(id)) {
-      const purchase = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ? AND user_id = ?')
-        .bind(id, batch.userId)
-        .first<PurchaseRow>();
       await c.env.DB.prepare(
         `UPDATE purchases SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
-         discontinued_at = NULL, updated_at = datetime('now') WHERE id = ? AND user_id = ?`
-      ).bind(today, id, batch.userId).run();
-      if (purchase) await refreshRecurringFxOnConfirmation(c.env.DB, purchase);
+         renewal_decision_for = ?, stop_after_current_at = NULL, discontinued_at = NULL, updated_at = datetime('now') WHERE id = ? AND user_id = ?`
+      ).bind(today, decisionFor, id, batch.userId).run();
+      await refreshRecurringFxOnConfirmation(c.env.DB, purchase);
     } else {
-      await c.env.DB.prepare(`UPDATE purchases SET discontinued_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND user_id = ?`)
-        .bind(id, batch.userId).run();
+      await c.env.DB.prepare(`UPDATE purchases SET renewal_decision_for = ?, stop_after_current_at = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?`)
+        .bind(decisionFor, decisionFor, id, batch.userId).run();
     }
   }
   return c.body(null, 204);
