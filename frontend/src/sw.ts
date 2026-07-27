@@ -9,6 +9,14 @@ declare const self: ServiceWorkerGlobalScope;
 // 죽은 코드로 제거되지 않게 한다(단순 프로퍼티 참조는 부작용이 없어 제거될 수 있음).
 console.log('[sw] precache manifest entries:', self.__WB_MANIFEST.length);
 
+// 새 아이콘/알림 처리 로직이 배포 즉시 적용되도록 이전 서비스 워커의 대기 단계를 건너뛴다.
+self.addEventListener('install', (event: ExtendableEvent) => {
+  event.waitUntil(self.skipWaiting());
+});
+self.addEventListener('activate', (event: ExtendableEvent) => {
+  event.waitUntil(self.clients.claim());
+});
+
 interface PushPayload {
   title?: string;
   body?: string;
@@ -38,6 +46,7 @@ self.addEventListener('push', (event: PushEvent) => {
     body: data.body ?? '',
     // 알림 유형마다 투명 배경의 색상 시계 아이콘을 사용한다.
     ...(data.notificationKind ? { icon: NOTIFICATION_ICONS[data.notificationKind] } : {}),
+    ...(data.notificationKind ? { badge: NOTIFICATION_ICONS[data.notificationKind] } : {}),
     // badge는 지정하지 않아 상태 영역에 로고가 중복되지 않게 한다.
     data: { url: data.url ?? '/', actionToken: data.actionToken },
     ...(data.actions ? { actions: data.actions } : {}),
