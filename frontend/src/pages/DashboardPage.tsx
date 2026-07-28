@@ -22,7 +22,7 @@ import {
   type AiBriefSections,
 } from '../api/purchases';
 import { applyPriceChange, fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
-import { completeOnboarding as apiCompleteOnboarding, regenerateForwardingAddress } from '../api/settings';
+import { completeOnboarding as apiCompleteOnboarding, fetchNotificationDays, regenerateForwardingAddress } from '../api/settings';
 import { fetchReceivedInvites, fetchSharedPurchases } from '../api/sharing';
 import {
   isRecurringType,
@@ -319,6 +319,7 @@ export default function DashboardPage() {
   const [sharedPurchases, setSharedPurchases] = useState<Purchase[]>([]);
   const [exporting, setExporting] = useState(false);
   const [purchasesLoaded, setPurchasesLoaded] = useState(false);
+  const [deadlineNotificationsEnabled, setDeadlineNotificationsEnabled] = useState<boolean | null>(null);
   const [showSpendingDetail, setShowSpendingDetail] = useState(false);
   const [aiBrief, setAiBrief] = useState<AiBriefData | null>(null);
   const [aiBriefTextLoading, setAiBriefTextLoading] = useState(false);
@@ -439,6 +440,9 @@ export default function DashboardPage() {
     loadSpendHistory();
     loadPending();
     loadAcceptedShares();
+    fetchNotificationDays()
+      .then((data) => setDeadlineNotificationsEnabled(data.notificationDays.length > 0))
+      .catch(() => setDeadlineNotificationsEnabled(true));
   }, []);
 
   // 메일 자동화 주소로 들어온 항목은 서버에서 비동기로 만들어진다. 대시보드를 이미 열어 둔
@@ -2750,7 +2754,7 @@ export default function DashboardPage() {
                     </p>
                   )}
                   <div className="ticket-card__actions">
-                    {p.type === 'GENERAL' && p.deadlineNotificationsDisabledAt === null && (
+                    {deadlineNotificationsEnabled === true && p.type === 'GENERAL' && p.deadlineNotificationsDisabledAt === null && (
                       <button className="btn-text" onClick={() => handleDisableDeadlineNotifications(p.id)}>
                         기한 알림 끄기
                       </button>
