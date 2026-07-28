@@ -10,11 +10,12 @@ export const MAX_NOTIFICATION_DAY = 60;
 export const NOTIFICATION_DAY_OPTIONS: readonly number[] = [10, 7, 5, 3, 2, 1, 0];
 
 export function serializeNotificationDays(days: number[]): string {
-  return days.join(',');
+  return days.length === 0 ? 'none' : days.join(',');
 }
 
 /** 잘못 저장된 값(빈 문자열, 손상된 데이터 등)은 조용히 기본값으로 대체한다 — 다이제스트가 죽는 것보다는 낫다. */
 export function parseNotificationDays(raw: string): number[] {
+  if (raw.trim().toLowerCase() === 'none') return [];
   const parsed = raw
     .split(',')
     .map((s) => Number(s.trim()))
@@ -31,10 +32,10 @@ export function effectiveNotificationDays(isPremium: boolean, rawNotificationDay
 
 export class InvalidNotificationDaysError extends Error {}
 
-/** PUT 요청 바디 검증 — 정수 배열이고, 범위 안이고, 1~10개 사이여야 한다(0개는 "알림 끄기"가 아니라 실수로 취급). */
+/** PUT 요청 바디 검증 — 정수 배열이고, 범위 안이고, 0~10개 사이여야 한다(빈 배열은 알림 끄기). */
 export function validateNotificationDaysInput(value: unknown): number[] {
-  if (!Array.isArray(value) || value.length === 0 || value.length > 10) {
-    throw new InvalidNotificationDaysError('notificationDays는 1~10개의 정수 배열이어야 합니다');
+  if (!Array.isArray(value) || value.length > 10) {
+    throw new InvalidNotificationDaysError('notificationDays는 0~10개의 정수 배열이어야 합니다');
   }
   const days = value.map((v) => Number(v));
   if (days.some((d) => !Number.isInteger(d) || d < MIN_NOTIFICATION_DAY || d > MAX_NOTIFICATION_DAY)) {

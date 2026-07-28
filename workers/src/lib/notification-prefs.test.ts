@@ -13,6 +13,8 @@ describe('notification preferences', () => {
     expect(parseNotificationDays('10, 3,3,0')).toEqual([10, 3, 0]);
     expect(parseNotificationDays('broken, -1, 61')).toEqual(DEFAULT_NOTIFICATION_DAYS);
     expect(serializeNotificationDays([10, 3, 0])).toBe('10,3,0');
+    expect(parseNotificationDays('none')).toEqual([]);
+    expect(serializeNotificationDays([])).toBe('none');
   });
 
   it('enforces fixed notification days for free users', () => {
@@ -22,7 +24,7 @@ describe('notification preferences', () => {
 
   it('validates API input and removes duplicates', () => {
     expect(validateNotificationDaysInput([7, 3, 3, 0])).toEqual([7, 3, 0]);
-    expect(() => validateNotificationDaysInput([])).toThrow(InvalidNotificationDaysError);
+    expect(validateNotificationDaysInput([])).toEqual([]);
     expect(() => validateNotificationDaysInput([61])).toThrow(InvalidNotificationDaysError);
     expect(() => validateNotificationDaysInput(['tomorrow'])).toThrow(InvalidNotificationDaysError);
   });

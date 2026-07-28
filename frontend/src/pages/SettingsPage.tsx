@@ -115,6 +115,10 @@ export default function SettingsPage() {
     setSelectedDays((prev) => (prev === null ? prev : prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
   };
 
+  const toggleNoNotificationDays = () => {
+    setSelectedDays((prev) => (prev === null ? prev : []));
+  };
+
   const handleSaveDays = async () => {
     if (selectedDays === null) return;
     setDaysMessage(null);
@@ -328,6 +332,12 @@ export default function SettingsPage() {
                 반품 기한·A/S 보증이 며칠 남았을 때 요약 알림을 받을지 골라주세요. AI가 주문 정보를 읽어도 실제 반품 기한·A/S 기간까지 정확히 알아내는 데는 한계가 있어, 미입력 항목은 반품 1주·A/S 1년을 기본값으로 적용합니다. 꼭 실제 조건을 확인해 수정해 주세요.
               </p>
               <div className="notification-day-options">
+                <label
+                  className={`notification-day-option${selectedDays.length === 0 ? ' notification-day-option--active' : ''}`}
+                >
+                  <input type="checkbox" checked={selectedDays.length === 0} onChange={toggleNoNotificationDays} />
+                  없음
+                </label>
                 {NOTIFICATION_DAY_OPTIONS.map((day) => (
                   <label
                     key={day}
@@ -338,7 +348,7 @@ export default function SettingsPage() {
                   </label>
                 ))}
               </div>
-              <button className="btn btn-sm" onClick={handleSaveDays} disabled={savingDays || selectedDays.length === 0}>
+              <button className="btn btn-sm" onClick={handleSaveDays} disabled={savingDays}>
                 {savingDays ? '저장 중...' : '저장'}
               </button>
               {daysMessage && <p className="settings-section__message">{daysMessage}</p>}
