@@ -1826,7 +1826,9 @@ export default function DashboardPage() {
                           <span className="spending-detail__list-type">
                             {p.discontinuedAt !== null
                               ? `${p.deliveryRound}회차 (유지 안 함)`
-                              : `${formatKoreanMonthDay(p.deadline)} · ${p.deliveryRound}회차`}
+                              : p.isOneTime
+                                ? `${formatKoreanMonthDay(p.deadline)} · 한 번만 사용`
+                                : `${formatKoreanMonthDay(p.deadline)} · ${p.deliveryRound}회차`}
                           </span>
                         </span>
                         <span className="mono">{p.amount !== null ? `${p.amount.toLocaleString('ko-KR')}원` : '-'}</span>
