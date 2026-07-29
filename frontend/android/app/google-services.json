@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1052861727115",
+    "project_id": "remindue-31d53",
+    "storage_bucket": "remindue-31d53.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1052861727115:android:7150586d42ec6139ba2f8e",
+        "android_client_info": {
+          "package_name": "com.remindue.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwj5jmcseg_n5whAnSndcR8Zltp2PdKZE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
