@@ -111,9 +111,12 @@ push.post('/test', async (c) => {
   const { results: subscriptions } = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?')
     .bind(user.id)
     .all<PushSubscriptionRow>();
+  const { results: nativeTokens } = await c.env.DB.prepare('SELECT * FROM native_push_tokens WHERE user_id = ?')
+    .bind(user.id)
+    .all<NativePushTokenRow>();
 
-  if (subscriptions.length === 0) {
-    throw new BadRequestError('이 브라우저에 등록된 알림 구독이 없습니다. 먼저 알림을 허용해주세요.');
+  if (subscriptions.length === 0 && nativeTokens.length === 0) {
+    throw new BadRequestError('등록된 알림 구독이 없습니다. 먼저 알림을 허용해주세요.');
   }
 
   const { results: purchases } = await c.env.DB.prepare(
@@ -176,8 +179,6 @@ push.post('/test', async (c) => {
 
   const fcmSend = makeFcmSender(c.env.FIREBASE_SERVICE_ACCOUNT);
   if (fcmSend) {
-    const { results: nativeTokens } = await c.env.DB.prepare('SELECT * FROM native_push_tokens WHERE user_id = ?')
-      .bind(user.id).all<NativePushTokenRow>();
     for (const row of nativeTokens) {
       const result = await fcmSend(row.token, pushPayload);
       if (result.sent) sent += 1;

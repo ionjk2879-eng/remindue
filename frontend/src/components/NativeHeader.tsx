@@ -37,6 +37,12 @@ export default function NativeHeader() {
       </Link>
 
       <div className="native-header__right">
+        {!isAuthenticated && (
+          <Link to="/login" className="btn btn-outline btn-sm" onClick={closeMenu}>
+            로그인
+          </Link>
+        )}
+
         <div className="native-header__menu" ref={menuRef}>
           <button
             type="button"
