@@ -55,6 +55,22 @@ app.use('/api/*', async (c, next) => {
   return corsMiddleware(c, next);
 });
 
+// APK 등 대용량 파일은 Workers 정적 자산(25MB 제한)이 아니라 R2에서 직접 서빙한다. /api 밑에
+// 두지 않는 이유는 그냥 다운로드 링크라 CORS/인증 미들웨어가 필요 없기 때문이다.
+app.get('/downloads/:filename', async (c) => {
+  const filename = c.req.param('filename');
+  const object = await c.env.DOWNLOADS_BUCKET.get(filename);
+  if (!object) return c.notFound();
+  return new Response(object.body, {
+    headers: {
+      'Content-Type': 'application/vnd.android.package-archive',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': String(object.size),
+      'Cache-Control': 'public, max-age=300',
+    },
+  });
+});
+
 app.route('/api/auth', authRoutes);
 app.route('/api/purchases', purchaseRoutes);
 app.route('/api/push', pushRoutes);

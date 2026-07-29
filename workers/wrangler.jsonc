@@ -28,6 +28,14 @@
       "migrations_dir": "./migrations"
     }
   ],
+  // 안드로이드 APK 등 대용량 다운로드 파일 호스팅용 — Cloudflare Workers 정적 자산은 25MB
+  // 제한이 있어 여기 못 담는다(실제로 겪음). R2는 그 제한이 없다.
+  "r2_buckets": [
+    {
+      "binding": "DOWNLOADS_BUCKET",
+      "bucket_name": "remindue-downloads"
+    }
+  ],
   "vars": {
     // JWT_SECRET/RESEND_API_KEY/VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY는 여기 두지 않는다 — 로컬은
     // .dev.vars(gitignore됨), 배포본은 `wrangler secret put <NAME>`으로 관리한다.

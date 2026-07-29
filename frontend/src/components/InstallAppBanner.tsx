@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isNative } from '../lib/native';
+import { apiOrigin } from '../api/client';
 
 type MobilePlatform = 'android' | 'ios';
 
@@ -79,7 +80,7 @@ export default function InstallAppBanner() {
               <section className="install-modal__section">
                 <h3>Android 앱 다운로드 (베타)</h3>
                 <p>푸시 알림 등 네이티브 기능까지 포함한 베타 버전이에요. 아직 스토어에 올리기 전이라 설치 파일을 직접 내려받아야 해요.</p>
-                <a className="btn btn-sm" href="/downloads/remindue.apk" download>
+                <a className="btn btn-sm" href={`${apiOrigin}/downloads/remindue.apk`} download>
                   APK 다운로드
                 </a>
                 <p className="install-modal__note">

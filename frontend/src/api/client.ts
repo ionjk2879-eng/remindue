@@ -4,6 +4,8 @@ import { isNative } from '../lib/native';
 import { loadNativeRefreshToken, saveNativeRefreshToken } from '../lib/native-auth';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787/api';
+/** 백엔드 워커 출처(끝의 /api 제외) — R2에서 직접 서빙하는 다운로드 링크(APK 등) 조립에 쓴다. */
+export const apiOrigin = baseURL.replace(/\/api\/?$/, '');
 let accessToken: string | null = null;
 let refreshPromise: Promise<AuthResponse> | null = null;
 

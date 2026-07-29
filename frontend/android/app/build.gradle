@@ -10,6 +10,13 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // 심사/테스트 배포용 APK를 Cloudflare Workers 정적 자산 크기 제한(25MB) 아래로 유지하기
+        // 위해 실기기 대부분을 차지하는 arm64만 담는다 — 전체 ABI를 담은 "유니버설" APK는
+        // 30MB를 넘겨 배포가 실패했다. 나중에 실제 스토어 배포판을 준비할 땐 이 제한을 풀고
+        // Play의 App Bundle(AAB)로 기기별 분할을 맡기면 된다.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61

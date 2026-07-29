@@ -483,6 +483,8 @@ export interface FeedbackDetailResponse {
 export interface Env {
   DB: D1Database;
   AI: Ai;
+  /** 안드로이드 APK 등 대용량 다운로드 파일 저장소 — Workers 정적 자산의 25MB 제한을 피하려고 둔다. */
+  DOWNLOADS_BUCKET: R2Bucket;
   JWT_SECRET: string;
   /** 콤마로 구분된 허용 출처 목록(예: "https://remindue.kr,https://remindue-frontend.ionjk2879.workers.dev"). index.ts의 allowedOrigins()가 파싱한다. */
   CORS_ORIGIN: string;

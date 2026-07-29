@@ -1,3 +1,5 @@
+import { apiOrigin } from '../api/client';
+
 export default function InstallGuidePage() {
   return (
     <div className="legal-page install-guide">
@@ -41,7 +43,7 @@ export default function InstallGuidePage() {
       <section className="install-guide__section">
         <h2>🤖 Android 앱 다운로드 (베타)</h2>
         <p>푸시 알림 등 네이티브 기능까지 포함한 베타 버전이에요. 아직 스토어에 올리기 전이라 설치 파일을 직접 내려받아야 해요.</p>
-        <a className="btn" href="/downloads/remindue.apk" download>
+        <a className="btn" href={`${apiOrigin}/downloads/remindue.apk`} download>
           APK 다운로드
         </a>
         <p className="install-guide__note">
