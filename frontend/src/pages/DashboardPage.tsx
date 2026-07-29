@@ -1824,7 +1824,9 @@ export default function DashboardPage() {
                         <span>
                           {p.itemName}
                           <span className="spending-detail__list-type">
-                            {formatKoreanMonthDay(p.deadline)} · {p.deliveryRound}회차
+                            {p.discontinuedAt !== null
+                              ? `${p.deliveryRound}회차 (유지 안 함)`
+                              : `${formatKoreanMonthDay(p.deadline)} · ${p.deliveryRound}회차`}
                           </span>
                         </span>
                         <span className="mono">{p.amount !== null ? `${p.amount.toLocaleString('ko-KR')}원` : '-'}</span>
@@ -2084,8 +2086,11 @@ export default function DashboardPage() {
                   <div className="ai-brief__metric">
                     <span className="ai-brief__metric-label">🏆 최다 지출 카테고리</span>
                     <strong className="ai-brief__metric-value ai-brief__metric-value--cat">
-                      {aiBrief.topCategory} · {(aiBrief.topCategoryAmount ?? 0).toLocaleString('ko-KR')}원
+                      {aiBrief.topCategory}
                     </strong>
+                    <span className="ai-brief__metric-cat-amount">
+                      {(aiBrief.topCategoryAmount ?? 0).toLocaleString('ko-KR')}원
+                    </span>
                   </div>
                 )}
               </div>
@@ -2222,6 +2227,24 @@ export default function DashboardPage() {
         </div>
       )}
       {confirmAllMessage && <p className="confirm-needed-section__success">✅ {confirmAllMessage}</p>}
+
+      {urgent.length > 0 && (
+        <div className={`urgent-banner${urgentAllHandled ? ' urgent-banner--ok' : ''}`}>
+          <span className={`urgent-banner__tag${urgentAllHandled ? ' urgent-banner__tag--ok' : ''}`}>
+            {urgentAllHandled ? '✓' : '⚠'} 7일 이내 {urgentAllHandled ? '배송 예정' : '마감'}{' '}
+            <span className="mono">{urgent.length}</span>건
+            {urgentAllHandled && ' — 오늘 확인 완료'}
+          </span>
+          <ul>
+            {urgent.map((p) => (
+              <li key={p.id}>
+                {p.itemName} — {primaryDeadlineLabel(p)} <span className="mono">{p.deadline}</span>
+                {isFullyConfirmed(p) && <span className="confirm-badge confirm-badge--sm">✓ 확인완료</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {pendingItems.length > 0 && (
         <div className="pending-section">
@@ -2360,24 +2383,6 @@ export default function DashboardPage() {
               );
             })}
           </div>
-        </div>
-      )}
-
-      {urgent.length > 0 && (
-        <div className={`urgent-banner${urgentAllHandled ? ' urgent-banner--ok' : ''}`}>
-          <span className={`urgent-banner__tag${urgentAllHandled ? ' urgent-banner__tag--ok' : ''}`}>
-            {urgentAllHandled ? '✓' : '⚠'} 7일 이내 {urgentAllHandled ? '배송 예정' : '마감'}{' '}
-            <span className="mono">{urgent.length}</span>건
-            {urgentAllHandled && ' — 오늘 확인 완료'}
-          </span>
-          <ul>
-            {urgent.map((p) => (
-              <li key={p.id}>
-                {p.itemName} — {primaryDeadlineLabel(p)} <span className="mono">{p.deadline}</span>
-                {isFullyConfirmed(p) && <span className="confirm-badge confirm-badge--sm">✓ 확인완료</span>}
-              </li>
-            ))}
-          </ul>
         </div>
       )}
 

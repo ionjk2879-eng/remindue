@@ -513,11 +513,12 @@ export async function callExtractionApi(
       'Content-Type': 'application/json',
       'x-api-key': apiKey,
       'anthropic-version': ANTHROPIC_VERSION,
+      'anthropic-beta': 'prompt-caching-2024-07-31',
     },
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
+      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       output_config: { format: { type: 'json_schema', schema: EXTRACTION_SCHEMA } },
       messages: [{ role: 'user', content }],
     }),

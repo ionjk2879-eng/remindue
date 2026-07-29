@@ -16,6 +16,7 @@ import { logger, maskEmail } from './logger';
 // 신규 토큰은 영문 소문자지만, 기존 계정에는 마이그레이션에서 발급한 16진수 토큰이
 // 남아 있을 수 있다. 숫자를 막으면 그 계정의 정상 수신 주소를 조용히 버리게 된다.
 const TO_LOCAL_PART_PATTERN = /^([a-z0-9]+)$/i;
+const FREE_PLAN_MONTHLY_EMAIL_LIMIT = 10;
 
 function extractForwardingToken(toAddress: string): string | null {
   const localPart = toAddress.split('@')[0] ?? '';
@@ -46,10 +47,24 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
     return;
   }
 
-  // 이메일 자동 등록(추출)은 이제 무료 플랜도 쓸 수 있다 — 실제 등록 개수 제한은 여기가 아니라
-  // 확인(POST /purchases) 시점에 FREE_PLAN_MAX_PURCHASES로 걸린다(routes/purchases.ts). 즉
-  // 이메일을 얼마든지 전달해서 확인 대기 목록에 쌓을 순 있지만, 실제로 등록 확정할 수 있는 건
-  // 무료 기준 5개까지다.
+  // 실제 등록 개수 제한은 확인(POST /purchases) 시점에 FREE_PLAN_MAX_PURCHASES로도 걸리지만,
+  // AI 토큰 비용 절감을 위해 무료 플랜은 이메일 처리 자체를 월 FREE_PLAN_MONTHLY_EMAIL_LIMIT건으로 제한한다.
+  if (user.is_premium === 0) {
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (user.free_email_month === currentMonth && user.free_email_count >= FREE_PLAN_MONTHLY_EMAIL_LIMIT) {
+      logger.info('email.intake.free_limit_exceeded', { recipient: maskEmail(user.email) });
+      return;
+    }
+    if (user.free_email_month === currentMonth) {
+      await env.DB.prepare('UPDATE users SET free_email_count = free_email_count + 1 WHERE id = ?')
+        .bind(user.id).run();
+    } else {
+      await env.DB.prepare('UPDATE users SET free_email_month = ?, free_email_count = 1 WHERE id = ?')
+        .bind(currentMonth, user.id).run();
+    }
+  }
+
   const parsed = await PostalMime.parse(message.raw);
   const subject = parsed.subject ?? '(제목 없음)';
   const bodyText = parsed.text?.trim() || (parsed.html ? stripHtml(parsed.html) : '');

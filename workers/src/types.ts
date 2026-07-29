@@ -135,6 +135,10 @@ export interface UserRow {
   confirmation_advance_days: number;
   /** SQLite boolean(0/1) — 3단계 온보딩 안내를 완료했거나 건너뛰었는지. 둘 다 이 값을 1로 저장한다(routes/settings.ts). */
   has_seen_onboarding: number;
+  /** 무료 플랜 이메일 추출 월별 상한 추적 — 현재 집계 중인 월(YYYYMM). NULL이면 이번 달 첫 처리 전. */
+  free_email_month: string | null;
+  /** 무료 플랜 이메일 추출 월별 상한 추적 — 해당 월의 처리 횟수. free_email_month가 현재 달이 아니면 만료된 값. */
+  free_email_count: number;
 }
 
 export type PendingPurchaseSource = 'email' | 'image';
