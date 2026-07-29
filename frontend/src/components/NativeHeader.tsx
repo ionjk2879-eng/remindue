@@ -31,7 +31,11 @@ export default function NativeHeader() {
 
   return (
     <header className="native-header">
-      <Link to="/dashboard" className="native-header__brand" onClick={closeMenu}>
+      {/* "/"로 보내면 LandingPage가 로그인 상태에 따라 알아서 갈라준다(로그인 → /dashboard 리다이렉트,
+          로그아웃 → 가이드/설치 안내가 있는 랜딩 화면) — 웹 Header.tsx와 동일한 동작. 예전엔 여기가
+          "/dashboard"로 고정돼 있어서 로그아웃 상태로 로고를 누르면 인증 가드가 그대로 로그인
+          페이지로 튕겨내는 버그가 있었다. */}
+      <Link to="/" className="native-header__brand" onClick={closeMenu}>
         <Logo size={24} />
         <span className="native-header__wordmark">Remindue</span>
       </Link>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { loadTossPayments } from '@tosspayments/tosspayments-sdk';
-import { createCheckout, createKakaoCheckout } from '../api/billing';
+import { createCheckout, createKakaoCheckout, createKakaoSubscribeCheckout } from '../api/billing';
 import { fetchPurchases } from '../api/purchases';
 import { useAuth } from '../context/AuthContext';
 import { isNative } from '../lib/native';
@@ -104,17 +104,18 @@ export default function PricingPage() {
     }
   };
 
-  // 카카오페이는 심사(가맹점 등록) 전이라 공개 테스트 CID(TC0ONETIME, 단건결제 전용)로만 동작한다.
-  // 실제 결제는 되지 않고, 결제 흐름 확인/캡처용이라 우선 1회성 플랜에만 노출한다.
-  const handlePayKakao = async () => {
+  // 카카오페이는 심사(가맹점 등록) 전이라 공개 테스트 CID(단건 TC0ONETIME/정기 TCSUBSCRIP)로만
+  // 동작한다 — 실제 결제는 되지 않고, 결제 흐름 확인/캡처용이다.
+  const handlePayKakao = async (plan: BillingPlan) => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
     setErrorMessage(null);
-    setLoadingPlan('ONE_TIME');
+    setLoadingPlan(plan);
     try {
-      const { redirectUrlPc, redirectUrlMobile } = await createKakaoCheckout();
+      const { redirectUrlPc, redirectUrlMobile } =
+        plan === 'ONE_TIME' ? await createKakaoCheckout() : await createKakaoSubscribeCheckout(plan);
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       window.location.href = isMobile ? redirectUrlMobile : redirectUrlPc;
     } catch (err) {
@@ -161,16 +162,14 @@ export default function PricingPage() {
             >
               {loadingPlan === card.key ? '이동 중...' : '결제하기'}
             </button>
-            {card.key === 'ONE_TIME' && (
-              <button
-                type="button"
-                className="btn btn-outline btn-sm pricing-card__btn-kakao"
-                onClick={handlePayKakao}
-                disabled={loadingPlan !== null}
-              >
-                {loadingPlan === 'ONE_TIME' ? '이동 중...' : '카카오페이로 결제 (테스트)'}
-              </button>
-            )}
+            <button
+              type="button"
+              className="btn btn-outline btn-sm pricing-card__btn-kakao"
+              onClick={() => handlePayKakao(card.key)}
+              disabled={loadingPlan !== null}
+            >
+              {loadingPlan === card.key ? '이동 중...' : '카카오페이로 결제 (테스트)'}
+            </button>
           </div>
         ))}
       </div>

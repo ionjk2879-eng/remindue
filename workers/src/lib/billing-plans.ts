@@ -24,3 +24,15 @@ export const PLAN_LABEL: Record<BillingPlan, string> = {
   MONTHLY: '월 정기결제',
   ANNUAL: '연 정기결제',
 };
+
+/**
+ * 카카오페이 정기결제 청구(`/subscription`) API 전용 — 등록(ready/approve)의 item_name은 한글이
+ * 통과되는데, 매 주기 청구 엔드포인트는 한글이 섞이면 "item_name has invalid value"로 거부한다
+ * (실제 테스트 CID로 재현·확인함). 등록 화면에는 여전히 PLAN_CONFIG.orderName(한글)을 쓰고,
+ * 이 값은 billing-renewal.ts의 chargeSubscription 호출에만 쓴다.
+ */
+export const KAKAO_CHARGE_ITEM_NAME: Record<BillingPlan, string> = {
+  ONE_TIME: 'Remindue Premium One-time',
+  MONTHLY: 'Remindue Premium Monthly',
+  ANNUAL: 'Remindue Premium Annual',
+};

@@ -361,6 +361,7 @@ export interface SubscriptionRow {
   status: SubscriptionStatus;
   auto_renew: number;
   toss_billing_key: string | null;
+  kakao_sid: string | null;
   current_period_end: string;
   failed_charge_count: number;
   created_at: string;
@@ -510,6 +511,8 @@ export interface Env {
   KAKAOPAY_SECRET_KEY: string;
   /** 단건결제 가맹점 코드. 심사 전 테스트 단계에서는 카카오페이 공개 테스트 CID `TC0ONETIME`을 쓴다. */
   KAKAOPAY_CID: string;
+  /** 정기결제 가맹점 코드 — 단건과 별도로 발급된다. 심사 전 테스트 단계에서는 공개 테스트 CID `TCSUBSCRIP`을 쓴다. */
+  KAKAOPAY_SUBSCRIPTION_CID: string;
   /** 이메일 포워딩 수신 주소에 쓰는 도메인(add-{token}@{도메인}). Cloudflare Email Routing이 붙어있는 도메인. */
   FORWARDING_EMAIL_DOMAIN: string;
   /** 새 문의 알림 메일을 받을 운영자 이메일. 이 이메일로 로그인한 사용자는 모든 문의에 답글을 남길 수 있다(routes/feedback.ts). */

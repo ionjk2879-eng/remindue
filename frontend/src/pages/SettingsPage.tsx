@@ -306,16 +306,24 @@ export default function SettingsPage() {
           </div>
         ) : isPremium && billingStatus.plan && (billingStatus.plan === 'MONTHLY' || billingStatus.plan === 'ANNUAL') ? (
           <>
-            <p className="settings-section__hint">
-              {PLAN_LABEL[billingStatus.plan]} 이용 중
-              {billingStatus.premiumExpiresAt && ` · ${formatDateOnly(billingStatus.premiumExpiresAt)}까지`}
-            </p>
             {billingStatus.autoRenew ? (
-              <button className="btn btn-sm btn-outline" onClick={handleCancelSubscription} disabled={cancelling}>
-                {cancelling ? '해지 중...' : '정기결제 해지'}
-              </button>
+              <div className="settings-subscription-row">
+                <p className="settings-section__hint">
+                  {PLAN_LABEL[billingStatus.plan]} 이용 중
+                  {billingStatus.premiumExpiresAt && ` · ${formatDateOnly(billingStatus.premiumExpiresAt)}까지`}
+                </p>
+                <button className="btn btn-sm btn-outline" onClick={handleCancelSubscription} disabled={cancelling}>
+                  {cancelling ? '해지 중...' : '정기결제 해지'}
+                </button>
+              </div>
             ) : (
-              <p className="settings-section__hint">자동 결제가 해지됐어요. 남은 기간까지는 프리미엄이 유지됩니다.</p>
+              <>
+                <p className="settings-section__hint">
+                  {PLAN_LABEL[billingStatus.plan]} 이용 중
+                  {billingStatus.premiumExpiresAt && ` · ${formatDateOnly(billingStatus.premiumExpiresAt)}까지`}
+                </p>
+                <p className="settings-section__hint">자동 결제가 해지됐어요. 남은 기간까지는 프리미엄이 유지됩니다.</p>
+              </>
             )}
             {cancelMessage && <p className="settings-section__message">{cancelMessage}</p>}
           </>

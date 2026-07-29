@@ -3821,6 +3821,17 @@ button.summary-board__tile:hover {
   margin-bottom: 0;
 }
 
+.settings-subscription-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-subscription-row .settings-section__hint {
+  margin: 0;
+}
+
 .settings-section h3 {
   font-size: 0.86rem;
   color: var(--ink-soft);

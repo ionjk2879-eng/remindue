@@ -15,8 +15,10 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { BadRequestError, NotFoundError, PaymentRequiredError } from '../lib/errors';
 import { chargeBillingKey, confirmPayment, issueBillingKey, TossApiError } from '../lib/toss';
+import { inactivateSubscription } from '../lib/kakaopay';
 import { PLAN_CONFIG, PLAN_LABEL } from '../lib/billing-plans';
 import { buildSubscriptionCanceledEmailHtml, sendDigestEmail } from '../lib/email';
+import { logger } from '../lib/logger';
 import type { BillingPlan, BillingStatusResponse, Env, PaymentRow, SubscriptionRow, UserRow } from '../types';
 
 const billing = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
@@ -281,8 +283,21 @@ billing.post('/cancel', async (c) => {
     throw new NotFoundError('해지할 정기결제가 없습니다');
   }
 
+  // 카카오페이 정기결제는 해지 API를 호출해야 청구 쪽에서도 sid가 완전히 무효화된다 — 실패해도
+  // (예: 이미 심사 전 테스트 sid) 우리 쪽 auto_renew=0 처리는 그대로 진행해 재청구를 막는다.
+  if (sub.kakao_sid) {
+    try {
+      await inactivateSubscription(c.env.KAKAOPAY_SECRET_KEY, {
+        cid: c.env.KAKAOPAY_SUBSCRIPTION_CID,
+        sid: sub.kakao_sid,
+      });
+    } catch (err) {
+      logger.error('billing.kakao_inactivate_failed', { subscriptionId: sub.id, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
   await c.env.DB.prepare(
-    `UPDATE subscriptions SET status = 'CANCELED', auto_renew = 0, toss_billing_key = NULL, updated_at = datetime('now') WHERE id = ?`
+    `UPDATE subscriptions SET status = 'CANCELED', auto_renew = 0, toss_billing_key = NULL, kakao_sid = NULL, updated_at = datetime('now') WHERE id = ?`
   )
     .bind(sub.id)
     .run();

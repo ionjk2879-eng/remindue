@@ -77,6 +77,7 @@ export interface KakaoApproveResult {
   aid: string;
   tid: string;
   cid: string;
+  sid?: string; // 정기결제 CID로 준비/승인한 경우에만 내려온다 — 이후 청구/해지에 계속 쓰는 구독 식별자.
   partner_order_id: string;
   partner_user_id: string;
   payment_method_type: string;
@@ -84,7 +85,11 @@ export interface KakaoApproveResult {
   approved_at: string;
 }
 
-/** 결제 승인 — 사용자가 카카오톡/카카오페이에서 인증을 마치고 approval_url로 돌아올 때 받은 pg_token으로 확정한다. */
+/**
+ * 결제 승인 — 사용자가 카카오톡/카카오페이에서 인증을 마치고 approval_url로 돌아올 때 받은
+ * pg_token으로 확정한다. 단건/정기 공용 — cid로 어떤 결제인지 갈린다. 정기결제 CID로 호출하면
+ * 이 승인이 곧 "구독 등록 + 첫 회차 결제"이고, 응답의 sid를 앞으로의 청구/해지에 계속 쓴다.
+ */
 export function approvePayment(
   secretKey: string,
   params: { cid: string; tid: string; partnerOrderId: string; partnerUserId: string; pgToken: string }
@@ -95,5 +100,51 @@ export function approvePayment(
     partner_order_id: params.partnerOrderId,
     partner_user_id: params.partnerUserId,
     pg_token: params.pgToken,
+  });
+}
+
+export interface KakaoSubscriptionChargeResult {
+  aid: string;
+  tid: string;
+  cid: string;
+  sid: string;
+  amount: { total: number };
+  approved_at: string;
+}
+
+/** 정기결제 청구 — 사용자 상호작용 없이 서버가 등록된 결제수단(sid)으로 매 주기 직접 청구한다. */
+export function chargeSubscription(
+  secretKey: string,
+  params: {
+    cid: string;
+    sid: string;
+    partnerOrderId: string;
+    partnerUserId: string;
+    itemName: string;
+    quantity: number;
+    totalAmount: number;
+    taxFreeAmount: number;
+  }
+): Promise<KakaoSubscriptionChargeResult> {
+  return kakaoFetch<KakaoSubscriptionChargeResult>('/subscription', secretKey, {
+    cid: params.cid,
+    sid: params.sid,
+    partner_order_id: params.partnerOrderId,
+    partner_user_id: params.partnerUserId,
+    item_name: params.itemName,
+    quantity: params.quantity,
+    total_amount: params.totalAmount,
+    tax_free_amount: params.taxFreeAmount,
+  });
+}
+
+/** 정기결제 해지 — 이후로는 sid로 청구를 시도해도 실패한다. */
+export function inactivateSubscription(
+  secretKey: string,
+  params: { cid: string; sid: string }
+): Promise<{ aid: string; cid: string; sid: string; status: string }> {
+  return kakaoFetch('/manage/subscription/inactive', secretKey, {
+    cid: params.cid,
+    sid: params.sid,
   });
 }

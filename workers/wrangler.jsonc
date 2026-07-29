@@ -51,6 +51,8 @@
     // 카카오페이 단건결제 가맹점 코드 — 비밀값 아님. 심사 전에는 카카오페이가 공개한 테스트
     // CID(TC0ONETIME)를 쓴다. 심사 통과 후 발급받은 실 가맹점 코드로 교체하면 된다.
     "KAKAOPAY_CID": "TC0ONETIME",
+    // 정기결제 가맹점 코드 — 단건과 별개로 발급된다. 심사 전에는 공개 테스트 CID를 쓴다.
+    "KAKAOPAY_SUBSCRIPTION_CID": "TCSUBSCRIP",
     // 배포된 모든 버전(운영 + dev 프리뷰 별칭)의 기본값. dev 프리뷰만 deploy:dev 스크립트가
     // `--var ENVIRONMENT:development`로 이 값을 덮어쓴다 — 로컬은 .dev.vars가 덮어쓴다.
     // 개발 전용 기능(테스트 시드 엔드포인트 등)이 production에 절대 켜지지 않게 하는 가드.

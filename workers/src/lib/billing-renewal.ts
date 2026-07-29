@@ -7,7 +7,8 @@
 // 지나면 runPremiumExpirySweep이 프리미엄을 내린다.
 
 import { chargeBillingKey, TossApiError } from './toss';
-import { PLAN_CONFIG, PLAN_LABEL } from './billing-plans';
+import { chargeSubscription, KakaoPayApiError } from './kakaopay';
+import { KAKAO_CHARGE_ITEM_NAME, PLAN_CONFIG, PLAN_LABEL } from './billing-plans';
 import { buildRenewalFailedEmailHtml, sendDigestEmail } from './email';
 import type { Env, SubscriptionRow } from '../types';
 
@@ -47,7 +48,8 @@ export async function runBillingRenewals(env: Env): Promise<BillingRenewalRunRes
   const dashboardUrl = `${env.APP_URL}/dashboard`;
 
   for (const sub of results) {
-    if (!sub.toss_billing_key || !sub.user_toss_customer_key) {
+    const isKakao = !!sub.kakao_sid;
+    if (!isKakao && (!sub.toss_billing_key || !sub.user_toss_customer_key)) {
       // 데이터 정합성이 깨진 행(빌링키 없이 auto_renew=1) — 청구를 시도할 수 없으니 건너뛴다.
       console.error(`[billing-renewal] 구독 ${sub.id}에 빌링키/고객키가 없어 건너뜁니다`);
       continue;
@@ -56,23 +58,39 @@ export async function runBillingRenewals(env: Env): Promise<BillingRenewalRunRes
     const config = PLAN_CONFIG[sub.plan];
     const orderId = crypto.randomUUID();
     await env.DB.prepare(
-      `INSERT INTO payments (user_id, subscription_id, order_id, plan, amount, status) VALUES (?, ?, ?, ?, ?, 'PENDING')`
+      `INSERT INTO payments (user_id, subscription_id, order_id, plan, amount, status, pg_provider) VALUES (?, ?, ?, ?, ?, 'PENDING', ?)`
     )
-      .bind(sub.user_id, sub.id, orderId, sub.plan, config.amount)
+      .bind(sub.user_id, sub.id, orderId, sub.plan, config.amount, isKakao ? 'KAKAOPAY' : 'TOSS')
       .run();
 
     try {
-      const charged = await chargeBillingKey(env.TOSS_SECRET_KEY, sub.toss_billing_key, {
-        customerKey: sub.user_toss_customer_key,
-        amount: config.amount,
-        orderId,
-        orderName: config.orderName,
-      });
+      const paymentKey = isKakao
+        ? (
+            await chargeSubscription(env.KAKAOPAY_SECRET_KEY, {
+              cid: env.KAKAOPAY_SUBSCRIPTION_CID,
+              sid: sub.kakao_sid!,
+              partnerOrderId: orderId,
+              partnerUserId: String(sub.user_id),
+              // 한글 item_name은 카카오페이 청구 API가 거부한다(등록 API는 괜찮음) — 영문 전용으로 쓴다.
+              itemName: KAKAO_CHARGE_ITEM_NAME[sub.plan],
+              quantity: 1,
+              totalAmount: config.amount,
+              taxFreeAmount: 0,
+            })
+          ).tid
+        : (
+            await chargeBillingKey(env.TOSS_SECRET_KEY, sub.toss_billing_key!, {
+              customerKey: sub.user_toss_customer_key!,
+              amount: config.amount,
+              orderId,
+              orderName: config.orderName,
+            })
+          ).paymentKey;
 
       await env.DB.prepare(
         `UPDATE payments SET status = 'CONFIRMED', payment_key = ?, confirmed_at = datetime('now') WHERE order_id = ?`
       )
-        .bind(charged.paymentKey, orderId)
+        .bind(paymentKey, orderId)
         .run();
 
       // 실제 결제일이 아니라 "원래 스케줄이었던" current_period_end 기준으로 다음 주기를 더한다 —
@@ -95,7 +113,9 @@ export async function runBillingRenewals(env: Env): Promise<BillingRenewalRunRes
 
       renewed += 1;
     } catch (err) {
-      const reason = err instanceof TossApiError ? err.message : '자동 결제에 실패했습니다';
+      const reason = isKakao
+        ? (err instanceof KakaoPayApiError ? err.message : '자동 결제에 실패했습니다')
+        : (err instanceof TossApiError ? err.message : '자동 결제에 실패했습니다');
       await env.DB.prepare(`UPDATE payments SET status = 'FAILED', failure_reason = ? WHERE order_id = ?`)
         .bind(reason, orderId)
         .run();
