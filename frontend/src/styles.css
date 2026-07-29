@@ -3734,9 +3734,9 @@ button.summary-board__tile:hover {
 
 /* 선택된 칩을 시각적으로 강조한다. */
 .notification-day-option--active {
-  background: var(--neutral-bg);
+  background: var(--ink);
   border-color: var(--ink);
-  color: var(--ink);
+  color: var(--paper-card);
   font-weight: 700;
 }
 
@@ -4443,6 +4443,17 @@ button.summary-board__tile:hover {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.onboarding-modal__actions .btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.onboarding-modal__actions .btn-text {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .arrival-modal__choices {
