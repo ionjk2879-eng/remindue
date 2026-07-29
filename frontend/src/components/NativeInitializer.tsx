@@ -2,7 +2,15 @@
 // 웹 환경에서는 isNative=false라 모든 호출이 no-op.
 
 import { useEffect, useRef } from 'react';
-import { initNative, hideSplash, setupBackButton, registerNativePush, isNative } from '../lib/native';
+import {
+  initNative,
+  hideSplash,
+  setupBackButton,
+  registerNativePush,
+  isNative,
+  markLiveUpdateReady,
+  checkForLiveUpdate,
+} from '../lib/native';
 import { registerNativePushToken } from '../api/push';
 import { useAuth } from '../context/AuthContext';
 
@@ -12,6 +20,13 @@ export default function NativeInitializer() {
 
   useEffect(() => {
     if (!isNative) return;
+
+    // readyTimeout(capacitor.config.ts, 10초) 안에 도달해야 하므로 다른 어떤 비동기 작업도
+    // 기다리지 않고 제일 먼저 호출한다 — 늦으면 라이브 업데이트 플러그인이 방금 받은 번들을
+    // "문제 있음"으로 보고 자동 롤백해버린다.
+    markLiveUpdateReady();
+    // 다음 실행 때 반영될 새 번들이 있는지 확인 — 실패해도 앱 동작에 영향 없다(내부에서 catch).
+    checkForLiveUpdate();
 
     // 상태바 스타일은 로그인 확인과 무관하게 바로 적용한다. 스플래시는 로그인 확인이 끝난
     // 뒤(아래 isInitializing effect)에 내려서, 로그인 사용자가 랜딩 화면을 스치듯 보고
