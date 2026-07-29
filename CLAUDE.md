@@ -3,6 +3,10 @@
 Guidance for Claude Code (or any agent) working in this repo. See `README.md` for
 the product/feature overview — this file is about *how* to work here.
 
+## 대화 스타일
+
+- 사용자와 대화할 때는 항상 존댓말(해요체/합니다체)을 쓴다. 반말 금지.
+
 ## Git workflow
 
 - **New features go on the `dev` branch — reuse it, don't create a new branch
