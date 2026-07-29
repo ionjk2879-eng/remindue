@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import Skeleton from '../components/Skeleton';
 import type { SharedAccess } from '../types';
 import { getNotificationPermission } from '../lib/push';
+import { isNative } from '../lib/native';
 
 const PLAN_LABEL: Record<'ONE_TIME' | 'MONTHLY' | 'ANNUAL', string> = {
   ONE_TIME: '1회성 이용권',
@@ -159,12 +160,17 @@ export default function SettingsPage() {
     setTestPushMessage(null);
     setSendingTestPush(kind);
     try {
-      const subscription = await ensurePushSubscription(true);
-      if (!subscription) {
-        setTestPushMessage((await getNotificationPermission()) === 'denied'
-          ? '브라우저 사이트 설정에서 알림을 허용한 뒤 다시 시도해 주세요.'
-          : '알림 권한을 허용해야 테스트 알림을 보낼 수 있어요.');
-        return;
+      // 네이티브 앱은 Web Push(Notification/PushManager) API 자체가 없거나 동작이 달라
+      // ensurePushSubscription이 그대로 실패한다 — FCM 토큰 등록은 NativeInitializer가 앱
+      // 시작 시 이미 처리하므로, 네이티브에서는 이 단계를 건너뛰고 바로 테스트를 보낸다.
+      if (!isNative) {
+        const subscription = await ensurePushSubscription(true);
+        if (!subscription) {
+          setTestPushMessage((await getNotificationPermission()) === 'denied'
+            ? '브라우저 사이트 설정에서 알림을 허용한 뒤 다시 시도해 주세요.'
+            : '알림 권한을 허용해야 테스트 알림을 보낼 수 있어요.');
+          return;
+        }
       }
       const { sent } = await sendTestPush(kind);
       setTestPushMessage(`테스트 알림을 ${sent}개 기기에 보냈어요.`);
