@@ -31,6 +31,11 @@ export default function InstallGuidePage() {
           <li>브라우저 메뉴(⋮)를 탭하세요.</li>
           <li><strong>앱 설치</strong> 또는 <strong>홈 화면에 추가</strong>를 선택하세요.</li>
         </ol>
+        <p className="install-guide__note">
+          Android는 이렇게 설치한 PWA를 Chrome과는 별개의 앱으로 인식해요. 브라우저에서 알림을 이미
+          허용했더라도, 알림이 안 온다면 휴대폰 <strong>설정 → 앱 → Remindue → 알림</strong>에서 따로
+          한 번 더 켜져 있는지 확인해 주세요.
+        </p>
       </section>
 
       <section className="install-guide__section">
