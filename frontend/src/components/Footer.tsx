@@ -4,6 +4,7 @@ export default function Footer() {
   return (
     <footer className="site-footer">
       <div className="site-footer__links">
+        <Link to="/install">앱 설치 안내</Link>
         <Link to="/terms">이용약관</Link>
         <Link to="/privacy">개인정보처리방침</Link>
       </div>

@@ -18,6 +18,7 @@ import PricingPage from './pages/PricingPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsPage from './pages/TermsPage';
 import FaqPage from './pages/FaqPage';
+import InstallGuidePage from './pages/InstallGuidePage';
 
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
@@ -132,6 +133,7 @@ export default function App() {
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/faq" element={<FaqPage />} />
+            <Route path="/install" element={<InstallGuidePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

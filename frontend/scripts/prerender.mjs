@@ -28,6 +28,7 @@ const ROUTES = [
   { url: '/privacy', outFile: 'dist/privacy/index.html' },
   { url: '/terms',   outFile: 'dist/terms/index.html' },
   { url: '/faq',     outFile: 'dist/faq/index.html' },
+  { url: '/install', outFile: 'dist/install/index.html' },
 ];
 
 const vite = await createServer({

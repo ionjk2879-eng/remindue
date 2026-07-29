@@ -11,6 +11,7 @@ import PricingPage from './pages/PricingPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsPage from './pages/TermsPage';
 import FaqPage from './pages/FaqPage';
+import InstallGuidePage from './pages/InstallGuidePage';
 
 const PAGE_MAP = {
   '/': LandingPage,
@@ -18,6 +19,7 @@ const PAGE_MAP = {
   '/privacy': PrivacyPolicyPage,
   '/terms': TermsPage,
   '/faq': FaqPage,
+  '/install': InstallGuidePage,
 } as const;
 
 export function render(url: keyof typeof PAGE_MAP) {

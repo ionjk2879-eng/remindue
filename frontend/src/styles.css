@@ -4187,6 +4187,46 @@ button.summary-board__tile:hover {
   color: var(--ink);
 }
 
+.install-guide__section {
+  margin-top: 28px;
+  padding: 20px 22px;
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-rest);
+}
+
+.install-guide__section h2 {
+  font-size: 1.05rem;
+  margin-bottom: 10px;
+}
+
+.install-guide__section h3 {
+  font-size: 0.92rem;
+  margin: 16px 0 6px;
+}
+
+.install-guide__section p {
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+
+.install-guide__section ol {
+  font-size: 0.88rem;
+  line-height: 1.8;
+  color: var(--ink);
+  padding-left: 20px;
+  margin: 0 0 10px;
+}
+
+.install-guide__note {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  margin-top: 10px;
+}
+
 .legal-table {
   width: 100%;
   border-collapse: collapse;
