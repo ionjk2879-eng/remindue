@@ -29,3 +29,11 @@ Thumbs.db
 # Env / secrets
 .env
 *.env
+
+# Capacitor Android 빌드 산출물 (네이티브 프로젝트 자체는 커밋)
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/build/
+# Capacitor iOS 빌드 산출물 (Mac에서 cap add ios 후 추가됨)
+frontend/ios/App/Pods/
+frontend/ios/.xcode.env.local

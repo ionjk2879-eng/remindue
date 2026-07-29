@@ -3,6 +3,9 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import NativeTabBar from './components/NativeTabBar';
+import NativeInitializer from './components/NativeInitializer';
+import { isNative } from './lib/native';
 import LandingPage from './pages/LandingPage';
 import type { ReactNode } from 'react';
 
@@ -36,6 +39,16 @@ function RouteLoading() {
 }
 
 function Layout() {
+  if (isNative) {
+    return (
+      <>
+        <Suspense fallback={<RouteLoading />}>
+          <Outlet />
+        </Suspense>
+        <NativeTabBar />
+      </>
+    );
+  }
   return (
     <>
       <Header />
@@ -50,6 +63,7 @@ function Layout() {
 export default function App() {
   return (
     <AuthProvider>
+      <NativeInitializer />
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
