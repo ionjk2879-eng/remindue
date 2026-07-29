@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import NativeTabBar from './components/NativeTabBar';
+import NativeHeader from './components/NativeHeader';
 import NativeInitializer from './components/NativeInitializer';
 import { isNative } from './lib/native';
 import LandingPage from './pages/LandingPage';
@@ -42,6 +43,7 @@ function Layout() {
   if (isNative) {
     return (
       <>
+        <NativeHeader />
         <Suspense fallback={<RouteLoading />}>
           <Outlet />
         </Suspense>

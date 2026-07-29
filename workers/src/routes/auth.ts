@@ -28,11 +28,14 @@ interface SignupBody {
   email?: string;
   password?: string;
   nickname?: string;
+  native?: boolean;
 }
 
 interface LoginBody {
   email?: string;
   password?: string;
+  rememberMe?: boolean;
+  native?: boolean;
 }
 
 function requireEmail(email: unknown): string {
@@ -52,7 +55,12 @@ function requireAllowedOrigin(c: AuthContext): void {
   if (!allowed.includes(origin)) throw new BadRequestError('허용되지 않은 요청 출처입니다');
 }
 
-function refreshCookieOptions(c: { req: { url: string } }) {
+interface SessionOptions {
+  rememberMe?: boolean; // false → 세션 쿠키(브라우저 닫으면 만료), 기본 true
+  native?: boolean;     // true → 쿠키 대신 응답 바디에 refreshToken 포함
+}
+
+function refreshCookieOptions(c: { req: { url: string } }, rememberMe = true) {
   const secure = new URL(c.req.url).protocol === 'https:';
   return {
     httpOnly: true,
@@ -60,11 +68,12 @@ function refreshCookieOptions(c: { req: { url: string } }) {
     partitioned: secure,
     sameSite: secure ? 'None' as const : 'Lax' as const,
     path: '/api/auth',
-    maxAge: REFRESH_TOKEN_EXPIRATION_SECONDS,
+    ...(rememberMe ? { maxAge: REFRESH_TOKEN_EXPIRATION_SECONDS } : {}),
   };
 }
 
-async function issueSession(c: AuthContext, user: UserRow): Promise<AuthResponse> {
+async function issueSession(c: AuthContext, user: UserRow, opts: SessionOptions = {}): Promise<AuthResponse> {
+  const { rememberMe = true, native = false } = opts;
   const sessionId = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRATION_SECONDS * 1000).toISOString();
   await c.env.DB.prepare(
@@ -77,13 +86,15 @@ async function issueSession(c: AuthContext, user: UserRow): Promise<AuthResponse
     signJwt(user.email, c.env.JWT_SECRET, ACCESS_TOKEN_EXPIRATION_SECONDS, 'access'),
     signJwt(user.email, c.env.JWT_SECRET, REFRESH_TOKEN_EXPIRATION_SECONDS, 'refresh', sessionId),
   ]);
-  setCookie(c, REFRESH_COOKIE, refreshToken, refreshCookieOptions(c));
-  return {
+  setCookie(c, REFRESH_COOKIE, refreshToken, refreshCookieOptions(c, rememberMe));
+  const response: AuthResponse = {
     accessToken,
     nickname: user.nickname,
     isPremium: user.is_premium === 1,
     hasSeenOnboarding: user.has_seen_onboarding === 1,
   };
+  if (native) response.refreshToken = refreshToken;
+  return response;
 }
 
 async function revokeRefreshSession(c: AuthContext): Promise<void> {
@@ -102,6 +113,7 @@ async function revokeRefreshSession(c: AuthContext): Promise<void> {
 auth.post('/signup', async (c) => {
   requireAllowedOrigin(c);
   const body = await c.req.json<SignupBody>().catch(() => ({}) as SignupBody);
+  const native = body.native ?? false;
   const email = requireEmail(body.email);
   const password = body.password;
   const nickname = body.nickname?.trim();
@@ -143,7 +155,7 @@ auth.post('/signup', async (c) => {
 
   const user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>();
   if (!user) throw new Error('가입한 사용자를 다시 조회하지 못했습니다');
-  return c.json(await issueSession(c, user));
+  return c.json(await issueSession(c, user, { native }));
 });
 
 auth.post('/login', async (c) => {
@@ -151,6 +163,8 @@ auth.post('/login', async (c) => {
   const body = await c.req.json<LoginBody>().catch(() => ({}) as LoginBody);
   const email = requireEmail(body.email);
   const password = body.password;
+  const rememberMe = body.rememberMe ?? true;
+  const native = body.native ?? false;
   if (!password) {
     throw new BadRequestError('비밀번호를 입력해주세요');
   }
@@ -160,12 +174,15 @@ auth.post('/login', async (c) => {
     throw new BadRequestError('이메일 또는 비밀번호가 올바르지 않습니다');
   }
 
-  return c.json(await issueSession(c, user));
+  return c.json(await issueSession(c, user, { rememberMe, native }));
 });
 
 auth.post('/refresh', async (c) => {
   requireAllowedOrigin(c);
-  const token = getCookie(c, REFRESH_COOKIE);
+  const body = await c.req.json<{ refreshToken?: string; native?: boolean }>().catch(() => ({}) as { refreshToken?: string; native?: boolean });
+  const native = body.native ?? false;
+  // 쿠키 우선, 없으면 네이티브 앱이 바디로 전달한 토큰 사용
+  const token = getCookie(c, REFRESH_COOKIE) ?? body.refreshToken;
   if (!token) return c.json({ message: '세션이 없습니다' }, 401);
   const payload = await verifyJwt(token, c.env.JWT_SECRET);
   if (payload?.type !== 'refresh' || !payload.jti) {
@@ -194,7 +211,7 @@ auth.post('/refresh', async (c) => {
   }
   const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(session.user_id).first<UserRow>();
   if (!user) return c.json({ message: '사용자를 찾을 수 없습니다' }, 401);
-  return c.json(await issueSession(c, user));
+  return c.json(await issueSession(c, user, { native }));
 });
 
 auth.post('/logout', async (c) => {

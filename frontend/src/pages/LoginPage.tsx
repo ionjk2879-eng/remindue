@@ -2,10 +2,12 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
+import { isNative } from '../lib/native';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { setAuth } = useAuth();
   const navigate = useNavigate();
@@ -14,7 +16,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     try {
-      const res = await login(email, password);
+      const res = await login(email, password, rememberMe);
       setAuth(res.accessToken, res.nickname, res.isPremium, res.hasSeenOnboarding);
       navigate('/dashboard');
     } catch {
@@ -48,6 +50,16 @@ export default function LoginPage() {
               required
             />
           </div>
+          {!isNative && (
+            <label className="remember-me">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              />
+              자동 로그인
+            </label>
+          )}
           {error && <p className="form-error">{error}</p>}
           <button type="submit" className="btn">
             로그인

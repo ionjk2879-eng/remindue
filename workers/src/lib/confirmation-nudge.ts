@@ -23,9 +23,10 @@
 import { computeDDay, computeDeadline, computePreviousScheduleDeadline } from './purchase-logic';
 import { buildConfirmationNudgeEmailHtml, sendDigestEmail } from './email';
 import { sendPush } from './push';
+import { makeFcmSender } from './fcm';
 import { createActionBatchToken } from './action-tokens';
 import { effectiveNotificationDays } from './notification-prefs';
-import type { Env, PurchaseRow, PushSubscriptionRow } from '../types';
+import type { Env, NativePushTokenRow, PurchaseRow, PushSubscriptionRow } from '../types';
 
 /** 유지 여부는 비용이 발생하기 전날에 먼저 묻고, 미응답이면 당일 한 번만 재알림한다. */
 const RENEWAL_DAY_DDAY = 0;
@@ -67,43 +68,57 @@ export interface ConfirmationNudgeRunResult {
   pushSubscriptionsPruned: number;
 }
 
+type FcmSender = ((token: string, payload: import('./push').PushPayload) => Promise<import('./fcm').FcmSendResult>) | null;
+
 /** 같은 날 확인할 항목을 한 알림으로 묶고, 대시보드에서 유지할 항목을 고르게 한다. */
 async function sendSameDayConfirmPush(
   env: Env,
   userId: number,
-  items: SameDayConfirmItem[]
+  items: SameDayConfirmItem[],
+  fcmSend: FcmSender
 ): Promise<{ pushSent: number; pushSubscriptionsPruned: number }> {
   const { results: subs } = await env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?')
     .bind(userId)
     .all<PushSubscriptionRow>();
-  if (subs.length === 0) return { pushSent: 0, pushSubscriptionsPruned: 0 };
 
   const actionToken = await createActionBatchToken(env.DB, userId, 'RECURRING', items.map((item) => item.id));
   const dashboardUrl = `${env.APP_URL}/dashboard?confirmRecurringBatch=${actionToken}&confirmRecurring=${items.map((item) => item.id).join(',')}`;
   const itemSummary = items.slice(0, 2).map((item) => item.itemName).join(', ');
   const more = items.length > 2 ? ` 외 ${items.length - 2}건` : '';
+  const pushPayload = {
+    title: `🔔 다음 회차 유지 확인 ${items.length}건`,
+    body: `${itemSummary}${more} — 다음 배송·결제를 계속 진행할지 선택해 주세요.`,
+    url: dashboardUrl,
+    notificationKind: 'RENEWAL' as const,
+    actions: [
+      { action: 'recurring_all_maintain', title: '모두 유지' },
+      { action: 'recurring_partial', title: '일부 유지' },
+      { action: 'recurring_all_discontinue', title: '모두 중단' },
+    ],
+    actionToken,
+  };
 
   let pushSent = 0;
   let pushSubscriptionsPruned = 0;
   for (const sub of subs) {
-    const { sent, gone } = await sendPush(env, sub, {
-      title: `🔔 다음 회차 유지 확인 ${items.length}건`,
-      body: `${itemSummary}${more} — 다음 배송·결제를 계속 진행할지 선택해 주세요.`,
-      url: dashboardUrl,
-      notificationKind: 'RENEWAL',
-      actions: [
-        { action: 'recurring_all_maintain', title: '모두 유지' },
-        { action: 'recurring_partial', title: '일부 유지' },
-        { action: 'recurring_all_discontinue', title: '모두 중단' },
-      ],
-      actionToken,
-    });
+    const { sent, gone } = await sendPush(env, sub, pushPayload);
     if (sent) pushSent += 1;
     if (gone) {
       await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(sub.id).run();
       pushSubscriptionsPruned += 1;
     }
   }
+
+  if (fcmSend) {
+    const { results: nativeTokens } = await env.DB.prepare('SELECT * FROM native_push_tokens WHERE user_id = ?')
+      .bind(userId).all<NativePushTokenRow>();
+    for (const row of nativeTokens) {
+      const { sent, gone } = await fcmSend(row.token, pushPayload);
+      if (sent) pushSent += 1;
+      if (gone) await env.DB.prepare('DELETE FROM native_push_tokens WHERE id = ?').bind(row.id).run();
+    }
+  }
+
   return { pushSent, pushSubscriptionsPruned };
 }
 
@@ -121,6 +136,7 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
         AND p.discontinued_at IS NULL`
   ).all<RecurringPurchaseWithUser>();
 
+  const fcmSend = makeFcmSender(env.FIREBASE_SERVICE_ACCOUNT);
   const bucketsByUserId = new Map<number, UserNudgeBucket>();
   const sameDayItemsByUserId = new Map<number, SameDayConfirmItem[]>();
   let emailsSent = 0;
@@ -163,7 +179,7 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
   }
 
   for (const [userId, items] of sameDayItemsByUserId) {
-    const result = await sendSameDayConfirmPush(env, userId, items);
+    const result = await sendSameDayConfirmPush(env, userId, items, fcmSend);
     pushSent += result.pushSent;
     pushSubscriptionsPruned += result.pushSubscriptionsPruned;
   }
@@ -187,17 +203,29 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
       .bind(userId)
       .all<PushSubscriptionRow>();
 
+    const reviewPushPayload = {
+      title: subject,
+      body: pushBody,
+      url: dashboardUrl,
+      notificationKind: 'RENEWAL' as const,
+    };
+
     for (const sub of subs) {
-      const { sent, gone } = await sendPush(env, sub, {
-        title: subject,
-        body: pushBody,
-        url: dashboardUrl,
-        notificationKind: 'RENEWAL',
-      });
+      const { sent, gone } = await sendPush(env, sub, reviewPushPayload);
       if (sent) pushSent += 1;
       if (gone) {
         await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(sub.id).run();
         pushSubscriptionsPruned += 1;
+      }
+    }
+
+    if (fcmSend) {
+      const { results: nativeTokens } = await env.DB.prepare('SELECT * FROM native_push_tokens WHERE user_id = ?')
+        .bind(userId).all<NativePushTokenRow>();
+      for (const row of nativeTokens) {
+        const { sent, gone } = await fcmSend(row.token, reviewPushPayload);
+        if (sent) pushSent += 1;
+        if (gone) await env.DB.prepare('DELETE FROM native_push_tokens WHERE id = ?').bind(row.id).run();
       }
     }
   }
