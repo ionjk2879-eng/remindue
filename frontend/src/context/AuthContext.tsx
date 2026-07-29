@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { fetchBillingStatus } from '../api/billing';
 import { logoutSession } from '../api/auth';
 import { refreshSession, setAccessToken } from '../api/client';
+import { clearNativeRefreshToken } from '../lib/native-auth';
 import type { BillingStatus } from '../types';
 
 let billingFetchedAt = 0;
@@ -81,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await logoutSession();
     } finally {
+      await clearNativeRefreshToken();
       clearAuth();
     }
   };

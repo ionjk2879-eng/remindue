@@ -1,15 +1,19 @@
 import { apiClient, setAccessToken } from './client';
 import type { AuthResponse } from '../types';
+import { isNative } from '../lib/native';
+import { saveNativeRefreshToken } from '../lib/native-auth';
 
 export async function signup(email: string, password: string, nickname: string) {
-  const { data } = await apiClient.post<AuthResponse>('/auth/signup', { email, password, nickname });
+  const { data } = await apiClient.post<AuthResponse>('/auth/signup', { email, password, nickname, native: isNative });
   setAccessToken(data.accessToken);
+  if (isNative && data.refreshToken) await saveNativeRefreshToken(data.refreshToken);
   return data;
 }
 
-export async function login(email: string, password: string) {
-  const { data } = await apiClient.post<AuthResponse>('/auth/login', { email, password });
+export async function login(email: string, password: string, rememberMe = true) {
+  const { data } = await apiClient.post<AuthResponse>('/auth/login', { email, password, rememberMe, native: isNative });
   setAccessToken(data.accessToken);
+  if (isNative && data.refreshToken) await saveNativeRefreshToken(data.refreshToken);
   return data;
 }
 

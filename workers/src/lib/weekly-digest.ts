@@ -10,7 +10,8 @@
 import { computeDDay, computeDeadline } from './purchase-logic';
 import { buildWeeklyDigestEmailHtml, sendDigestEmail, type WeeklyItem } from './email';
 import { sendPush } from './push';
-import type { Env, PurchaseRow, PushSubscriptionRow } from '../types';
+import { makeFcmSender } from './fcm';
+import type { Env, NativePushTokenRow, PurchaseRow, PushSubscriptionRow } from '../types';
 
 const UPCOMING_WINDOW_DAYS = 7;
 
@@ -115,6 +116,8 @@ export async function runWeeklyDigest(env: Env): Promise<WeeklyDigestRunResult> 
   let pushSent = 0;
   let pushSubscriptionsPruned = 0;
 
+  const fcmSend = makeFcmSender(env.FIREBASE_SERVICE_ACCOUNT);
+
   for (const [userId, bucket] of bucketsByUserId) {
     const { email, nickname, emailEnabled, deliveries, subscriptions } = bucket;
     deliveries.sort((a, b) => a.deadline.localeCompare(b.deadline));
@@ -127,22 +130,34 @@ export async function runWeeklyDigest(env: Env): Promise<WeeklyDigestRunResult> 
       if (sent) emailsSent += 1;
     }
 
+    const weeklyPushPayload = {
+      title,
+      body,
+      url: dashboardUrl,
+      notificationKind: 'WEEKLY_SUMMARY' as const,
+      actions: [{ action: 'open_dashboard', title: '전체 보기' }],
+    };
+
     const { results: subs } = await env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?')
       .bind(userId)
       .all<PushSubscriptionRow>();
 
     for (const sub of subs) {
-      const { sent, gone } = await sendPush(env, sub, {
-        title,
-        body,
-        url: dashboardUrl,
-        notificationKind: 'WEEKLY_SUMMARY',
-        actions: [{ action: 'open_dashboard', title: '전체 보기' }],
-      });
+      const { sent, gone } = await sendPush(env, sub, weeklyPushPayload);
       if (sent) pushSent += 1;
       if (gone) {
         await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(sub.id).run();
         pushSubscriptionsPruned += 1;
+      }
+    }
+
+    if (fcmSend) {
+      const { results: nativeTokens } = await env.DB.prepare('SELECT * FROM native_push_tokens WHERE user_id = ?')
+        .bind(userId).all<NativePushTokenRow>();
+      for (const row of nativeTokens) {
+        const { sent, gone } = await fcmSend(row.token, weeklyPushPayload);
+        if (sent) pushSent += 1;
+        if (gone) await env.DB.prepare('DELETE FROM native_push_tokens WHERE id = ?').bind(row.id).run();
       }
     }
   }

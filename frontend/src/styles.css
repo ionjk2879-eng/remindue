@@ -636,6 +636,17 @@ select option {
   color: var(--ink-soft);
 }
 
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  user-select: none;
+  margin-top: -4px;
+}
+
 .field input,
 .field select,
 .field textarea {
@@ -3781,12 +3792,14 @@ button.summary-board__tile:hover {
 
 .invite-form {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 12px 0;
 }
 
 .invite-form input {
-  flex: 1;
+  flex: 1 1 180px;
+  min-width: 0;
   background: var(--paper);
   border: none;
   border-radius: 8px;
@@ -3795,6 +3808,11 @@ button.summary-board__tile:hover {
   font-size: 0.92rem;
   color: var(--ink);
   transition: box-shadow 0.15s ease;
+}
+
+.invite-form button {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .invite-form input::placeholder {
@@ -4806,14 +4824,93 @@ button.summary-board__tile:hover {
   letter-spacing: 0.01em;
 }
 
-/* 네이티브 앱일 때 메인 콘텐츠 하단 패딩 (탭바 높이 + safe area 확보) */
+/* 네이티브 앱일 때 메인 콘텐츠 상하 패딩 (상단 고정 헤더 + 하단 탭바 확보) */
+body.is-native {
+  padding-top: 52px;
+}
+
 body.is-native main,
 body.is-native .main-content,
 body.is-native .page {
   padding-bottom: calc(64px + var(--safe-bottom));
 }
 
-/* 상단 status bar 영역 패딩 */
-body.is-native {
-  padding-top: var(--safe-top);
+
+/* 네이티브 앱 — 결제 유도 안내 화면 */
+.native-pricing-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 32px;
+  gap: 12px;
+}
+
+.native-pricing-info__icon {
+  font-size: 2.5rem;
+  margin-bottom: 8px;
+}
+
+.native-pricing-info h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.native-pricing-info p {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.native-pricing-info__url {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--paper);
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+}
+
+/* 네이티브 앱 상단 헤더 */
+.native-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 52px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--hairline);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+.native-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.native-header__wordmark {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.native-header__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.native-header__menu {
+  position: relative;
 }

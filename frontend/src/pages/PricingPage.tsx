@@ -4,6 +4,7 @@ import { loadTossPayments } from '@tosspayments/tosspayments-sdk';
 import { createCheckout } from '../api/billing';
 import { fetchPurchases } from '../api/purchases';
 import { useAuth } from '../context/AuthContext';
+import { isNative } from '../lib/native';
 import type { BillingPlan } from '../types';
 
 // client.ts의 VITE_API_BASE_URL과 동일한 이유의 폴백 — 순수 `vite`(로컬 개발, --mode 없음)는
@@ -34,9 +35,29 @@ const PLAN_CARDS: PlanCard[] = [
   { key: 'ANNUAL', title: '연 정기결제', price: '19,000원', note: '매년 자동 결제', badge: '2개월 무료 효과' },
 ];
 
+function NativePricingInfo() {
+  return (
+    <div className="native-pricing-info">
+      <div className="native-pricing-info__icon">🌐</div>
+      <h2>구독은 웹에서 하실 수 있어요</h2>
+      <p>
+        앱 스토어 정책상 앱 내 결제를 지원하지 않아요.
+        <br />
+        아래 주소에서 구독하신 후 앱에서 그대로 이용하실 수 있어요.
+      </p>
+      <div className="native-pricing-info__url">remindue.kr/pricing</div>
+      <Link to="/dashboard" className="btn btn-outline btn-sm" style={{ marginTop: 16 }}>
+        돌아가기
+      </Link>
+    </div>
+  );
+}
+
 export default function PricingPage() {
   const { isPremium, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  if (isNative) return <NativePricingInfo />;
   const [purchaseCount, setPurchaseCount] = useState<number | null>(null);
   const [loadingPlan, setLoadingPlan] = useState<BillingPlan | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);

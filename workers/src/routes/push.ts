@@ -6,8 +6,9 @@ import { addDays, todayDateOnly } from '../lib/date';
 import { confirmReceiptToday, isValidArrivalDaysAgo, resolveArrivalDate, InvalidPurchaseOperationError } from '../lib/purchase-logic';
 import { refreshRecurringFxOnConfirmation } from '../lib/recurring-fx';
 import { sendPush } from '../lib/push';
+import { makeFcmSender } from '../lib/fcm';
 import { computeDDay, computeDeadline } from '../lib/purchase-logic';
-import type { Env, PurchaseRow, PushSubscriptionRequestBody, UserRow } from '../types';
+import type { Env, NativePushTokenRow, PurchaseRow, PushSubscriptionRequestBody, UserRow } from '../types';
 import type { PushSubscriptionRow } from '../types';
 
 const push = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
@@ -63,6 +64,32 @@ push.post('/subscribe', async (c) => {
     .bind(user.id, body.endpoint, body.keys.p256dh, body.keys.auth)
     .run();
 
+  return c.body(null, 204);
+});
+
+/** Android FCM 토큰 등록 — 기기당 1행(UPSERT). */
+push.use('/subscribe-native', authMiddleware);
+push.post('/subscribe-native', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const { token } = await c.req.json<{ token?: string }>().catch(() => ({}) as { token?: string });
+  if (!token || typeof token !== 'string') throw new BadRequestError('token은 필수입니다');
+
+  await c.env.DB.prepare(
+    `INSERT INTO native_push_tokens (user_id, token, updated_at)
+     VALUES (?, ?, datetime('now'))
+     ON CONFLICT(user_id, token) DO UPDATE SET updated_at = datetime('now')`
+  ).bind(user.id, token).run();
+
+  return c.body(null, 204);
+});
+
+push.use('/subscribe-native', authMiddleware);
+push.delete('/subscribe-native', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const { token } = await c.req.json<{ token?: string }>().catch(() => ({}) as { token?: string });
+  if (!token) throw new BadRequestError('token은 필수입니다');
+  await c.env.DB.prepare('DELETE FROM native_push_tokens WHERE user_id = ? AND token = ?')
+    .bind(user.id, token).run();
   return c.body(null, 204);
 });
 
@@ -127,21 +154,34 @@ push.post('/test', async (c) => {
     ? [...(deliveries.length ? render('📦 이번 주 도착 예정', deliveries) : []), ...(payments.length ? ['', ...render('💳 이번 주 결제 예정', payments)] : [])].join('\n')
     : '오늘부터 7일 안에 예정된 도착·결제 항목이 없습니다.';
 
+  const message = testKind ? testMessages[testKind] : { title: '🔔 Remindue 예정 항목 테스트', body };
+  const pushPayload = {
+    title: message.title,
+    body: message.body,
+    url: `${c.env.APP_URL}/dashboard`,
+    ...(testKind ? { notificationKind: testKind } : {}),
+    actions: [{ action: 'open_dashboard', title: '대시보드 열기' }],
+  };
+
   let sent = 0;
   let pruned = 0;
   for (const subscription of subscriptions) {
-    const message = testKind ? testMessages[testKind] : { title: '🔔 Remindue 예정 항목 테스트', body };
-    const result = await sendPush(c.env, subscription, {
-      title: message.title,
-      body: message.body,
-      url: `${c.env.APP_URL}/dashboard`,
-      ...(testKind ? { notificationKind: testKind } : {}),
-      actions: [{ action: 'open_dashboard', title: '대시보드 열기' }],
-    });
+    const result = await sendPush(c.env, subscription, pushPayload);
     if (result.sent) sent += 1;
     if (result.gone) {
       await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(subscription.id).run();
       pruned += 1;
+    }
+  }
+
+  const fcmSend = makeFcmSender(c.env.FIREBASE_SERVICE_ACCOUNT);
+  if (fcmSend) {
+    const { results: nativeTokens } = await c.env.DB.prepare('SELECT * FROM native_push_tokens WHERE user_id = ?')
+      .bind(user.id).all<NativePushTokenRow>();
+    for (const row of nativeTokens) {
+      const result = await fcmSend(row.token, pushPayload);
+      if (result.sent) sent += 1;
+      if (result.gone) await c.env.DB.prepare('DELETE FROM native_push_tokens WHERE id = ?').bind(row.id).run();
     }
   }
 

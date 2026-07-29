@@ -301,6 +301,14 @@ export interface PushSubscriptionRow {
   created_at: string;
 }
 
+export interface NativePushTokenRow {
+  id: number;
+  user_id: number;
+  token: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PushSubscriptionRequestBody {
   endpoint: string;
   keys: {
@@ -314,6 +322,8 @@ export interface AuthResponse {
   nickname: string;
   isPremium: boolean;
   hasSeenOnboarding: boolean;
+  /** 네이티브 앱 전용 — 쿠키 없이 preferences에 저장해 세션을 복원하는 데 쓴다. */
+  refreshToken?: string;
 }
 
 export interface PurchaseRequestBody {
@@ -501,4 +511,11 @@ export interface Env {
    * 요일 제한 우회)을 production에서 절대 켜지지 않게 가드하는 용도.
    */
   ENVIRONMENT: string;
+  /**
+   * Firebase 서비스 계정 JSON 문자열 — FCM HTTP v1 API 인증에 사용.
+   * Firebase Console → 프로젝트 설정 → 서비스 계정 → 새 비공개 키 생성.
+   * 로컬은 .dev.vars, 배포본은 `wrangler secret put FIREBASE_SERVICE_ACCOUNT`로 관리.
+   * 없으면 FCM 발송을 건너뛴다(로컬 개발 등).
+   */
+  FIREBASE_SERVICE_ACCOUNT?: string;
 }

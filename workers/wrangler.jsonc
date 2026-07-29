@@ -37,7 +37,7 @@
     // 영구적으로 함께 허용해둔다. dev 프리뷰는 "wrangler versions upload --preview-alias dev"로
     // 배포한다(CLAUDE.md 참고) — Workers Builds의 non-production branch build를 켜지 않아도
     // 항상 이 고정 주소로 접근 가능하다.
-    "CORS_ORIGIN": "https://remindue.kr,https://remindue-frontend.ionjk2879.workers.dev,https://dev-remindue-frontend.ionjk2879.workers.dev",
+    "CORS_ORIGIN": "https://remindue.kr,https://remindue-frontend.ionjk2879.workers.dev,https://dev-remindue-frontend.ionjk2879.workers.dev,https://localhost",
     // 다이제스트 이메일/푸시 링크에 쓰는 단일 대시보드 출처 — CORS_ORIGIN(콤마로 구분된 여러
     // 출처 허용 목록)과는 용도가 다르다. 실서비스 프론트엔드 주소 하나만 가리킨다.
     "APP_URL": "https://remindue.kr",

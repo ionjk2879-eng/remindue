@@ -21,6 +21,7 @@ export async function initNative(): Promise<void> {
     await StatusBar.setStyle({ style: Style.Light });
     if (platform === 'android') {
       await StatusBar.setBackgroundColor({ color: '#F5F5F0' });
+      await StatusBar.setOverlaysWebView({ overlay: false });
     }
   } catch {
     // 일부 기기에서 StatusBar가 없을 수 있음

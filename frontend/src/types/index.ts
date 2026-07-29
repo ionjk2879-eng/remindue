@@ -90,6 +90,8 @@ export interface AuthResponse {
   nickname: string;
   isPremium: boolean;
   hasSeenOnboarding: boolean;
+  /** 네이티브 앱 전용 — preferences에 저장해 쿠키 없이 세션 복원에 쓴다. */
+  refreshToken?: string;
 }
 
 export type PendingPurchaseSource = 'email' | 'image';

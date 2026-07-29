@@ -9,9 +9,10 @@ import { computeDDay, computeDeadlines } from './purchase-logic';
 import { buildDigestEmailHtml, sendDigestEmail } from './email';
 import { buildDigestTitle, buildItemMessage, type DigestItem } from './messages';
 import { sendPush } from './push';
+import { makeFcmSender } from './fcm';
 import { effectiveNotificationDays } from './notification-prefs';
 import { createActionToken } from './action-tokens';
-import type { Env, PurchaseRow, PushSubscriptionRow } from '../types';
+import type { Env, NativePushTokenRow, PurchaseRow, PushSubscriptionRow } from '../types';
 
 const PUSH_BODY_MAX_LENGTH = 120;
 
@@ -88,6 +89,8 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
   let pushSent = 0;
   let pushSubscriptionsPruned = 0;
 
+  const fcmSend = makeFcmSender(env.FIREBASE_SERVICE_ACCOUNT);
+
   for (const [userId, { email, nickname, emailEnabled, items, purchaseIds }] of itemsByUserId) {
     // 급한 순서(0 → 1 → 3 → 7)로 정렬 — 다이제스트 상단과 제목 모두 이 순서를 기준으로 삼는다.
     items.sort((a, b) => a.dDay - b.dDay);
@@ -117,6 +120,23 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
       if (gone) {
         await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(sub.id).run();
         pushSubscriptionsPruned += 1;
+      }
+    }
+
+    // 네이티브 앱(Android FCM) 발송
+    if (fcmSend) {
+      const { results: nativeTokens } = await env.DB.prepare('SELECT * FROM native_push_tokens WHERE user_id = ?')
+        .bind(userId).all<NativePushTokenRow>();
+      const pushPayload = {
+        title: subject,
+        body: buildPushBody(items),
+        url: dashboardUrl,
+        notificationKind: 'DEADLINE' as const,
+      };
+      for (const row of nativeTokens) {
+        const { sent, gone } = await fcmSend(row.token, pushPayload);
+        if (sent) pushSent += 1;
+        if (gone) await env.DB.prepare('DELETE FROM native_push_tokens WHERE id = ?').bind(row.id).run();
       }
     }
   }
