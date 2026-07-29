@@ -6,6 +6,8 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { App } from '@capacitor/app';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { LiveUpdate } from '@capawesome/capacitor-live-update';
+import { apiOrigin } from '../api/client';
 
 export const isNative = Capacitor.isNativePlatform();
 export const platform = Capacitor.getPlatform(); // 'ios' | 'android' | 'web'
@@ -83,5 +85,53 @@ export async function registerNativePush(): Promise<string | null> {
     });
   } catch {
     return null;
+  }
+}
+
+/**
+ * 앱 시작 시 최대한 일찍 호출해야 한다 — capacitor.config.ts의 readyTimeout(10초) 안에 이 호출이
+ * 도달하지 못하면 플러그인이 "이번 번들이 문제 있다"고 판단해 자동으로 이전 번들로 롤백한다.
+ * 인증 확인 등 비동기 작업을 기다리지 말고 무조건 바로 호출한다.
+ */
+export async function markLiveUpdateReady(): Promise<void> {
+  if (!isNative) return;
+  try {
+    await LiveUpdate.ready();
+  } catch {
+    // 일부 기기/시점에 플러그인이 아직 준비 안 됐을 수 있음 — 다음 시작 때 다시 시도된다.
+  }
+}
+
+interface OtaManifest {
+  bundleId: string | null;
+  checksum?: string;
+}
+
+/**
+ * 자체 호스팅 매니페스트(workers/src/routes/app-update.ts)를 확인해 새 번들이 있으면 내려받아
+ * "다음 번들"로 예약해둔다. 지금 화면을 강제로 새로고침하지 않고 다음 자연스러운 재시작(콜드
+ * 스타트) 때 적용되게 둔다 — 사용 중에 화면이 갑자기 리로드되는 걸 피하기 위해서다. 네이티브
+ * 코드/플러그인이 바뀐 변경은 이 경로로 못 나간다(binary-compatible한 JS/CSS/HTML만 가능) —
+ * 그런 변경은 여전히 APK를 다시 빌드/배포해야 한다.
+ */
+export async function checkForLiveUpdate(): Promise<void> {
+  if (!isNative) return;
+  try {
+    const res = await fetch(`${apiOrigin}/app-update/manifest`);
+    if (!res.ok) return;
+    const manifest: OtaManifest = await res.json();
+    if (!manifest.bundleId) return;
+
+    const [current, next] = await Promise.all([LiveUpdate.getCurrentBundle(), LiveUpdate.getNextBundle()]);
+    if (current.bundleId === manifest.bundleId || next.bundleId === manifest.bundleId) return;
+
+    await LiveUpdate.downloadBundle({
+      bundleId: manifest.bundleId,
+      url: `${apiOrigin}/app-update/bundle/${manifest.bundleId}`,
+      checksum: manifest.checksum,
+    });
+    await LiveUpdate.setNextBundle({ bundleId: manifest.bundleId });
+  } catch (err) {
+    console.error('[live-update] 확인/다운로드 실패', err);
   }
 }

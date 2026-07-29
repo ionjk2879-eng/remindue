@@ -11,6 +11,7 @@ import sharingRoutes from './routes/sharing';
 import feedbackRoutes from './routes/feedback';
 import devRoutes from './routes/dev';
 import aiSummaryRoutes from './routes/ai-summary';
+import appUpdateRoutes from './routes/app-update';
 import { HttpError } from './lib/errors';
 import { runDailyDigest } from './lib/digest';
 import { runWeeklyDigest } from './lib/weekly-digest';
@@ -18,6 +19,7 @@ import { runConfirmationNudge } from './lib/confirmation-nudge';
 import { rollOverUnansweredArrivals, runArrivalConfirm } from './lib/arrival-confirm';
 import { runBillingRenewals, runPremiumExpirySweep } from './lib/billing-renewal';
 import { handleIncomingEmail } from './lib/email-intake';
+import { notifyCronFailure } from './lib/cron-alert';
 import type { Env } from './types';
 import { logger } from './lib/logger';
 
@@ -84,6 +86,7 @@ app.route('/api/sharing', sharingRoutes);
 app.route('/api/feedback', feedbackRoutes);
 app.route('/api/dev', devRoutes);
 app.route('/api/ai', aiSummaryRoutes);
+app.route('/api/app-update', appUpdateRoutes);
 
 // GlobalExceptionHandler.java와 동일한 매핑: {message}, 상태코드는 에러 종류에 따라 결정
 //
@@ -129,12 +132,12 @@ export default {
               AND discontinued_at IS NULL`
         ).run().then((result) => {
           console.log(`[recurring-stop-after-current] ended ${result.meta.changes ?? 0}`);
-        })
+        }).catch((err) => notifyCronFailure(env, 'recurring-stop-after-current', err))
       );
       ctx.waitUntil(
         rollOverUnansweredArrivals(env).then((count) => {
           console.log(`[arrival-confirm-rollover] 무응답 항목 ${count}건을 다음 날 재확인 대상으로 전환`);
-        })
+        }).catch((err) => notifyCronFailure(env, 'arrival-confirm-rollover', err))
       );
       return;
     }
@@ -144,12 +147,16 @@ export default {
           console.log(
             `[arrival-confirm] 완료 — 대상 항목 ${result.itemsAsked}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
           );
-        })
+        }).catch((err) => notifyCronFailure(env, 'arrival-confirm', err))
       );
       return;
     }
+    // "확인이 필요한 항목" 알림은 매일 확인해야 한다(요일 무관) — dDay===3(예고)/dDay===-1(완료
+    // 확인) 조건이 요일과 무관하게 아무 날에나 걸릴 수 있어서, 주 1회만 체크하면 그 요일에 안
+    // 걸리는 구독은 영영 못 잡는다. "일주일 기준"이라는 요구사항은 크론 주기가 아니라 구독
+    // 하나당 결제 주기가 보통 한 달 이상이라 자연히 자주 오지 않는다는 뜻으로 구현했다.
     if (scheduledUtcHour === 1) {
-      ctx.waitUntil(runConfirmationNudge(env));
+      ctx.waitUntil(runConfirmationNudge(env).catch((err) => notifyCronFailure(env, 'confirmation-nudge', err)));
       return;
     }
     if (scheduledUtcHour !== 23 || scheduledUtcMinute !== 30) return;
@@ -159,19 +166,7 @@ export default {
         console.log(
           `[daily-digest] 완료 — 대상 사용자 ${result.usersNotified}명, 이메일 ${result.emailsSent}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
         );
-      })
-    );
-
-    // "확인이 필요한 항목" 알림도 매일 확인한다(요일 무관) — dDay===3(예고)/dDay===-1(완료 확인)
-    // 조건이 요일과 무관하게 아무 날에나 걸릴 수 있어서, 주 1회만 체크하면 그 요일에 안 걸리는
-    // 구독은 영영 못 잡는다. "일주일 기준"이라는 요구사항은 크론 주기가 아니라 구독 하나당
-    // 결제 주기가 보통 한 달 이상이라 자연히 자주 오지 않는다는 뜻으로 구현했다.
-    ctx.waitUntil(
-      Promise.resolve({ usersNotified: 0, emailsSent: 0, pushSent: 0, pushSubscriptionsPruned: 0 }).then((result) => {
-        console.log(
-          `[confirmation-nudge] 완료 — 대상 사용자 ${result.usersNotified}명, 이메일 ${result.emailsSent}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
-        );
-      })
+      }).catch((err) => notifyCronFailure(env, 'daily-digest', err))
     );
 
     // 크론은 매일 UTC 0시(KST 9시)에 도는데, 그 시각엔 UTC 날짜가 아직 안 넘어가 있어서
@@ -186,23 +181,30 @@ export default {
           console.log(
             `[weekly-digest] 완료 — 대상 사용자 ${result.usersNotified}명, 이메일 ${result.emailsSent}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
           );
-        })
+        }).catch((err) => notifyCronFailure(env, 'weekly-digest', err))
       );
     }
 
     // 정기결제 자동 갱신은 매일 확인한다(요일 무관 — 만료가 임박한 구독마다 날짜가 다르므로).
     // 갱신을 먼저 끝낸 뒤에 만료 스윕을 돌려야, 방금 갱신된 사용자가 스윕에 잘못 걸리지 않는다.
+    // 갱신이 실패해도(.catch) 스윕은 별개 작업이니 .finally로 그대로 이어서 돌린다 — 안 그러면
+    // 갱신 크론에서 예상 못 한 에러가 나는 날엔 무관한 사용자의 만료 스윕까지 통째로 안 도는
+    // 문제가 생긴다.
     ctx.waitUntil(
       runBillingRenewals(env)
         .then((result) => {
           console.log(
             `[billing-renewal] 완료 — 시도 ${result.attempted}건, 갱신 ${result.renewed}건, 실패 ${result.failed}건, 다운그레이드 ${result.downgraded}건`
           );
-          return runPremiumExpirySweep(env);
         })
-        .then((result) => {
-          console.log(`[premium-expiry-sweep] 완료 — 만료 처리 ${result.demoted}명`);
-        })
+        .catch((err) => notifyCronFailure(env, 'billing-renewal', err))
+        .finally(() =>
+          runPremiumExpirySweep(env)
+            .then((result) => {
+              console.log(`[premium-expiry-sweep] 완료 — 만료 처리 ${result.demoted}명`);
+            })
+            .catch((err) => notifyCronFailure(env, 'premium-expiry-sweep', err))
+        )
     );
   },
   // Cloudflare Email Routing 라우팅 규칙(액션: "Send to a Worker")이 이 Worker로 넘겨주는 메일.
