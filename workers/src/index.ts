@@ -149,6 +149,10 @@ export default {
       );
       return;
     }
+    // "확인이 필요한 항목" 알림은 매일 확인해야 한다(요일 무관) — dDay===3(예고)/dDay===-1(완료
+    // 확인) 조건이 요일과 무관하게 아무 날에나 걸릴 수 있어서, 주 1회만 체크하면 그 요일에 안
+    // 걸리는 구독은 영영 못 잡는다. "일주일 기준"이라는 요구사항은 크론 주기가 아니라 구독
+    // 하나당 결제 주기가 보통 한 달 이상이라 자연히 자주 오지 않는다는 뜻으로 구현했다.
     if (scheduledUtcHour === 1) {
       ctx.waitUntil(runConfirmationNudge(env).catch((err) => notifyCronFailure(env, 'confirmation-nudge', err)));
       return;
@@ -161,18 +165,6 @@ export default {
           `[daily-digest] 완료 — 대상 사용자 ${result.usersNotified}명, 이메일 ${result.emailsSent}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
         );
       }).catch((err) => notifyCronFailure(env, 'daily-digest', err))
-    );
-
-    // "확인이 필요한 항목" 알림도 매일 확인한다(요일 무관) — dDay===3(예고)/dDay===-1(완료 확인)
-    // 조건이 요일과 무관하게 아무 날에나 걸릴 수 있어서, 주 1회만 체크하면 그 요일에 안 걸리는
-    // 구독은 영영 못 잡는다. "일주일 기준"이라는 요구사항은 크론 주기가 아니라 구독 하나당
-    // 결제 주기가 보통 한 달 이상이라 자연히 자주 오지 않는다는 뜻으로 구현했다.
-    ctx.waitUntil(
-      Promise.resolve({ usersNotified: 0, emailsSent: 0, pushSent: 0, pushSubscriptionsPruned: 0 }).then((result) => {
-        console.log(
-          `[confirmation-nudge] 완료 — 대상 사용자 ${result.usersNotified}명, 이메일 ${result.emailsSent}건, 푸시 ${result.pushSent}건, 만료 구독 정리 ${result.pushSubscriptionsPruned}건`
-        );
-      }).catch((err) => notifyCronFailure(env, 'confirmation-nudge-digest-block', err))
     );
 
     // 크론은 매일 UTC 0시(KST 9시)에 도는데, 그 시각엔 UTC 날짜가 아직 안 넘어가 있어서
