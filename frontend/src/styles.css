@@ -1612,9 +1612,37 @@ button.summary-board__tile:hover {
 }
 
 .landing__carousel-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* 클릭으로 재생/일시정지를 토글할 때만 잠깐 나타났다 사라지는 큰 아이콘 — 평소엔 아예
+   존재하지 않는다(호버로는 나타나지 않음). 유튜브 등 영상 플레이어의 클릭 피드백과 같은 패턴. */
+.landing__carousel-flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--shadow-rgb), 0.55);
+  color: #fff;
+  pointer-events: none;
+  z-index: 5;
+  animation: landing-carousel-flash 0.7s ease forwards;
+}
+
+@keyframes landing-carousel-flash {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.75); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  65% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .landing__carousel-arrow {
@@ -1742,23 +1770,9 @@ button.summary-board__tile:hover {
 
 .landing__carousel-dots {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 8px;
   margin-top: 20px;
-}
-
-.landing__carousel-dots-group {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  gap: 8px;
-}
-
-.landing__carousel-dots-spacer {
-  flex: 0 0 auto;
-  width: 22px;
 }
 
 .landing__carousel-dot {
@@ -1776,26 +1790,6 @@ button.summary-board__tile:hover {
   background: var(--ink);
   width: 22px;
   border-radius: 4px;
-}
-
-.landing__carousel-playpause {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border-radius: 50%;
-  border: 1px solid var(--hairline);
-  background: var(--paper-card);
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-
-.landing__carousel-playpause:hover {
-  color: var(--ink);
-  border-color: var(--hairline-strong);
 }
 
 .landing__dashboard-peek {

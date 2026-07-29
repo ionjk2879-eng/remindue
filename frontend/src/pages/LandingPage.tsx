@@ -86,10 +86,25 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
   const draggingRef = useRef<{ startX: number; startScrollLeft: number; startPos: number } | null>(null);
   const autoplayTimerRef = useRef<number | undefined>(undefined);
   const settleTimerRef = useRef<number | undefined>(undefined);
-  // 마우스가 캐러셀 위를 지나가며 걸리는 일시정지(hover)와, 재생/일시정지 버튼을 눌러
-  // 명시적으로 멈춘 상태를 구분한다 — 그래야 명시적으로 멈춘 뒤 마우스가 빠져나가도
-  // 제멋대로 다시 재생되지 않는다.
+  // 마우스가 캐러셀 위를 지나가며 걸리는 일시정지(hover)와, 클릭으로 명시적으로 멈춘 상태를
+  // 구분한다 — 그래야 명시적으로 멈춘 뒤 마우스가 빠져나가도 제멋대로 다시 재생되지 않는다.
   const manualPauseRef = useRef(false);
+  // 드래그(슬라이드 이동)와 단순 클릭(재생/일시정지 토글)을 구분하기 위한 플래그.
+  const wasDragRef = useRef(false);
+  // 클릭 시작(pointerdown) 시점에 pauseAutoplay가 먼저 걸려버리므로, 그 전 상태를 따로
+  // 기억해뒀다가 클릭 핸들러에서 "눌렀을 때 재생 중이었는지"로 토글 방향을 판단한다.
+  const wasPlayingBeforePressRef = useRef(true);
+  // 클릭할 때만 잠깐 나타났다 사라지는 큰 재생/일시정지 아이콘 — 평소엔 아무것도 안 보인다.
+  const [flash, setFlash] = useState<{ id: number; playing: boolean } | null>(null);
+  const flashTimerRef = useRef<number | undefined>(undefined);
+  const flashIdRef = useRef(0);
+
+  const showFlash = (playing: boolean) => {
+    flashIdRef.current += 1;
+    setFlash({ id: flashIdRef.current, playing });
+    window.clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = window.setTimeout(() => setFlash(null), 700);
+  };
 
   // 슬라이드마다 콘텐츠 높이(이미지 비율 등)가 달라서 현재 슬라이드에만 맞춰 높이를
   // 바꾸면 클릭할 때마다 박스는 물론 페이지 전체 길이까지 따라 바뀐다. 대신 전체 슬라이드
@@ -130,12 +145,21 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
     if (!manualPauseRef.current) restartAutoplay();
   };
 
-  const togglePlay = () => {
-    if (isPlaying) {
+  // 트랙을 드래그해서 슬라이드를 넘긴 경우(endDrag가 이미 재생을 재개시킴)엔 뒤이어 발생하는
+  // 클릭 이벤트에서 토글하지 않는다 — 순수 클릭(이동 없음)일 때만, pointerdown 이전 상태를
+  // 기준으로 재생/일시정지를 토글하고 큰 아이콘을 잠깐 보여준다.
+  const handleTrackClick = () => {
+    if (wasDragRef.current) {
+      wasDragRef.current = false;
+      return;
+    }
+    if (wasPlayingBeforePressRef.current) {
       manualPauseRef.current = true;
       pauseAutoplay();
+      showFlash(false);
     } else {
       restartAutoplay();
+      showFlash(true);
     }
   };
 
@@ -175,6 +199,8 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
   };
 
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    wasDragRef.current = false;
+    wasPlayingBeforePressRef.current = isPlaying;
     pauseAutoplay();
     if (e.pointerType !== 'mouse') return; // 터치/트랙패드는 네이티브 스크롤+스냅에 맡긴다
     const track = trackRef.current;
@@ -189,6 +215,7 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
     const drag = draggingRef.current;
     const track = trackRef.current;
     if (!drag || !track) return;
+    if (Math.abs(e.clientX - drag.startX) > 5) wasDragRef.current = true;
     // scrollLeft 직접 대입이나 behavior:'auto'는 CSS scroll-behavior:smooth를 그대로
     // 따라가버려서 커서를 못 따라가고 애니메이션으로 지연된다. 'instant'만 CSS를
     // 무시하고 즉시 반영된다.
@@ -202,6 +229,7 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
     draggingRef.current = null;
     track.style.scrollSnapType = '';
     track.style.cursor = '';
+    if (!wasDragRef.current) return; // 이동 없는 순수 클릭 — 재생 여부는 클릭 핸들러가 정한다
     // 아무리 멀리(빠르게) 드래그해도 시작 위치 기준 한 슬라이드까지만 이동한다.
     const nearest = Math.round(track.scrollLeft / track.clientWidth);
     const clamped = Math.max(startPos - 1, Math.min(startPos + 1, nearest));
@@ -264,6 +292,10 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
           onPointerMove={handlePointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
+          onClick={handleTrackClick}
+          role="button"
+          tabIndex={-1}
+          aria-label={isPlaying ? '자동 재생 멈추기' : '자동 재생 시작'}
         >
           {extended.map((step, i) => {
             const realIndex = ((i - 1) % total + total) % total;
@@ -287,38 +319,31 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
         >
           ›
         </button>
+        {flash && (
+          <div key={flash.id} className="landing__carousel-flash" aria-hidden="true">
+            {flash.playing ? (
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 4.5v15l14-7.5-14-7.5z" />
+              </svg>
+            ) : (
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="5" y="4" width="5" height="16" rx="1" />
+                <rect x="14" y="4" width="5" height="16" rx="1" />
+              </svg>
+            )}
+          </div>
+        )}
       </div>
       <div className="landing__carousel-dots">
-        <span className="landing__carousel-dots-spacer" aria-hidden="true" />
-        <div className="landing__carousel-dots-group">
-          {steps.map((step, i) => (
-            <button
-              type="button"
-              key={step.title}
-              className={`landing__carousel-dot${i === active ? ' landing__carousel-dot--active' : ''}`}
-              onClick={() => goToRealIndex(i)}
-              aria-label={`${i + 1}단계로 이동`}
-            />
-          ))}
-        </div>
-        <button
-          type="button"
-          className="landing__carousel-playpause"
-          onClick={togglePlay}
-          aria-label={isPlaying ? '자동 재생 멈추기' : '자동 재생 시작'}
-          aria-pressed={!isPlaying}
-        >
-          {isPlaying ? (
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <rect x="5" y="4" width="5" height="16" rx="1" />
-              <rect x="14" y="4" width="5" height="16" rx="1" />
-            </svg>
-          ) : (
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M6 4.5v15l14-7.5-14-7.5z" />
-            </svg>
-          )}
-        </button>
+        {steps.map((step, i) => (
+          <button
+            type="button"
+            key={step.title}
+            className={`landing__carousel-dot${i === active ? ' landing__carousel-dot--active' : ''}`}
+            onClick={() => goToRealIndex(i)}
+            aria-label={`${i + 1}단계로 이동`}
+          />
+        ))}
       </div>
     </div>
   );
