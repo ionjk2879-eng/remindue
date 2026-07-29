@@ -81,10 +81,15 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
 
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
   const posRef = useRef(1);
   const draggingRef = useRef<{ startX: number; startScrollLeft: number } | null>(null);
   const autoplayTimerRef = useRef<number | undefined>(undefined);
   const settleTimerRef = useRef<number | undefined>(undefined);
+  // 마우스가 캐러셀 위를 지나가며 걸리는 일시정지(hover)와, 재생/일시정지 버튼을 눌러
+  // 명시적으로 멈춘 상태를 구분한다 — 그래야 명시적으로 멈춘 뒤 마우스가 빠져나가도
+  // 제멋대로 다시 재생되지 않는다.
+  const manualPauseRef = useRef(false);
 
   // 슬라이드마다 콘텐츠 높이(이미지 비율 등)가 달라서 현재 슬라이드에만 맞춰 높이를
   // 바꾸면 클릭할 때마다 박스는 물론 페이지 전체 길이까지 따라 바뀐다. 대신 전체 슬라이드
@@ -108,13 +113,31 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
   };
 
   const restartAutoplay = () => {
+    manualPauseRef.current = false;
     window.clearInterval(autoplayTimerRef.current);
     autoplayTimerRef.current = window.setInterval(() => {
       applyPos(posRef.current + 1, true);
     }, AUTOPLAY_INTERVAL_MS);
+    setIsPlaying(true);
   };
 
-  const pauseAutoplay = () => window.clearInterval(autoplayTimerRef.current);
+  const pauseAutoplay = () => {
+    window.clearInterval(autoplayTimerRef.current);
+    setIsPlaying(false);
+  };
+
+  const handleMouseLeave = () => {
+    if (!manualPauseRef.current) restartAutoplay();
+  };
+
+  const togglePlay = () => {
+    if (isPlaying) {
+      manualPauseRef.current = true;
+      pauseAutoplay();
+    } else {
+      restartAutoplay();
+    }
+  };
 
   const goToRealIndex = (index: number) => {
     applyPos(index + 1, true);
@@ -220,7 +243,7 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
   }, []);
 
   return (
-    <div className="landing__carousel" onMouseEnter={pauseAutoplay} onMouseLeave={restartAutoplay}>
+    <div className="landing__carousel" onMouseEnter={pauseAutoplay} onMouseLeave={handleMouseLeave}>
       <div className="landing__carousel-row">
         <button
           type="button"
@@ -272,6 +295,24 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
             aria-label={`${i + 1}단계로 이동`}
           />
         ))}
+        <button
+          type="button"
+          className="landing__carousel-playpause"
+          onClick={togglePlay}
+          aria-label={isPlaying ? '자동 재생 멈추기' : '자동 재생 시작'}
+          aria-pressed={!isPlaying}
+        >
+          {isPlaying ? (
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="5" y="4" width="5" height="16" rx="1" />
+              <rect x="14" y="4" width="5" height="16" rx="1" />
+            </svg>
+          ) : (
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M6 4.5v15l14-7.5-14-7.5z" />
+            </svg>
+          )}
+        </button>
       </div>
     </div>
   );

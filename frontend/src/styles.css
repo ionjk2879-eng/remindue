@@ -1763,6 +1763,26 @@ button.summary-board__tile:hover {
   border-radius: 4px;
 }
 
+.landing__carousel-playpause {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 8px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--hairline);
+  background: var(--paper-card);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.landing__carousel-playpause:hover {
+  color: var(--ink);
+  border-color: var(--hairline-strong);
+}
+
 .landing__dashboard-peek {
   max-width: 800px;
   margin: 100px auto 0;
