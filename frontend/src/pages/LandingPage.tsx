@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as Reac
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Logo from '../components/Logo';
+import InstallAppBanner from '../components/InstallAppBanner';
 
 type Step = {
   title: string;
@@ -275,6 +276,7 @@ export default function LandingPage() {
 
   return (
     <div className="landing">
+      <InstallAppBanner />
       <div className="landing__hero">
         <Logo size={64} className="landing__stamp" />
         <span className="landing__badge">D-DAY TRACKER</span>
