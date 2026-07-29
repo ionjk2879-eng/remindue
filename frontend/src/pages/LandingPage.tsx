@@ -484,6 +484,59 @@ export default function LandingPage() {
         </p>
       </div>
 
+      <div className="landing__features">
+        <h2 className="landing__section-title">이런 것도 챙겨드려요</h2>
+        <p className="landing__section-desc">
+          등록만 해두면 세세한 부분까지 알아서 챙겨드려요.
+        </p>
+        <div className="landing__features-grid">
+          <div className="landing__feature-card">
+            <img
+              src="/landing-feature-notifications.png"
+              alt="알림 테스트 화면 예시 — 기한 예정 알림, 정기배송·구독 유지 확인 테스트, 배송 수령 확인 테스트, 주간 요약 테스트 버튼"
+              className="landing__feature-img"
+              width={578}
+              height={114}
+            />
+            <h3>상황에 맞는 알림</h3>
+            <p>기한 임박, 정기배송·구독 유지 확인, 수령 확인, 주간 요약까지 — 필요한 순간에 필요한 알림만 보내드려요.</p>
+          </div>
+          <div className="landing__feature-card">
+            <img
+              src="/landing-feature-renewal-check.png"
+              alt="정기배송·구독 유지 확인 설정 화면 예시 — D-1일, 당일, 미응답 시 D+7 절약 검토 옵션"
+              className="landing__feature-img"
+              width={578}
+              height={229}
+            />
+            <h3>정기배송·구독 유지 확인</h3>
+            <p>다음 배송·결제 전에 "계속 유지할까요?"라고 물어봐요. 응답이 없으면 며칠 뒤 절약 검토 대상으로 한 번 더 알려드려요.</p>
+          </div>
+          <div className="landing__feature-card">
+            <img
+              src="/landing-feature-ai-manager.png"
+              alt="AI 소비 매니저 브리핑 화면 예시 — 소비 건강도 점수, 이번 달 예상 지출, 구독 수, 전월 대비 증감률, 최다 지출 카테고리와 AI 분석 코멘트"
+              className="landing__feature-img"
+              width={718}
+              height={497}
+            />
+            <h3>AI 소비 매니저</h3>
+            <p>등록해둔 항목을 바탕으로 이번 달 소비 건강도, 지출 변화, 절약 포인트를 AI가 한 번에 정리해드려요.</p>
+          </div>
+          <div className="landing__feature-card">
+            <img
+              src="/landing-feature-sharing.png"
+              alt="구성원 공유 초대 화면 예시 — 이메일로 초대하면 초대받은 사람이 목록을 읽기 전용으로 볼 수 있음"
+              className="landing__feature-img"
+              width={578}
+              height={128}
+            />
+            <h3>가족·구성원과 공유</h3>
+            <p>이메일 하나로 초대하면 끝. 초대받은 사람은 내 목록을 읽기 전용으로 바로 확인할 수 있어요.</p>
+          </div>
+        </div>
+      </div>
+
       <div className="landing__final-cta">
         <Link to="/signup" className="btn landing__cta">
           무료로 시작하기
