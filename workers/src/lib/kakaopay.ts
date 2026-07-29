@@ -4,6 +4,14 @@
 
 const KAKAOPAY_API_BASE = 'https://open-api.kakaopay.com/online/v1/payment';
 
+/**
+ * 카카오페이가 가맹점 심사 전에 공개로 제공하는 테스트 전용 CID(단건/정기). 실 심사 통과 후
+ * wrangler.jsonc의 KAKAOPAY_CID/KAKAOPAY_SUBSCRIPTION_CID를 실 가맹점 코드로 바꾸고 나면 이
+ * 값과 더 이상 일치하지 않아야 한다 — routes/billing-kakao.ts가 프로덕션에서 이 값과 여전히
+ * 같으면 경고 로그를 남겨서, CID 교체를 잊은 채로 계속 운영되는 걸 눈치채게 한다.
+ */
+export const KAKAOPAY_PUBLIC_TEST_CIDS: ReadonlySet<string> = new Set(['TC0ONETIME', 'TCSUBSCRIP']);
+
 export class KakaoPayApiError extends Error {
   constructor(
     message: string,

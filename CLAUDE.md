@@ -236,6 +236,44 @@ restart (kill + `npm run dev` again) rather than trusting the file-watcher
 hot-reload — hot-reload picks up source changes but has been observed to
 serve a stale `vars`/`.dev.vars` snapshot until the process restarts.
 
+## Billing (KakaoPay)
+
+A second payment provider alongside Toss, in `routes/billing-kakao.ts` +
+`lib/kakaopay.ts`. Mounted at `/api/kakao-billing`, **not** `/api/billing` —
+`billing.ts` applies `authMiddleware` to the whole `/api/billing/*` prefix,
+and mounting there once caused the unauthenticated `/success` redirect
+callback to hit a bare 401 instead of redirecting (real bug, already fixed —
+don't remount it there). Auth uses KakaoPay's newer `Authorization: SECRET_KEY
+{key}` header (the older `KakaoAK {admin_key}` scheme is deprecated).
+
+- **One-time flow**: `POST /kakao-billing/checkout` → `/ready` → redirect →
+  `/kakao-billing/success` → `/approve`, mirroring the Toss one-time flow.
+- **Subscription flow**: `POST /kakao-billing/subscribe` → `/ready` →
+  redirect → `/kakao-billing/subscribe-success` → `/approve` (returns a
+  `sid`, stored as `subscriptions.kakao_sid`) → `lib/billing-renewal.ts`
+  charges it every cycle via `/subscription`, same cron as Toss.
+- **`KAKAO_CHARGE_ITEM_NAME`** (`lib/billing-plans.ts`) — the `/subscription`
+  charge endpoint rejects Korean text in `item_name` (`invalid param` — found
+  by direct testing, not documented anywhere). `/ready`/`/approve` accept
+  Korean fine and keep using `PLAN_CONFIG.orderName`; only the recurring
+  charge call uses this ASCII-only map.
+- **⚠️ Still on the public test CIDs** (`TC0ONETIME` / `TCSUBSCRIP` in
+  `wrangler.jsonc`) **pending merchant review approval** — every KakaoPay
+  checkout in production today, including from real users, goes through a
+  real-looking flow that doesn't actually charge anything. The pay button is
+  labeled "카카오페이로 결제 (테스트)" so this is visible to users, and
+  `routes/billing-kakao.ts` logs a `kakaopay.test_cid_in_production` warning
+  on every attempt so it can't go unnoticed in the Workers Logs either — but
+  neither of those replaces actually finishing this checklist once approval
+  comes through:
+  1. `wrangler.jsonc`'s `KAKAOPAY_CID`/`KAKAOPAY_SUBSCRIPTION_CID` → the real
+     merchant codes from the approved application.
+  2. `PricingPage.tsx` — remove the "(테스트)" suffix from the button label.
+  3. Re-verify one real (small-amount) checkout end-to-end on the `dev`
+     preview before touching `main`.
+  4. Confirm the `kakaopay.test_cid_in_production` warning stops appearing
+     in production logs after deploying.
+
 ## Notification preferences (`users.notification_days`)
 
 Free plan is hard-locked to `7,3,1,0` regardless of what's stored in the

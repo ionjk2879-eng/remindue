@@ -16,12 +16,20 @@
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { BadRequestError } from '../lib/errors';
-import { approvePayment, readyPayment, KakaoPayApiError } from '../lib/kakaopay';
+import { approvePayment, readyPayment, KakaoPayApiError, KAKAOPAY_PUBLIC_TEST_CIDS } from '../lib/kakaopay';
 import { PLAN_CONFIG } from '../lib/billing-plans';
 import { extendPremium } from './billing';
+import { logger } from '../lib/logger';
 import type { BillingPlan, Env, PaymentRow, UserRow } from '../types';
 
 const billingKakao = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
+
+/** 심사 통과 후 CID를 실 가맹점 코드로 바꾸는 걸 잊었는지 프로덕션에서 계속 확인한다. */
+function warnIfTestCidInProduction(env: Env, route: string, cid: string): void {
+  if (env.ENVIRONMENT === 'production' && KAKAOPAY_PUBLIC_TEST_CIDS.has(cid)) {
+    logger.warn('kakaopay.test_cid_in_production', { route, cid });
+  }
+}
 
 async function getUserByEmail(db: D1Database, email: string): Promise<UserRow> {
   const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>();
@@ -35,6 +43,7 @@ billingKakao.post('/checkout', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   const config = PLAN_CONFIG.ONE_TIME; // 공개 테스트 CID(TC0ONETIME)는 단건결제 전용이라 우선 1회성만 지원한다.
   const orderId = crypto.randomUUID();
+  warnIfTestCidInProduction(c.env, 'checkout', c.env.KAKAOPAY_CID);
 
   await c.env.DB.prepare(
     `INSERT INTO payments (user_id, order_id, plan, amount, status, pg_provider) VALUES (?, ?, 'ONE_TIME', ?, 'PENDING', 'KAKAOPAY')`
@@ -155,6 +164,7 @@ billingKakao.post('/subscribe', async (c) => {
   const plan = requireSubscriptionPlan(body.plan);
   const config = PLAN_CONFIG[plan];
   const orderId = crypto.randomUUID();
+  warnIfTestCidInProduction(c.env, 'subscribe', c.env.KAKAOPAY_SUBSCRIPTION_CID);
 
   await c.env.DB.prepare(
     `INSERT INTO payments (user_id, order_id, plan, amount, status, pg_provider) VALUES (?, ?, ?, ?, 'PENDING', 'KAKAOPAY')`
