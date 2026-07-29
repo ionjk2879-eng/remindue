@@ -50,7 +50,7 @@ async function ensureCustomerKey(db: D1Database, user: UserRow): Promise<string>
  * 구매) 그 시점부터, 아니면(만료됐거나 처음 결제) 지금부터 새 기간만큼 더한다. 즉 뒤에 산
  * 플랜이 앞선 플랜의 남은 기간을 덮어쓰지 않고 쌓인다.
  */
-async function extendPremium(db: D1Database, userId: number, periodModifier: string): Promise<string> {
+export async function extendPremium(db: D1Database, userId: number, periodModifier: string): Promise<string> {
   await db
     .prepare(
       `UPDATE users

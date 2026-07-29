@@ -379,6 +379,7 @@ export interface PaymentRow {
   failure_reason: string | null;
   created_at: string;
   confirmed_at: string | null;
+  pg_provider: 'TOSS' | 'KAKAOPAY';
 }
 
 export interface BillingStatusResponse {
@@ -501,6 +502,14 @@ export interface Env {
    * Env에 넣지 않고 frontend/.env.dev · .env.production에 별도로 둔다.
    */
   TOSS_SECRET_KEY: string;
+  /**
+   * 카카오페이 개발자센터에서 발급받는 Secret Key(dev/live) — 구 Admin Key 방식은 폐지되어
+   * `Authorization: SECRET_KEY {값}` 헤더로 쓴다. 테스트 중에는 카카오페이가 공개한 테스트
+   * CID(KAKAOPAY_CID=TC0ONETIME)와 함께 각자 발급받은 개발용 Secret Key(dev)를 쓰면 된다.
+   */
+  KAKAOPAY_SECRET_KEY: string;
+  /** 단건결제 가맹점 코드. 심사 전 테스트 단계에서는 카카오페이 공개 테스트 CID `TC0ONETIME`을 쓴다. */
+  KAKAOPAY_CID: string;
   /** 이메일 포워딩 수신 주소에 쓰는 도메인(add-{token}@{도메인}). Cloudflare Email Routing이 붙어있는 도메인. */
   FORWARDING_EMAIL_DOMAIN: string;
   /** 새 문의 알림 메일을 받을 운영자 이메일. 이 이메일로 로그인한 사용자는 모든 문의에 답글을 남길 수 있다(routes/feedback.ts). */

@@ -25,3 +25,9 @@ export async function cancelSubscription() {
   const { data } = await apiClient.post<BillingStatus>('/billing/cancel');
   return data;
 }
+
+/** 카카오페이 단건결제 준비 — 지금은 심사 전 테스트 CID(TC0ONETIME)로만 동작해 1회성 결제만 지원한다. */
+export async function createKakaoCheckout() {
+  const { data } = await apiClient.post<{ redirectUrlPc: string; redirectUrlMobile: string }>('/billing/kakao/checkout');
+  return data;
+}

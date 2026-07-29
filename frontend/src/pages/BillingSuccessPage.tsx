@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import { confirmPayment } from '../api/billing';
+import { confirmPayment, fetchBillingStatus } from '../api/billing';
 import { useAuth } from '../context/AuthContext';
 
 type Status = 'confirming' | 'done' | 'error';
 
-/** 1회성 결제창이 성공 후 리다이렉트하는 곳 — paymentKey/orderId/amount를 서버로 넘겨 승인을 확정한다. */
+/**
+ * 결제창이 성공 후 리다이렉트하는 곳. 토스는 paymentKey/orderId/amount를 서버로 넘겨 이 화면에서
+ * 승인을 확정하지만, 카카오페이(?method=kakao)는 로그인 세션이 없는 리다이렉트 콜백
+ * (routes/billing-kakao.ts)에서 이미 서버가 승인을 끝내고 돌아온 것이라 상태만 새로 읽어온다.
+ */
 export default function BillingSuccessPage() {
   const [searchParams] = useSearchParams();
   const { refreshPremium } = useAuth();
@@ -14,6 +18,19 @@ export default function BillingSuccessPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (searchParams.get('method') === 'kakao') {
+      fetchBillingStatus()
+        .then((result) => {
+          refreshPremium(result);
+          setStatus('done');
+        })
+        .catch(() => {
+          setErrorMessage('결제 상태를 확인하지 못했습니다.');
+          setStatus('error');
+        });
+      return;
+    }
+
     const paymentKey = searchParams.get('paymentKey');
     const orderId = searchParams.get('orderId');
     const amount = searchParams.get('amount');

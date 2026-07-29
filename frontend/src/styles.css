@@ -3707,6 +3707,11 @@ button.summary-board__tile:hover {
   margin-top: auto;
 }
 
+.pricing-card__btn-kakao {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .pricing-table {
   width: 100%;
   border-collapse: collapse;
