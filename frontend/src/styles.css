@@ -1672,6 +1672,7 @@ button.summary-board__tile:hover {
 .landing__slide {
   flex: 0 0 100%;
   scroll-snap-align: start;
+  scroll-snap-stop: always;
   text-align: left;
   padding: 2px 4px;
 }
@@ -1741,9 +1742,23 @@ button.summary-board__tile:hover {
 
 .landing__carousel-dots {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-top: 20px;
+}
+
+.landing__carousel-dots-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 8px;
+}
+
+.landing__carousel-dots-spacer {
+  flex: 0 0 auto;
+  width: 22px;
 }
 
 .landing__carousel-dot {
@@ -1767,9 +1782,9 @@ button.summary-board__tile:hover {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   width: 22px;
   height: 22px;
-  margin-left: 8px;
   padding: 0;
   border-radius: 50%;
   border: 1px solid var(--hairline);

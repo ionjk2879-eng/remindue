@@ -83,7 +83,7 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
   const [active, setActive] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const posRef = useRef(1);
-  const draggingRef = useRef<{ startX: number; startScrollLeft: number } | null>(null);
+  const draggingRef = useRef<{ startX: number; startScrollLeft: number; startPos: number } | null>(null);
   const autoplayTimerRef = useRef<number | undefined>(undefined);
   const settleTimerRef = useRef<number | undefined>(undefined);
   // 마우스가 캐러셀 위를 지나가며 걸리는 일시정지(hover)와, 재생/일시정지 버튼을 눌러
@@ -179,7 +179,7 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
     if (e.pointerType !== 'mouse') return; // 터치/트랙패드는 네이티브 스크롤+스냅에 맡긴다
     const track = trackRef.current;
     if (!track) return;
-    draggingRef.current = { startX: e.clientX, startScrollLeft: track.scrollLeft };
+    draggingRef.current = { startX: e.clientX, startScrollLeft: track.scrollLeft, startPos: posRef.current };
     track.setPointerCapture(e.pointerId);
     track.style.scrollSnapType = 'none';
     track.style.cursor = 'grabbing';
@@ -198,11 +198,14 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
   const endDrag = () => {
     const track = trackRef.current;
     if (!draggingRef.current || !track) return;
+    const { startPos } = draggingRef.current;
     draggingRef.current = null;
     track.style.scrollSnapType = '';
     track.style.cursor = '';
+    // 아무리 멀리(빠르게) 드래그해도 시작 위치 기준 한 슬라이드까지만 이동한다.
     const nearest = Math.round(track.scrollLeft / track.clientWidth);
-    applyPos(nearest, true);
+    const clamped = Math.max(startPos - 1, Math.min(startPos + 1, nearest));
+    applyPos(clamped, true);
     restartAutoplay();
   };
 
@@ -286,15 +289,18 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
         </button>
       </div>
       <div className="landing__carousel-dots">
-        {steps.map((step, i) => (
-          <button
-            type="button"
-            key={step.title}
-            className={`landing__carousel-dot${i === active ? ' landing__carousel-dot--active' : ''}`}
-            onClick={() => goToRealIndex(i)}
-            aria-label={`${i + 1}단계로 이동`}
-          />
-        ))}
+        <span className="landing__carousel-dots-spacer" aria-hidden="true" />
+        <div className="landing__carousel-dots-group">
+          {steps.map((step, i) => (
+            <button
+              type="button"
+              key={step.title}
+              className={`landing__carousel-dot${i === active ? ' landing__carousel-dot--active' : ''}`}
+              onClick={() => goToRealIndex(i)}
+              aria-label={`${i + 1}단계로 이동`}
+            />
+          ))}
+        </div>
         <button
           type="button"
           className="landing__carousel-playpause"
