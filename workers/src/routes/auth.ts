@@ -6,12 +6,21 @@ import { hashPassword, verifyPassword } from '../lib/password';
 import { signJwt, verifyJwt } from '../lib/jwt';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { BadRequestError, ConflictError } from '../lib/errors';
+import { assertNotLocked, clearAttempts, clientIp, recordAttempt } from '../lib/rate-limit';
 import type { AuthResponse, Env, UserRow } from '../types';
 
 const ACCESS_TOKEN_EXPIRATION_SECONDS = 60 * 60; // 1시간 — application.yml의 access-token-expiration-ms와 동일
 const REFRESH_TOKEN_EXPIRATION_SECONDS = 60 * 60 * 24 * 30;
 const REFRESH_COOKIE = 'remindue_refresh';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// 이메일 단위는 좁고 엄격하게(계정 하나를 노린 대입 공격 차단), IP 단위는 넓고 느슨하게
+// (여러 계정에 걸친 분산 시도나 자동화 스팸을 잡되, 공용 IP의 오탐 가능성을 줄인다).
+const LOGIN_EMAIL_LIMIT = { maxAttempts: 5, windowSeconds: 15 * 60, lockoutSeconds: 15 * 60 };
+const LOGIN_IP_LIMIT = { maxAttempts: 20, windowSeconds: 15 * 60, lockoutSeconds: 15 * 60 };
+const SIGNUP_IP_LIMIT = { maxAttempts: 10, windowSeconds: 60 * 60, lockoutSeconds: 60 * 60 };
+const LOGIN_LOCKED_MESSAGE = '로그인 시도가 너무 많습니다. 15분 후 다시 시도해주세요.';
+const SIGNUP_LOCKED_MESSAGE = '너무 많은 가입 시도가 감지되었습니다. 잠시 후 다시 시도해주세요.';
 
 /**
  * {token}@{도메인} 형태의 개인 포워딩 주소에 쓸 토큰.
@@ -112,6 +121,10 @@ async function revokeRefreshSession(c: AuthContext): Promise<void> {
 
 auth.post('/signup', async (c) => {
   requireAllowedOrigin(c);
+  const signupIpKey = `signup:ip:${clientIp(c)}`;
+  await assertNotLocked(c.env.DB, signupIpKey, SIGNUP_LOCKED_MESSAGE);
+  await recordAttempt(c.env.DB, signupIpKey, SIGNUP_IP_LIMIT);
+
   const body = await c.req.json<SignupBody>().catch(() => ({}) as SignupBody);
   const native = body.native ?? false;
   const email = requireEmail(body.email);
@@ -169,11 +182,21 @@ auth.post('/login', async (c) => {
     throw new BadRequestError('비밀번호를 입력해주세요');
   }
 
+  const emailKey = `login:email:${email.toLowerCase()}`;
+  const ipKey = `login:ip:${clientIp(c)}`;
+  await assertNotLocked(c.env.DB, emailKey, LOGIN_LOCKED_MESSAGE);
+  await assertNotLocked(c.env.DB, ipKey, LOGIN_LOCKED_MESSAGE);
+
   const user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>();
   if (!user || !(await verifyPassword(password, user.password_hash))) {
+    await Promise.all([
+      recordAttempt(c.env.DB, emailKey, LOGIN_EMAIL_LIMIT),
+      recordAttempt(c.env.DB, ipKey, LOGIN_IP_LIMIT),
+    ]);
     throw new BadRequestError('이메일 또는 비밀번호가 올바르지 않습니다');
   }
 
+  await Promise.all([clearAttempts(c.env.DB, emailKey), clearAttempts(c.env.DB, ipKey)]);
   return c.json(await issueSession(c, user, { rememberMe, native }));
 });
 
