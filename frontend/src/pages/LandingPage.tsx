@@ -3,6 +3,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Logo from '../components/Logo';
 import InstallAppBanner from '../components/InstallAppBanner';
+import { isNative } from '../lib/native';
 
 type Step = {
   title: string;
@@ -350,8 +351,18 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
 }
 
 export default function LandingPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isInitializing } = useAuth();
   const currentMonth = new Date().getMonth() + 1;
+
+  // 네이티브 앱에서만 로그인 확인이 끝날 때까지 대기한다 — 그렇지 않으면 로그인된 사용자가
+  // 이 랜딩 화면을 한 프레임 봤다가 대시보드로 리다이렉트되는 깜빡임이 생긴다(대기하는 동안은
+  // 스플래시 화면이 대신 가려준다, lib/native.ts의 hideSplash 참고). isNative 조건이 꼭
+  // 필요한 이유: 이 페이지는 웹사이트 빌드 시 prerender.mjs가 renderToString으로 정적
+  // HTML을 미리 만드는데, 그 과정에서는 useEffect가 아예 실행되지 않아 isInitializing이
+  // 영원히 true로 남는다 — isNative 없이 이 조건만 걸면 "/" 정적 페이지가 항상 로딩 문구만
+  // 보여주게 되어 SEO/최초 진입 화면이 깨진다. 네이티브 빌드(build:cap)는 prerender를 아예
+  // 거치지 않으므로 이 분기가 안전하다.
+  if (isNative && isInitializing) return <div className="route-loading">불러오는 중...</div>;
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;

@@ -10,7 +10,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 export const isNative = Capacitor.isNativePlatform();
 export const platform = Capacitor.getPlatform(); // 'ios' | 'android' | 'web'
 
-/** 앱 시작 시 1회 호출 — 상태바 스타일링, 스플래시 숨김 */
+/** 앱 시작 시 1회 호출 — 상태바 스타일링만 한다(스플래시는 hideSplash로 별도 처리). */
 export async function initNative(): Promise<void> {
   if (!isNative) return;
 
@@ -26,8 +26,17 @@ export async function initNative(): Promise<void> {
   } catch {
     // 일부 기기에서 StatusBar가 없을 수 있음
   }
+}
 
-  // 웹 콘텐츠 첫 렌더 완료 후 스플래시 숨김 (launchAutoHide: false 설정과 쌍)
+/**
+ * 스플래시 화면을 숨긴다 — initNative와 분리해둔 이유는, 로그인 여부 확인(AuthContext의
+ * isInitializing)이 끝나기 전에 스플래시를 내려버리면 그 짧은 순간 대시보드로 리다이렉트되기
+ * 전의 로그인/랜딩 화면이 한 프레임 노출됐다가 사라지는 깜빡임이 생기기 때문이다. 인증 확인이
+ * 끝난 뒤(NativeInitializer가 호출) 스플래시를 내려야 로그인된 사용자는 스플래시에서 곧바로
+ * 대시보드로 이어진다.
+ */
+export async function hideSplash(): Promise<void> {
+  if (!isNative) return;
   await SplashScreen.hide({ fadeOutDuration: 300 });
 }
 
