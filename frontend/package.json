@@ -33,6 +33,7 @@
     "recharts": "^2.13.3"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.4.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

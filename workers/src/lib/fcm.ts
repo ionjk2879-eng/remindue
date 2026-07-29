@@ -72,12 +72,31 @@ async function getAccessToken(sa: ServiceAccount): Promise<string> {
   return access_token;
 }
 
+// PWA(sw.ts)는 알림마다 색이 다른 시계 PNG를 그대로 아이콘으로 쓰지만, Android 상태바
+// 아이콘은 항상 단색으로 강제 렌더링되기 때문에 같은 방식을 쓸 수 없다. 대신 알림의 accent
+// color(원형 배경 틴트)를 종류별로 다르게 주고, 펼친 화면에는 같은 PNG를 큰 이미지로 보여줘
+// PWA와 시각적으로 최대한 비슷하게 맞춘다.
+const NOTIFICATION_STYLE: Record<NonNullable<PushPayload['notificationKind']>, { color: string; image: string }> = {
+  DEADLINE: { color: '#6A7BA8', image: '/notification-deadline.png' },
+  RENEWAL: { color: '#8A9B6A', image: '/notification-renewal.png' },
+  ARRIVAL: { color: '#2f6f5e', image: '/notification-arrival.png' },
+  WEEKLY_SUMMARY: { color: '#7B6FA3', image: '/notification-weekly-summary.png' },
+};
+
 async function sendWithToken(
   projectId: string,
   accessToken: string,
   fcmToken: string,
   payload: PushPayload
 ): Promise<FcmSendResult> {
+  const style = payload.notificationKind ? NOTIFICATION_STYLE[payload.notificationKind] : undefined;
+  let origin: string | undefined;
+  try {
+    origin = new URL(payload.url).origin;
+  } catch {
+    origin = undefined;
+  }
+
   const message = {
     message: {
       token: fcmToken,
@@ -89,7 +108,12 @@ async function sendWithToken(
       },
       android: {
         priority: 'high',
-        notification: { sound: 'default', channel_id: 'remindue_default' },
+        notification: {
+          sound: 'default',
+          channel_id: 'remindue_default',
+          ...(style ? { color: style.color } : {}),
+          ...(style && origin ? { image: `${origin}${style.image}` } : {}),
+        },
       },
     },
   };
