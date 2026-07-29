@@ -2,18 +2,20 @@
 // 웹 환경에서는 isNative=false라 모든 호출이 no-op.
 
 import { useEffect, useRef } from 'react';
-import { initNative, setupBackButton, registerNativePush, isNative } from '../lib/native';
+import { initNative, hideSplash, setupBackButton, registerNativePush, isNative } from '../lib/native';
 import { registerNativePushToken } from '../api/push';
 import { useAuth } from '../context/AuthContext';
 
 export default function NativeInitializer() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isInitializing } = useAuth();
   const fcmTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isNative) return;
 
-    // 스플래시 숨김 + 상태바 스타일
+    // 상태바 스타일은 로그인 확인과 무관하게 바로 적용한다. 스플래시는 로그인 확인이 끝난
+    // 뒤(아래 isInitializing effect)에 내려서, 로그인 사용자가 랜딩 화면을 스치듯 보고
+    // 대시보드로 넘어가는 깜빡임이 생기지 않게 한다.
     initNative();
 
     // Android 뒤로가기 버튼
@@ -27,6 +29,11 @@ export default function NativeInitializer() {
 
     return cleanup;
   }, []);
+
+  useEffect(() => {
+    if (!isNative || isInitializing) return;
+    hideSplash();
+  }, [isInitializing]);
 
   // 인증 상태가 바뀔 때마다 토큰이 있으면 서버에 등록한다.
   // 앱 재시작 후 자동 로그인으로 isAuthenticated가 true가 되는 경우도 처리된다.

@@ -3,6 +3,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Logo from '../components/Logo';
 import InstallAppBanner from '../components/InstallAppBanner';
+import { isNative } from '../lib/native';
 
 type Step = {
   title: string;
@@ -350,8 +351,18 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
 }
 
 export default function LandingPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isInitializing } = useAuth();
   const currentMonth = new Date().getMonth() + 1;
+
+  // 네이티브 앱에서만 로그인 확인이 끝날 때까지 대기한다 — 그렇지 않으면 로그인된 사용자가
+  // 이 랜딩 화면을 한 프레임 봤다가 대시보드로 리다이렉트되는 깜빡임이 생긴다(대기하는 동안은
+  // 스플래시 화면이 대신 가려준다, lib/native.ts의 hideSplash 참고). isNative 조건이 꼭
+  // 필요한 이유: 이 페이지는 웹사이트 빌드 시 prerender.mjs가 renderToString으로 정적
+  // HTML을 미리 만드는데, 그 과정에서는 useEffect가 아예 실행되지 않아 isInitializing이
+  // 영원히 true로 남는다 — isNative 없이 이 조건만 걸면 "/" 정적 페이지가 항상 로딩 문구만
+  // 보여주게 되어 SEO/최초 진입 화면이 깨진다. 네이티브 빌드(build:cap)는 prerender를 아예
+  // 거치지 않으므로 이 분기가 안전하다.
+  if (isNative && isInitializing) return <div className="route-loading">불러오는 중...</div>;
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
@@ -482,6 +493,59 @@ export default function LandingPage() {
           무료 요금제와 프리미엄 요금제는 이용 가능한 기능에 차이가 있을 수 있어요.{' '}
           <Link to="/pricing">요금제 비교하기</Link>
         </p>
+      </div>
+
+      <div className="landing__features">
+        <h2 className="landing__section-title">이런 것도 챙겨드려요</h2>
+        <p className="landing__section-desc">
+          등록만 해두면 세세한 부분까지 알아서 챙겨드려요.
+        </p>
+        <div className="landing__features-grid">
+          <div className="landing__feature-card">
+            <img
+              src="/landing-feature-notifications.png"
+              alt="알림 테스트 화면 예시 — 기한 예정 알림, 정기배송·구독 유지 확인 테스트, 배송 수령 확인 테스트, 주간 요약 테스트 버튼"
+              className="landing__feature-img"
+              width={578}
+              height={114}
+            />
+            <h3>상황에 맞는 알림</h3>
+            <p>기한 임박, 정기배송·구독 유지 확인, 수령 확인, 주간 요약까지 — 필요한 순간에 필요한 알림만 보내드려요.</p>
+          </div>
+          <div className="landing__feature-card">
+            <img
+              src="/landing-feature-renewal-check.png"
+              alt="정기배송·구독 유지 확인 설정 화면 예시 — D-1일, 당일, 미응답 시 D+7 절약 검토 옵션"
+              className="landing__feature-img"
+              width={578}
+              height={229}
+            />
+            <h3>정기배송·구독 유지 확인</h3>
+            <p>다음 배송·결제 전에 "계속 유지할까요?"라고 물어봐요. 응답이 없으면 며칠 뒤 절약 검토 대상으로 한 번 더 알려드려요.</p>
+          </div>
+          <div className="landing__feature-card">
+            <img
+              src="/landing-feature-ai-manager.png"
+              alt="AI 소비 매니저 브리핑 화면 예시 — 소비 건강도 점수, 이번 달 예상 지출, 구독 수, 전월 대비 증감률, 최다 지출 카테고리와 AI 분석 코멘트"
+              className="landing__feature-img"
+              width={718}
+              height={497}
+            />
+            <h3>AI 소비 매니저</h3>
+            <p>등록해둔 항목을 바탕으로 이번 달 소비 건강도, 지출 변화, 절약 포인트를 AI가 한 번에 정리해드려요.</p>
+          </div>
+          <div className="landing__feature-card">
+            <img
+              src="/landing-feature-sharing.png"
+              alt="구성원 공유 초대 화면 예시 — 이메일로 초대하면 초대받은 사람이 목록을 읽기 전용으로 볼 수 있음"
+              className="landing__feature-img"
+              width={578}
+              height={128}
+            />
+            <h3>가족·구성원과 공유</h3>
+            <p>이메일 하나로 초대하면 끝. 초대받은 사람은 내 목록을 읽기 전용으로 바로 확인할 수 있어요.</p>
+          </div>
+        </div>
       </div>
 
       <div className="landing__final-cta">

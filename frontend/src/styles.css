@@ -1840,6 +1840,56 @@ button.summary-board__tile:hover {
   color: var(--text);
 }
 
+.landing__features {
+  max-width: 900px;
+  margin: 100px auto 0;
+  text-align: center;
+}
+
+.landing__features-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-top: 32px;
+  text-align: left;
+}
+
+.landing__feature-card {
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-rest);
+  padding: 20px;
+}
+
+.landing__feature-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  margin-bottom: 14px;
+  background: var(--paper);
+}
+
+.landing__feature-card h3 {
+  font-size: 1rem;
+  margin-bottom: 6px;
+}
+
+.landing__feature-card p {
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .landing__features-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .landing__final-cta {
   text-align: center;
   margin: 90px auto 0;
