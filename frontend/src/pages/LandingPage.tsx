@@ -86,12 +86,17 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
   const autoplayTimerRef = useRef<number | undefined>(undefined);
   const settleTimerRef = useRef<number | undefined>(undefined);
 
-  const syncHeight = (pos: number) => {
+  // 슬라이드마다 콘텐츠 높이(이미지 비율 등)가 달라서 현재 슬라이드에만 맞춰 높이를
+  // 바꾸면 클릭할 때마다 박스는 물론 페이지 전체 길이까지 따라 바뀐다. 대신 전체 슬라이드
+  // 중 가장 큰 높이로 트랙 높이를 고정해, 어떤 슬라이드를 보든 레이아웃이 그대로 유지되게 한다.
+  const recalcMaxHeight = () => {
     const track = trackRef.current;
-    const slide = track?.children[pos];
-    if (track && slide instanceof HTMLElement) {
-      track.style.height = `${slide.offsetHeight}px`;
+    if (!track) return;
+    let max = 0;
+    for (const child of Array.from(track.children)) {
+      if (child instanceof HTMLElement) max = Math.max(max, child.offsetHeight);
     }
+    if (max > 0) track.style.height = `${max}px`;
   };
 
   const applyPos = (pos: number, smooth: boolean) => {
@@ -100,7 +105,6 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
     track.scrollTo({ left: pos * track.clientWidth, behavior: smooth ? 'smooth' : 'instant' });
     posRef.current = pos;
     setActive(((pos - 1) % total + total) % total);
-    syncHeight(pos);
   };
 
   const restartAutoplay = () => {
@@ -143,7 +147,6 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
       } else if (pos !== posRef.current) {
         posRef.current = pos;
         setActive(((pos - 1) % total + total) % total);
-        syncHeight(pos);
       }
     }, SCROLL_SETTLE_MS);
   };
@@ -187,10 +190,19 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
       // behavior:'auto'는 그 CSS를 그대로 따라가 애니메이션이 돼버린다(스펙상 'auto'는
       // "CSS에 맡긴다"는 뜻). 'instant'만 CSS와 무관하게 즉시 이동한다.
       track.scrollTo({ left: track.clientWidth * posRef.current, behavior: 'instant' });
-      syncHeight(posRef.current);
+      recalcMaxHeight();
     }
     restartAutoplay();
+
+    // 이미지가 늦게 로드되며 실제 높이가 바뀌는 경우(및 창 크기 변경으로 줄바꿈이 달라지는
+    // 경우)까지 잡아내기 위해 각 슬라이드를 관찰하다가 크기가 바뀔 때마다 최댓값을 다시 잰다.
+    const observer = new ResizeObserver(() => recalcMaxHeight());
+    if (track) {
+      for (const child of Array.from(track.children)) observer.observe(child);
+    }
+
     return () => {
+      observer.disconnect();
       window.clearInterval(autoplayTimerRef.current);
       window.clearTimeout(settleTimerRef.current);
     };
@@ -202,7 +214,6 @@ function LandingCarousel({ steps }: { steps: Step[] }) {
       const track = trackRef.current;
       if (!track) return;
       track.scrollTo({ left: track.clientWidth * posRef.current, behavior: 'instant' });
-      syncHeight(posRef.current);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
