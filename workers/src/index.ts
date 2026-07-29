@@ -60,7 +60,9 @@ app.route('/api/purchases', purchaseRoutes);
 app.route('/api/push', pushRoutes);
 app.route('/api/pending-purchases', pendingPurchaseRoutes);
 app.route('/api/billing', billingRoutes);
-app.route('/api/billing/kakao', billingKakaoRoutes);
+// billing.ts가 authMiddleware를 `/api/billing/*`에 걸어두므로, 여기에 마운트하면 로그인 세션
+// 없이 도착하는 카카오페이 리다이렉트 콜백까지 그 미들웨어에 걸린다 — 겹치지 않는 경로로 둔다.
+app.route('/api/kakao-billing', billingKakaoRoutes);
 app.route('/api/settings', settingsRoutes);
 app.route('/api/sharing', sharingRoutes);
 app.route('/api/feedback', feedbackRoutes);

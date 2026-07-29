@@ -3,6 +3,12 @@
 // 때문이다(routes/push.ts의 인증 없는 콜백 엔드포인트들과 같은 이유). 그래서 billing.ts처럼
 // 라우터 전체에 authMiddleware를 걸 수 없고, /checkout에만 개별적으로 건다.
 //
+// index.ts에 `/api/billing`이 아니라 `/api/kakao-billing`으로 마운트한다 — billing.ts가
+// `/api/billing/*` 전체에 authMiddleware를 걸어두는데, 그 밑에 이 라우터를 마운트하면(예:
+// `/api/billing/kakao`) Hono가 두 마운트를 같은 라우팅 테이블에 합치면서 그 와일드카드
+// 미들웨어가 여기도 적용돼버린다. 그러면 인증 세션 없이 돌아오는 /success 콜백이 리다이렉트가
+// 아니라 "인증이 필요합니다" JSON 에러로 그 자리에서 멈춰버린다 — 실제로 겪은 버그.
+//
 // 지금은 카카오페이 심사(가맹점 등록) 전이라 공개 테스트 CID(TC0ONETIME)로만 동작한다 — 실제
 // 결제는 되지 않고, 결제 흐름 자체를 확인/캡처하는 용도다. 심사 통과 후에는 KAKAOPAY_CID를
 // 발급받은 실 가맹점 코드로 바꾸기만 하면 된다.
@@ -36,7 +42,12 @@ billingKakao.post('/checkout', async (c) => {
     .bind(user.id, orderId, config.amount)
     .run();
 
-  const base = new URL(c.req.url).origin;
+  const apiOrigin = new URL(c.req.url).origin;
+  // 운영/개발 프리뷰가 같은 워커 배포본을 공유해 env.APP_URL 하나로 고정할 수 없다 — 체크아웃을
+  // 요청한 실제 프론트엔드 출처(Origin 헤더)를 콜백 URL에 실어 보내, 나중에 그 사이트로 돌아간다.
+  const frontendOrigin = c.req.header('Origin') ?? c.env.APP_URL;
+  const returnParams = `orderId=${orderId}&origin=${encodeURIComponent(frontendOrigin)}`;
+
   try {
     const ready = await readyPayment(c.env.KAKAOPAY_SECRET_KEY, {
       cid: c.env.KAKAOPAY_CID,
@@ -46,9 +57,9 @@ billingKakao.post('/checkout', async (c) => {
       quantity: 1,
       totalAmount: config.amount,
       taxFreeAmount: 0,
-      approvalUrl: `${base}/api/billing/kakao/success?orderId=${orderId}`,
-      cancelUrl: `${base}/api/billing/kakao/cancel?orderId=${orderId}`,
-      failUrl: `${base}/api/billing/kakao/fail?orderId=${orderId}`,
+      approvalUrl: `${apiOrigin}/api/kakao-billing/success?${returnParams}`,
+      cancelUrl: `${apiOrigin}/api/kakao-billing/cancel?${returnParams}`,
+      failUrl: `${apiOrigin}/api/kakao-billing/fail?${returnParams}`,
     });
 
     await c.env.DB.prepare(`UPDATE payments SET payment_key = ? WHERE order_id = ?`).bind(ready.tid, orderId).run();
@@ -66,16 +77,20 @@ billingKakao.post('/checkout', async (c) => {
   }
 });
 
+function returnOrigin(c: { req: { query: (key: string) => string | undefined }; env: Env }): string {
+  return c.req.query('origin') ?? c.env.APP_URL;
+}
+
 /** 사용자가 카카오페이 인증을 마치고 돌아오는 곳 — 로그인 세션이 없으므로 orderId로만 결제를 찾는다. */
 billingKakao.get('/success', async (c) => {
   const orderId = c.req.query('orderId');
   const pgToken = c.req.query('pg_token');
-  const appUrl = c.env.APP_URL;
-  if (!orderId || !pgToken) return c.redirect(`${appUrl}/billing/fail?method=kakao`);
+  const origin = returnOrigin(c);
+  if (!orderId || !pgToken) return c.redirect(`${origin}/billing/fail?method=kakao`);
 
   const payment = await c.env.DB.prepare('SELECT * FROM payments WHERE order_id = ?').bind(orderId).first<PaymentRow>();
-  if (!payment) return c.redirect(`${appUrl}/billing/fail?method=kakao`);
-  if (payment.status === 'CONFIRMED') return c.redirect(`${appUrl}/billing/success?method=kakao`);
+  if (!payment) return c.redirect(`${origin}/billing/fail?method=kakao`);
+  if (payment.status === 'CONFIRMED') return c.redirect(`${origin}/billing/success?method=kakao`);
 
   try {
     await approvePayment(c.env.KAKAOPAY_SECRET_KEY, {
@@ -90,7 +105,7 @@ billingKakao.get('/success', async (c) => {
     await c.env.DB.prepare(`UPDATE payments SET status = 'FAILED', failure_reason = ? WHERE id = ?`)
       .bind(reason, payment.id)
       .run();
-    return c.redirect(`${appUrl}/billing/fail?method=kakao`);
+    return c.redirect(`${origin}/billing/fail?method=kakao`);
   }
 
   const config = PLAN_CONFIG[payment.plan];
@@ -99,7 +114,7 @@ billingKakao.get('/success', async (c) => {
     .run();
   await extendPremium(c.env.DB, payment.user_id, config.periodModifier);
 
-  return c.redirect(`${appUrl}/billing/success?method=kakao`);
+  return c.redirect(`${origin}/billing/success?method=kakao`);
 });
 
 billingKakao.get('/cancel', async (c) => {
@@ -109,7 +124,7 @@ billingKakao.get('/cancel', async (c) => {
       .bind(orderId)
       .run();
   }
-  return c.redirect(`${c.env.APP_URL}/billing/fail?method=kakao`);
+  return c.redirect(`${returnOrigin(c)}/billing/fail?method=kakao`);
 });
 
 billingKakao.get('/fail', async (c) => {
@@ -119,7 +134,7 @@ billingKakao.get('/fail', async (c) => {
       .bind(orderId)
       .run();
   }
-  return c.redirect(`${c.env.APP_URL}/billing/fail?method=kakao`);
+  return c.redirect(`${returnOrigin(c)}/billing/fail?method=kakao`);
 });
 
 export default billingKakao;
