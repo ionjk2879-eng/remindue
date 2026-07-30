@@ -1729,7 +1729,7 @@ export default function DashboardPage() {
                     onClick={() => setSelectedSpendMonth(month)}
                   >
                     <span>{month}월</span>
-                    <span className="mono" style={{ whiteSpace: 'nowrap' }}>{total.toLocaleString('ko-KR')}원</span>
+                    <span className="mono">{total.toLocaleString('ko-KR')}원</span>
                     <span
                       className={`spending-detail__month-change ${
                         isFuture ? 'spending-detail__month-change--neutral' : `spending-detail__month-change--${trend}`

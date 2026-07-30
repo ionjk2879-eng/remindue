@@ -1453,8 +1453,8 @@ button.summary-board__tile:hover {
 
 .spending-detail__month-item {
   display: flex;
-  flex: 1 1 84px;
-  max-width: 110px;
+  flex: 0 0 104px;
+  width: 104px;
   flex-direction: column;
   align-items: center;
   text-align: center;
@@ -1480,7 +1480,6 @@ button.summary-board__tile:hover {
   font-size: 0.88rem;
   font-weight: 700;
   color: var(--ink);
-  white-space: nowrap;
 }
 
 .spending-detail__month-item--current {
