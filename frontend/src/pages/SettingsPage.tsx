@@ -8,24 +8,14 @@ import {
   updateNickname as apiUpdateNickname,
 } from '../api/settings';
 import { acceptInvite, fetchReceivedInvites, fetchSentInvites, inviteMember, revokeShare } from '../api/sharing';
-import { cancelSubscription } from '../api/billing';
 import { deleteAccount } from '../api/auth';
 import { ensurePushSubscription, sendTestPush, type PushTestKind } from '../api/push';
 import { useAuth } from '../context/AuthContext';
 import Skeleton from '../components/Skeleton';
+import SubscriptionStatus from '../components/SubscriptionStatus';
 import type { SharedAccess } from '../types';
 import { getNotificationPermission } from '../lib/push';
 import { isNative } from '../lib/native';
-
-const PLAN_LABEL: Record<'ONE_TIME' | 'MONTHLY' | 'ANNUAL', string> = {
-  ONE_TIME: '1회성 이용권',
-  MONTHLY: '월 정기결제',
-  ANNUAL: '연 정기결제',
-};
-
-function formatDateOnly(dateStr: string): string {
-  return dateStr.slice(0, 10);
-}
 
 /** 백엔드 lib/notification-prefs.ts의 NOTIFICATION_DAY_OPTIONS와 같은 목록 — 설정 화면 체크박스 후보. */
 const NOTIFICATION_DAY_OPTIONS = [10, 7, 5, 3, 2, 1, 0];
@@ -36,7 +26,7 @@ function formatDayLabel(day: number): string {
 }
 
 export default function SettingsPage() {
-  const { nickname, isPremium, billingStatus, logout, updateNickname, refreshPremium } = useAuth();
+  const { nickname, isPremium, billingStatus, logout, updateNickname } = useAuth();
   const navigate = useNavigate();
 
   const [nicknameInput, setNicknameInput] = useState('');
@@ -58,9 +48,6 @@ export default function SettingsPage() {
   const [inviting, setInviting] = useState(false);
   const [sentInvites, setSentInvites] = useState<SharedAccess[]>([]);
   const [receivedInvites, setReceivedInvites] = useState<SharedAccess[]>([]);
-
-  const [cancelling, setCancelling] = useState(false);
-  const [cancelMessage, setCancelMessage] = useState<string | null>(null);
 
   const [withdrawPassword, setWithdrawPassword] = useState('');
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
@@ -208,26 +195,6 @@ export default function SettingsPage() {
     await loadSharing();
   };
 
-  const handleCancelSubscription = async () => {
-    const confirmed = window.confirm(
-      '해지하면 다음 결제일부터 자동 결제가 중단되고, 이미 결제된 기간까지는 프리미엄이 유지됩니다. 해지할까요?'
-    );
-    if (!confirmed) return;
-
-    setCancelMessage(null);
-    setCancelling(true);
-    try {
-      const result = await cancelSubscription();
-      refreshPremium(result);
-      setCancelMessage('정기결제를 해지했어요. 결제된 기간까지는 프리미엄이 유지됩니다.');
-    } catch (err) {
-      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
-      setCancelMessage(message ?? '해지하지 못했어요.');
-    } finally {
-      setCancelling(false);
-    }
-  };
-
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     setWithdrawError(null);
@@ -299,37 +266,8 @@ export default function SettingsPage() {
             )
           )}
         </div>
-        {billingStatus === null ? (
-          <div className="skeleton-block">
-            <Skeleton width="60%" />
-            <Skeleton width="30%" />
-          </div>
-        ) : isPremium && billingStatus.plan && (billingStatus.plan === 'MONTHLY' || billingStatus.plan === 'ANNUAL') ? (
-          <>
-            {billingStatus.autoRenew ? (
-              <div className="settings-subscription-row">
-                <p className="settings-section__hint">
-                  {PLAN_LABEL[billingStatus.plan]} 이용 중
-                  {billingStatus.premiumExpiresAt && ` · ${formatDateOnly(billingStatus.premiumExpiresAt)}까지`}
-                </p>
-                <button className="btn btn-sm btn-outline" onClick={handleCancelSubscription} disabled={cancelling}>
-                  {cancelling ? '해지 중...' : '정기결제 해지'}
-                </button>
-              </div>
-            ) : (
-              <>
-                <p className="settings-section__hint">
-                  {PLAN_LABEL[billingStatus.plan]} 이용 중
-                  {billingStatus.premiumExpiresAt && ` · ${formatDateOnly(billingStatus.premiumExpiresAt)}까지`}
-                </p>
-                <p className="settings-section__hint">자동 결제가 해지됐어요. 남은 기간까지는 프리미엄이 유지됩니다.</p>
-              </>
-            )}
-            {cancelMessage && <p className="settings-section__message">{cancelMessage}</p>}
-          </>
-        ) : (
-          !isPremium && <p className="settings-section__hint">현재 무료 플랜이에요.</p>
-        )}
+        <SubscriptionStatus />
+        {billingStatus !== null && !isPremium && <p className="settings-section__hint">현재 무료 플랜이에요.</p>}
       </section>
 
       <section className="settings-section">

@@ -291,13 +291,19 @@ purchases.post('/:id/mark-delivered', async (c) => {
     throw e;
   }
 
+  // renewal_decision_for도 같이 채워야 confirmation-nudge.ts의 "당일 유지 확인" 알림이 이미
+  // 대시보드에서 답한 회차를 또 물어보지 않는다 — 이 값은 원래 푸시 액션 버튼(routes/push.ts의
+  // recurring-batch)에서만 채워졌는데, 대시보드에서 직접 누른 경우엔 안 채워져서 이미 답한 회차도
+  // 다시 알림이 갔다. confirmReceiptToday가 이미 recurring 타입만 통과시키므로 여기선 항상 계산된다.
+  const renewalDecisionFor = computeDeadline(existing).deadline;
   await c.env.DB.prepare(
     `UPDATE purchases
         SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
+            renewal_decision_for = ?,
             stop_after_current_at = NULL, discontinued_at = NULL, updated_at = datetime('now')
       WHERE id = ?`
   )
-    .bind(today, id)
+    .bind(today, renewalDecisionFor, id)
     .run();
   await refreshRecurringFxOnConfirmation(c.env.DB, existing);
 
@@ -327,14 +333,16 @@ purchases.post('/confirm-all', async (c) => {
   }
 
   const today = confirmReceiptToday('SUBSCRIPTION');
+  // renewal_decision_for도 같이 채운다 — mark-delivered와 같은 이유(위 주석 참고).
   await c.env.DB.batch(
     owned.map((row) =>
       c.env.DB.prepare(
         `UPDATE purchases
             SET last_delivered_date = ?, delivery_confirm_count = ?,
+                renewal_decision_for = ?,
                 stop_after_current_at = NULL, discontinued_at = NULL, updated_at = datetime('now')
           WHERE id = ?`
-      ).bind(today, confirmedRoundsAfterConfirmAll(row), row.id)
+      ).bind(today, confirmedRoundsAfterConfirmAll(row), computeDeadline(row).deadline, row.id)
     )
   );
   await Promise.all(owned.map((row) => refreshRecurringFxOnConfirmation(c.env.DB, row)));

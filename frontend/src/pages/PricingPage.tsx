@@ -5,6 +5,7 @@ import { createCheckout, createKakaoCheckout, createKakaoSubscribeCheckout } fro
 import { fetchPurchases } from '../api/purchases';
 import { useAuth } from '../context/AuthContext';
 import { isNative } from '../lib/native';
+import SubscriptionStatus from '../components/SubscriptionStatus';
 import type { BillingPlan } from '../types';
 
 // client.ts의 VITE_API_BASE_URL과 동일한 이유의 폴백 — 순수 `vite`(로컬 개발, --mode 없음)는
@@ -54,7 +55,7 @@ function NativePricingInfo() {
 }
 
 export default function PricingPage() {
-  const { isPremium, isAuthenticated } = useAuth();
+  const { isPremium, isAuthenticated, billingStatus } = useAuth();
   const navigate = useNavigate();
 
   if (isNative) return <NativePricingInfo />;
@@ -140,6 +141,13 @@ export default function PricingPage() {
           </p>
         )}
       </div>
+
+      {isPremium && billingStatus?.plan && (billingStatus.plan === 'MONTHLY' || billingStatus.plan === 'ANNUAL') && (
+        <div className="settings-section">
+          <h2>현재 구독</h2>
+          <SubscriptionStatus />
+        </div>
+      )}
 
       {errorMessage && <p className="form-error">{errorMessage}</p>}
 

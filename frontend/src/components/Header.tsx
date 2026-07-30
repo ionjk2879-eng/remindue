@@ -40,9 +40,9 @@ export default function Header() {
       </Link>
 
       <div className="site-header__right">
-        {isAuthenticated && !isPremium && (
+        {isAuthenticated && (
           <Link to="/pricing" className="site-header__link site-header__link--premium" onClick={closeMenu}>
-            ✨ 프리미엄
+            {isPremium ? '⭐ 프리미엄' : '✨ 프리미엄'}
           </Link>
         )}
         {!isAuthenticated && (

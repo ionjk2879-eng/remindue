@@ -1376,6 +1376,7 @@ export default function DashboardPage() {
     .map((p) => ({
       id: p.id,
       itemName: p.itemName,
+      type: p.type,
       monthly: Math.round(monthlyEquivalent(p)),
       /** true면 사용자가 "유지 안 함"으로 직접 표시(확정). false면 미확인 회차 누적으로 추정(참고용). */
       isExplicit: p.discontinuedAt !== null,
@@ -1931,7 +1932,10 @@ export default function DashboardPage() {
                 {priceUpItems.map((p) => (
                   <li key={p.id}>
                     <div className="spending-detail__save-item-info">
-                      <p className="spending-detail__save-item-name">{p.itemName}</p>
+                      <p className="spending-detail__save-item-name">
+                        <span className="spending-detail__list-type">{TYPE_SHORT_LABEL[p.type]}</span>
+                        {p.itemName}
+                      </p>
                       <p className="spending-detail__save-item-reason">
                         확인 대기 목록에서 인상분을 확인해보세요.
                       </p>
@@ -1951,7 +1955,10 @@ export default function DashboardPage() {
                 {unusedItems.map((p) => (
                   <li key={p.id}>
                     <div className="spending-detail__save-item-info">
-                      <p className="spending-detail__save-item-name">{p.itemName}</p>
+                      <p className="spending-detail__save-item-name">
+                        <span className="spending-detail__list-type">{TYPE_SHORT_LABEL[p.type]}</span>
+                        {p.itemName}
+                      </p>
                       <p className="spending-detail__save-item-reason">
                         {p.discontinuedAt !== null
                           ? '유지 안 함으로 표시했어요.'
@@ -2070,7 +2077,10 @@ export default function DashboardPage() {
                   {reviewCandidates.map((item) => (
                     <li key={item.id}>
                       <div className="spending-detail__save-item-info">
-                        <p className="spending-detail__save-item-name">{item.itemName}</p>
+                        <p className="spending-detail__save-item-name">
+                          <span className="spending-detail__list-type">{TYPE_SHORT_LABEL[item.type]}</span>
+                          {item.itemName}
+                        </p>
                         <p className="spending-detail__save-item-reason">
                           {item.isExplicit
                             ? '유지 안 함으로 표시했어요 — 해지를 진행해보세요.'

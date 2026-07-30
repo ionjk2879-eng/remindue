@@ -97,8 +97,12 @@ export async function runArrivalConfirm(env: Env): Promise<ArrivalConfirmRunResu
     if (row.type === 'RECURRING_DELIVERY' && row.is_one_time === 1 && row.last_delivered_date !== null) continue;
     const arrivalDate = row.type === 'RECURRING_DELIVERY' && row.is_one_time === 0 ? computeDeadline(row).deadline : arrivalAnchor(row);
 
-    const isFirstAsk = arrivalDate === today && row.arrival_check_snoozed_until === null;
-    const isSnoozedRetry = row.arrival_check_snoozed_until !== null && row.arrival_check_snoozed_until <= today;
+    // last_delivered_date가 이미 이번 회차(arrivalDate)와 같으면, 알림이 뜨기 전에 대시보드에서
+    // 먼저 "받았어요"(confirm-arrival) 또는 "이번 회차 수령 확인"(mark-delivered)으로 답한
+    // 것이다 — 둘 다 last_delivered_date를 그 회차 날짜로 채운다. 이 경우 또 물어보지 않는다.
+    const alreadyAnswered = row.last_delivered_date === arrivalDate;
+    const isFirstAsk = arrivalDate === today && row.arrival_check_snoozed_until === null && !alreadyAnswered;
+    const isSnoozedRetry = row.arrival_check_snoozed_until !== null && row.arrival_check_snoozed_until <= today && !alreadyAnswered;
     if (!isFirstAsk && !isSnoozedRetry) continue;
 
     const items = dueByUser.get(row.user_id) ?? [];
