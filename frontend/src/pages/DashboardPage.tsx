@@ -331,6 +331,7 @@ export default function DashboardPage() {
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
   const [selectedSpendMonth, setSelectedSpendMonth] = useState<number | null>(null);
+  const [selectedSpendCategory, setSelectedSpendCategory] = useState<PurchaseCategory | null>(null);
   const [showSavingsDetail, setShowSavingsDetail] = useState(false);
   const [showSpecificSpendCalculator, setShowSpecificSpendCalculator] = useState(false);
   /** 카테고리를 고르지 않으면 전체 범위를 보여 주되, 계산할 항목은 기본으로 선택하지 않는다. */
@@ -1339,6 +1340,23 @@ export default function DashboardPage() {
     return year === currentYearNum && month === currentMonthNum;
   }).length;
 
+  /** "카테고리별 분석"의 카테고리 하나를 눌렀을 때 팝업으로 보여줄 이번 달 항목 내역. */
+  const computeCategoryItems = (cat: PurchaseCategory) =>
+    spendHistoryPurchases
+      .filter((p) => p.category === cat && p.amount !== null)
+      .map((p) => {
+        const monthlyAmount = isRecurringType(p.type)
+          ? occurrencesInMonth(p, currentYearNum, currentMonthNum) * p.amount!
+          : (() => {
+              const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
+              return baseYear === currentYearNum && baseMonth === currentMonthNum ? p.amount! : 0;
+            })();
+        return { id: p.id, itemName: p.itemName, type: p.type, amount: monthlyAmount };
+      })
+      .filter((item) => item.amount > 0);
+
+  const selectedCategoryItems = selectedSpendCategory !== null ? computeCategoryItems(selectedSpendCategory) : null;
+
   /** 확인 대기 중인 "가격 인상 감지" 건수 — pending-purchase-intake.ts가 matched_purchase_id를 채운 것만. */
   const priceChangeCount = pendingItems.filter((item) => item.matchedPurchaseId !== null).length;
 
@@ -1691,14 +1709,20 @@ export default function DashboardPage() {
               <p className="spending-detail__heading">🗂 카테고리별 분석</p>
               <ul className="spending-detail__category-list">
                 {categoryCounts.map(({ category: cat, count, amount }) => (
-                  <li key={cat} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 4 }}>
-                    <span>
-                      {CATEGORY_ICON[cat]} {CATEGORY_LABEL[cat]}
-                    </span>
-                    <span className="spending-detail__category-stats" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <span className="mono">{count}개</span>
-                      <span className="mono">{amount.toLocaleString('ko-KR')}원</span>
-                    </span>
+                  <li key={cat}>
+                    <button
+                      type="button"
+                      className="spending-detail__category-item"
+                      onClick={() => setSelectedSpendCategory(cat)}
+                    >
+                      <span>
+                        {CATEGORY_ICON[cat]} {CATEGORY_LABEL[cat]}
+                      </span>
+                      <span className="spending-detail__category-stats">
+                        <span className="mono">{count}개</span>
+                        <span className="mono">{amount.toLocaleString('ko-KR')}원</span>
+                      </span>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -1766,6 +1790,54 @@ export default function DashboardPage() {
               type="button"
               className="btn-text install-modal__close"
               onClick={() => setSelectedSpendMonth(null)}
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {selectedSpendCategory !== null && selectedCategoryItems !== null && (
+        <div
+          className="onboarding-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="category-spend-modal-title"
+          onClick={() => setSelectedSpendCategory(null)}
+        >
+          <div className="month-spend-modal" onClick={(e) => e.stopPropagation()}>
+            <p className="spending-detail__heading" id="category-spend-modal-title">
+              {CATEGORY_ICON[selectedSpendCategory]} {CATEGORY_LABEL[selectedSpendCategory]} — {currentMonthNum}월 지출 내역
+            </p>
+            {selectedCategoryItems.length === 0 ? (
+              <p className="spending-detail__empty">이번 달 지출 내역이 없어요.</p>
+            ) : (
+              <>
+                <ul className="spending-detail__list">
+                  {selectedCategoryItems.map((item) => (
+                    <li key={item.id}>
+                      <span>
+                        <span className="spending-detail__list-type">
+                          {TYPE_SHORT_LABEL[item.type]}
+                        </span>
+                        {item.itemName}
+                      </span>
+                      <span className="mono">{item.amount.toLocaleString('ko-KR')}원</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="spending-detail__total">
+                  {CATEGORY_LABEL[selectedSpendCategory]} 총 지출{' '}
+                  <span className="mono">
+                    {selectedCategoryItems.reduce((sum, item) => sum + item.amount, 0).toLocaleString('ko-KR')}원
+                  </span>
+                </p>
+              </>
+            )}
+            <button
+              type="button"
+              className="btn-text install-modal__close"
+              onClick={() => setSelectedSpendCategory(null)}
             >
               닫기
             </button>

@@ -1396,7 +1396,11 @@ button.summary-board__tile:hover {
   list-style: none;
 }
 
-.spending-detail__category-list li {
+.spending-detail__category-list > li {
+  display: contents;
+}
+
+.spending-detail__category-item {
   display: flex;
   flex: 1 1 160px;
   max-width: 220px;
@@ -1405,11 +1409,21 @@ button.summary-board__tile:hover {
   justify-content: center;
   gap: 4px;
   background: var(--neutral-bg);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   font-size: 0.85rem;
   color: var(--ink);
   text-align: center;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.spending-detail__category-item:hover,
+.spending-detail__category-item:focus-visible {
+  border-color: var(--hairline-strong);
+  background: var(--surface-soft, var(--neutral-bg));
 }
 
 .spending-detail__category-stats {
