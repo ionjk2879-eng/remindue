@@ -48,6 +48,7 @@ import {
   daysSinceBaseDate,
   formatKoreanMonthDay,
   formatShortDate,
+  formatShortDateWithYear,
   isWithinRecentDays,
   isWithinUpcomingDays,
   occurrenceDatesInMonth,
@@ -2871,10 +2872,10 @@ export default function DashboardPage() {
                   <div className="ticket-card__info-grid">
                     <div>
                       <div className="ticket-card__info-label">
-                        {isRecurringType(p.type) ? '결제일' : '기한'}
+                        {isRecurringType(p.type) ? '결제일' : '구매일'}
                       </div>
                       <div className="ticket-card__info-value mono">
-                        {formatShortDate(p.deadline)}
+                        {isRecurringType(p.type) ? formatShortDateWithYear(p.deadline) : formatShortDateWithYear(p.baseDate)}
                       </div>
                     </div>
                     <div>
@@ -2894,7 +2895,7 @@ export default function DashboardPage() {
                       {renderCategoryBadge(p) ?? <span className="ticket-card__info-value" style={{ color: 'var(--ink-soft)' }}>—</span>}
                     </div>
                   </div>
-                  {isRecurringType(p.type) && p.deliveryRound !== null && (
+                  {isRecurringType(p.type) && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
                       {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
@@ -2902,6 +2903,8 @@ export default function DashboardPage() {
                         : ` (${formatShortDate(p.deadline)})`}
                       {p.isOneTime && ' · 한 번만 사용'}
                     </p>
+                  ) : (
+                    !isRecurringType(p.type) && renderGeneralDeadlineLines(p)
                   )}
                   <div className="ticket-card__actions">
                     {deadlineNotificationsEnabled === true && p.type === 'GENERAL' && p.deadlineNotificationsDisabledAt === null && (
@@ -2979,10 +2982,10 @@ export default function DashboardPage() {
                   <div className="ticket-card__info-grid">
                     <div>
                       <div className="ticket-card__info-label">
-                        {isRecurringType(p.type) ? '결제일' : '기한'}
+                        {isRecurringType(p.type) ? '결제일' : '구매일'}
                       </div>
                       <div className="ticket-card__info-value mono">
-                        {formatShortDate(p.deadline)}
+                        {isRecurringType(p.type) ? formatShortDateWithYear(p.deadline) : formatShortDateWithYear(p.baseDate)}
                       </div>
                     </div>
                     <div>
@@ -3002,13 +3005,15 @@ export default function DashboardPage() {
                       {renderCategoryBadge(p) ?? <span className="ticket-card__info-value" style={{ color: 'var(--ink-soft)' }}>—</span>}
                     </div>
                   </div>
-                  {isRecurringType(p.type) && p.deliveryRound !== null && (
+                  {isRecurringType(p.type) && p.deliveryRound !== null ? (
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
                       {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
                         ? ` · 매월 ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
                         : ` (${formatShortDate(p.deadline)})`}
                     </p>
+                  ) : (
+                    !isRecurringType(p.type) && renderGeneralDeadlineLines(p)
                   )}
                   <div className="ticket-card__actions">
                     {isRecurringType(p.type) && p.discontinuedAt !== null && (

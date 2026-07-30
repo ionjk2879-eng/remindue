@@ -5,6 +5,12 @@ export function formatShortDate(dateStr: string): string {
   return `${month}/${day}`;
 }
 
+/** 티켓 카드 정보 그리드용 — formatShortDate에 연도를 더한 버전. */
+export function formatShortDateWithYear(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return `${year}.${month}.${day}`;
+}
+
 export function formatKoreanMonthDay(dateStr: string): string {
   const [, month, day] = dateStr.split('-').map(Number);
   return `${month}월 ${day}일`;
