@@ -14,8 +14,14 @@ import { dirname, resolve } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const dates = Object.values(allYears)
-  .flatMap((yearData) => Object.keys(yearData))
+// 근로자의 날(노동절)은 관공서 공휴일(대체공휴일 대상)이 아니라 근로기준법상 유급휴일이라
+// 택배·배송업이 실제로 쉬지 않는다 — 실제 정기배송 결제/도착일 데이터로 검증됨(2027-05-03
+// "대체공휴일(노동절)"에 도착 예정인 사례가 실제로 그 날짜 그대로 도착 처리됨). 배송일 계산에서는
+// 이 이름이 붙은 날짜를 공휴일 집합에서 제외한다.
+const dates = Object.entries(allYears)
+  .flatMap(([, yearData]) => Object.entries(yearData))
+  .filter(([, names]) => !names.some((name) => name.includes('노동절')))
+  .map(([date]) => date)
   .sort();
 
 const years = Object.keys(allYears)

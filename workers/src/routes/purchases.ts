@@ -65,6 +65,12 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
   // 도착예정 추정(computeArrivalEstimate)은 실물 배송이 있는 RECURRING_DELIVERY에서만 의미가
   // 있다 — 다른 타입이면 값이 와도 저장하지 않는다.
   const arrivalOffsetDays = body.type === 'RECURRING_DELIVERY' ? (body.arrivalOffsetDays ?? null) : null;
+  // FIXED_DAY + 오프셋 조합은 도착 앵커(expectedDeliveryDate)의 "일(day)"을 스케줄의 진짜 고정
+  // 앵커로 쓴다(purchase-logic.ts arrivalAnchoredCycleFor) — 앵커가 없으면 baseDate(결제일)로
+  // 잘못 폴백해 도착일과 결제일이 뒤섞인 채 계산된다. 반드시 도착일을 직접 입력받아야 한다.
+  if (arrivalOffsetDays !== null && (body.scheduleType ?? 'INTERVAL') === 'FIXED_DAY' && !expectedDeliveryDate) {
+    throw new BadRequestError('영업일 오프셋을 설정하려면 도착예정일(expectedDeliveryDate)도 함께 입력해야 합니다');
+  }
   // 일반 구매에는 반복 여부가 없으므로 무시한다. 정기 항목의 1회 사용은 "유지 안 함"과 달리
   // 목록을 보존하되 이후 회차만 만들지 않는 별도 상태다.
   const isOneTime = isRecurringType(body.type) && body.isOneTime === true;

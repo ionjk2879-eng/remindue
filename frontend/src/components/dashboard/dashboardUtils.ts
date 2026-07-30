@@ -1,4 +1,5 @@
 import { isRecurringType, type Purchase } from '../../types';
+import { KR_HOLIDAY_DATES } from './kr-holidays-data';
 
 export function formatShortDate(dateStr: string): string {
   const [, month, day] = dateStr.split('-').map(Number);
@@ -37,6 +38,43 @@ export function isWithinRecentDays(dateStr: string, days: number): boolean {
 export function shiftDateOnly(dateStr: string, days: number): string {
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+/** workers/src/lib/kr-holidays.ts와 동일 — 토·일 또는 공휴일이면 true. */
+function isNonDeliveryDay(dateStr: string): boolean {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  if (dayOfWeek === 0 || dayOfWeek === 6) return true;
+  return KR_HOLIDAY_DATES.has(dateStr);
+}
+
+/** workers/src/lib/date.ts의 addBusinessDays/subtractBusinessDays와 동일 — 정기배송 결제일/
+ *  도착예정일 계산(도착일이 고정 앵커, 결제일은 영업일만큼 거꾸로 역산)에 프론트에서도 같은
+ *  값을 내려면 이 두 함수가 필요하다(프론트/백엔드가 별도 패키지라 공유 불가, 기존 중복 패턴). */
+function addBusinessDays(dateStr: string, offsetDays: number): string {
+  let current = dateStr;
+  let remaining = offsetDays;
+  while (remaining > 0) {
+    current = shiftDateOnly(current, 1);
+    if (!isNonDeliveryDay(current)) remaining -= 1;
+  }
+  while (isNonDeliveryDay(current)) {
+    current = shiftDateOnly(current, 1);
+  }
+  return current;
+}
+
+function subtractBusinessDays(dateStr: string, offsetDays: number): string {
+  let current = dateStr;
+  let remaining = offsetDays;
+  while (remaining > 0) {
+    current = shiftDateOnly(current, -1);
+    if (!isNonDeliveryDay(current)) remaining -= 1;
+  }
+  while (isNonDeliveryDay(current)) {
+    current = shiftDateOnly(current, -1);
+  }
+  return current;
 }
 
 export function previousFixedScheduleDate(dateStr: string, fixedDay: number, intervalMonths = 1): string {
@@ -84,11 +122,41 @@ export function occurrenceDatesInMonth(purchase: Purchase, year: number, month: 
   }
 
   if (purchase.scheduleType === 'FIXED_DAY') {
+    const intervalMonths = Math.max(1, purchase.fixedDayIntervalMonths || 1);
+
+    if (purchase.arrivalOffsetDays !== null) {
+      // 도착예정일(anchorDate의 "일"이 매 intervalMonths마다 반복, 토·일·공휴일이면 다음
+      // 영업일로 밀림)이 고정 앵커고 결제일은 그 도착일에서 영업일만큼 거꾸로 역산된
+      // 값이다(실제 정기배송 데이터로 검증됨). 역산 결과가 원래 회차의 "명목상 월"이 아니라
+      // 하루이틀 전달로 넘어갈 수 있어(예: 도착이 1일이면 결제가 전달 말일), 목표 월 앞뒤
+      // 회차까지 넉넉히 계산해서 실제 결제일이 이 월에 들어오는지 직접 확인한다.
+      const anchorDay = Number(anchorDate.slice(8, 10));
+      const anchorTotalMonths = baseYear * 12 + (baseMonth - 1);
+      const targetTotalMonths = year * 12 + (month - 1);
+      const nominalK = Math.round((targetTotalMonths - anchorTotalMonths) / intervalMonths);
+      const dates: string[] = [];
+      for (let k = nominalK - 1; k <= nominalK + 1; k++) {
+        if (k < 0) continue;
+        const totalMonths = anchorTotalMonths + k * intervalMonths;
+        const targetYear = Math.floor(totalMonths / 12);
+        const targetMonthIdx = totalMonths - targetYear * 12; // 0-indexed
+        const daysInTargetMonth = new Date(targetYear, targetMonthIdx + 1, 0).getDate();
+        const clampedDay = Math.min(anchorDay, daysInTargetMonth);
+        const rawArrival = `${targetYear}-${pad(targetMonthIdx + 1)}-${pad(clampedDay)}`;
+        const arrivalDate = addBusinessDays(rawArrival, 0);
+        const deadline = subtractBusinessDays(arrivalDate, purchase.arrivalOffsetDays);
+        const [deadlineYear, deadlineMonth] = deadline.split('-').map(Number);
+        if (deadlineYear === year && deadlineMonth === month && (cutoff === null || deadline <= cutoff)) {
+          dates.push(deadline);
+        }
+      }
+      return dates.sort();
+    }
+
     const started = year > baseYear || (year === baseYear && month >= baseMonth);
     if (!started) return [];
-    // 매 N개월 고정일 스케줄 — 앵커 월(baseMonth)로부터 intervalMonths 간격인 달에만 회차가 있다
-    // (intervalMonths=1이면 기존 "매월" 동작과 완전히 동일).
-    const intervalMonths = Math.max(1, purchase.fixedDayIntervalMonths || 1);
+    // 매 N개월 고정일 스케줄(오프셋 없음) — 앵커 월(baseMonth)로부터 intervalMonths 간격인
+    // 달에만 회차가 있다(intervalMonths=1이면 기존 "매월" 동작과 완전히 동일).
     const monthDiff = (year - baseYear) * 12 + (month - baseMonth);
     if (monthDiff % intervalMonths !== 0) return [];
     const daysInMonth = new Date(year, month, 0).getDate();

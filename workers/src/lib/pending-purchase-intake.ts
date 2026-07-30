@@ -3,7 +3,8 @@
 // sanitize를 거쳐 저장한다(모델이 스키마를 벗어난 값을 줄 수 있으므로).
 
 import { DEFAULT_RETURN_DEADLINE_DAYS, DEFAULT_INTERVAL_DAYS, DEFAULT_WARRANTY_MONTHS } from './purchase-logic';
-import { daysBetween } from './date';
+import { businessDaysBetween } from './date';
+import { isNonDeliveryDay } from './kr-holidays';
 import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES, type PurchaseCategory, type PurchaseType } from '../types';
 import type { ExtractedOrder } from './order-extraction';
 
@@ -221,10 +222,12 @@ export async function buildPendingPurchaseFields(extracted: ExtractedOrder): Pro
 
   // RECURRING_DELIVERY 전용 — 도착예정일 오프셋(arrival_offset_days)은 AI 프롬프트로 직접 뽑지
   // 않고, 이미 추출된 orderDate(결제일)/expectedDeliveryDate(사용자가 적어 넣은 도착일)로부터
-  // 서버가 계산한다. 결제일보다 이전이거나 같은 날은 "도착"이라는 개념과 안 맞으므로 null로 둔다.
+  // 서버가 계산한다. addBusinessDays/subtractBusinessDays가 전부 "영업일" 단위라 여기서도
+  // 달력일이 아니라 영업일 수를 세야 단위가 맞는다(실제 정기배송 데이터로 검증된 방식).
+  // 결제일보다 이전이거나 같은 날은 "도착"이라는 개념과 안 맞으므로 null로 둔다.
   let arrivalOffsetDays: number | null = null;
   if (type === 'RECURRING_DELIVERY' && extracted.orderDate && extracted.expectedDeliveryDate) {
-    const diff = daysBetween(extracted.orderDate, extracted.expectedDeliveryDate);
+    const diff = businessDaysBetween(extracted.orderDate, extracted.expectedDeliveryDate, isNonDeliveryDay);
     if (diff > 0) arrivalOffsetDays = diff;
   }
 

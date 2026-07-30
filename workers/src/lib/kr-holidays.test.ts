@@ -17,4 +17,9 @@ describe('isNonDeliveryDay', () => {
   it('does not flag an ordinary weekday', () => {
     expect(isNonDeliveryDay('2026-07-30')).toBe(false); // 목요일, 공휴일 아님
   });
+
+  it('does not flag Labor Day (노동절) or its substitute — real courier/delivery data shows deliveries proceed as normal', () => {
+    expect(isNonDeliveryDay('2026-05-01')).toBe(false); // 노동절(금요일)
+    expect(isNonDeliveryDay('2027-05-03')).toBe(false); // 노동절 대체공휴일(월요일) — 실제 정기배송이 이 날 그대로 도착 처리됨
+  });
 });

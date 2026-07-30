@@ -15,7 +15,7 @@
 // explicitly answers "did it arrive, and which day" (arrival-confirm.ts), never from silently
 // logging a click/cron tick.
 
-import { addBusinessDays, addDays, addMonths, daysBetween, nextFixedDayEveryNMonths, parseDateOnly, todayDateOnly } from './date';
+import { addBusinessDays, addDays, addMonths, daysBetween, formatDateOnly, nextFixedDayEveryNMonths, parseDateOnly, subtractBusinessDays, todayDateOnly } from './date';
 import { isNonDeliveryDay } from './kr-holidays';
 import { isRecurringType, usesArrivalDate, type PurchaseRow, type PurchaseType } from '../types';
 
@@ -37,6 +37,7 @@ type DeadlineInput = Pick<
   | 'fixed_day_interval_months'
   | 'is_one_time'
   | 'expected_delivery_date'
+  | 'arrival_offset_days'
 >;
 
 /**
@@ -58,6 +59,54 @@ export type DeadlineKind = 'RETURN' | 'WARRANTY' | 'SCHEDULE';
 
 export interface DeadlineInstance extends DeadlineResult {
   kind: DeadlineKind;
+}
+
+/**
+ * arrival_offset_days가 설정된 정기배송(RECURRING_DELIVERY) 전용 — 실제 정기배송 "회차별
+ * 상세정보" 데이터로 검증된 방향: 도착예정일이 진짜 고정 앵커고(anchor의 "일"이 매
+ * intervalMonths마다 반복되며, 토·일·공휴일이면 다음 영업일로 밀림 — 노동절은 실제 택배가
+ * 쉬지 않으므로 제외), 결제일은 그 도착일에서 영업일 offsetBusinessDays일을 거꾸로 센 값이다.
+ * k(0-based cycle 인덱스)로 특정 회차를 직접 계산할 수 있게 노출한다 — deliveryRound=k+1,
+ * computePreviousScheduleDeadline에서 "직전 회차"(k-1)를 구할 때도 재사용한다.
+ */
+function arrivalAnchoredCycleFor(
+  k: number,
+  intervalMonths: number,
+  anchorDateStr: string,
+  offsetBusinessDays: number
+): { deadline: string; arrivalDate: string } {
+  const anchor = parseDateOnly(anchorDateStr);
+  const totalMonths = anchor.year * 12 + (anchor.month - 1) + k * intervalMonths;
+  const targetYear = Math.floor(totalMonths / 12);
+  const targetMonth = totalMonths - targetYear * 12;
+  const daysInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const clampedDay = Math.min(anchor.day, daysInTargetMonth);
+  const rawArrival = formatDateOnly(targetYear, targetMonth, clampedDay);
+  const arrivalDate = addBusinessDays(rawArrival, 0, isNonDeliveryDay);
+  const deadline = subtractBusinessDays(arrivalDate, offsetBusinessDays, isNonDeliveryDay);
+  return { deadline, arrivalDate };
+}
+
+/** todayStr 기준 결제일(deadline)이 today 이후(포함)가 되는 가장 가까운 회차를 찾는다. */
+function nextArrivalAnchoredCycle(
+  intervalMonths: number,
+  anchorDateStr: string,
+  todayStr: string,
+  offsetBusinessDays: number
+): { deadline: string; arrivalDate: string; k: number } {
+  const anchor = parseDateOnly(anchorDateStr);
+  const today = parseDateOnly(todayStr);
+  const anchorTotalMonths = anchor.year * 12 + (anchor.month - 1);
+  const todayTotalMonths = today.year * 12 + (today.month - 1);
+
+  // 결제일이 도착일보다 항상 앞서므로, 도착일 기준 k값보다 한 회차 앞에서부터 확인을 시작한다.
+  let k = Math.max(0, Math.floor((todayTotalMonths - anchorTotalMonths) / intervalMonths) - 1);
+  let cycle = arrivalAnchoredCycleFor(k, intervalMonths, anchorDateStr, offsetBusinessDays);
+  while (cycle.deadline < todayStr) {
+    k += 1;
+    cycle = arrivalAnchoredCycleFor(k, intervalMonths, anchorDateStr, offsetBusinessDays);
+  }
+  return { ...cycle, k };
 }
 
 /**
@@ -97,8 +146,15 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
       // 계산하면 기존에 저장된 항목도 별도 데이터 수정 없이 같은 기준으로 바로 보정된다.
       if (row.is_one_time === 1) {
         if (scheduleType === 'FIXED_DAY') {
-          const fixedDay = row.fixed_day_of_month ?? 1;
           const intervalMonths = row.fixed_day_interval_months ?? 1;
+          // arrival_offset_days가 설정된 정기배송은 도착예정일이 진짜 고정 앵커라 결제일을
+          // 거기서 거꾸로 역산한다(arrivalAnchoredCycleFor 참고). 그 외(오프셋 없음)는 기존처럼
+          // fixedDayOfMonth 자체가 결제일이고 공휴일 보정이 없다.
+          if (row.arrival_offset_days !== null) {
+            const { deadline } = nextArrivalAnchoredCycle(intervalMonths, anchor, addDays(anchor, 1), row.arrival_offset_days);
+            return [{ kind: 'SCHEDULE', deadline, deliveryRound: 1 }];
+          }
+          const fixedDay = row.fixed_day_of_month ?? 1;
           // anchor와 같은 고정일이라도 이미 시작한 이번 달이 아니라 다음 달 고정일을 잡는다.
           const deadline = nextFixedDayEveryNMonths(fixedDay, intervalMonths, anchor, addDays(anchor, 1));
           return [{ kind: 'SCHEDULE', deadline, deliveryRound: 1 }];
@@ -109,11 +165,18 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
       }
 
       if (scheduleType === 'FIXED_DAY') {
-        // 매 N개월 고정일 방식(기본 N=1=매월): anchor를 기준월로 삼아 N개월 단위 후보 중
-        // 오늘 이후 가장 가까운 fixedDayOfMonth 날짜를 다음 일정으로 삼는다.
+        const intervalMonths = row.fixed_day_interval_months ?? 1;
+        // arrival_offset_days가 설정된 정기배송: 도착예정일(anchor의 "일"이 매 N개월마다
+        // 반복, 토·일·공휴일이면 다음 영업일로 밀림)이 고정 앵커고 결제일은 그 도착일에서
+        // 영업일만큼 거꾸로 역산된 값이다 — 실제 정기배송 회차별 상세정보 데이터로 검증됨.
+        if (row.arrival_offset_days !== null) {
+          const { deadline, k } = nextArrivalAnchoredCycle(intervalMonths, anchor, todayDateOnly(), row.arrival_offset_days);
+          return [{ kind: 'SCHEDULE', deadline, deliveryRound: k + 1 }];
+        }
+        // 오프셋이 없으면(대부분의 기존 항목) fixedDayOfMonth 자체가 결제일이고, 결제는
+        // 공휴일과 무관하게 그대로 이뤄진다(사용자 확정: "결제일 자체는 공휴일이라도 결제됨").
         // 회차: 시작월(anchor 기준)부터 다음 일정까지 몇 달이 지났는지 ÷ N + 1.
         const fixedDay = row.fixed_day_of_month ?? 1;
-        const intervalMonths = row.fixed_day_interval_months ?? 1;
         const deadline = nextFixedDayEveryNMonths(fixedDay, intervalMonths, anchor, todayDateOnly());
         const base = parseDateOnly(anchor);
         const next = parseDateOnly(deadline);
@@ -169,8 +232,16 @@ export function computeArrivalEstimate(deadline: string, offsetDays: number | nu
 export function computePreviousScheduleDeadline(row: DeadlineInput): string | null {
   if (row.type !== 'RECURRING_DELIVERY' && row.type !== 'SUBSCRIPTION') return null;
 
-  const nextDeadline = computeDeadline(row).deadline;
   const anchor = arrivalAnchor(row);
+  if ((row.schedule_type ?? 'INTERVAL') === 'FIXED_DAY' && row.arrival_offset_days !== null) {
+    const intervalMonths = row.fixed_day_interval_months ?? 1;
+    const { k } = nextArrivalAnchoredCycle(intervalMonths, anchor, todayDateOnly(), row.arrival_offset_days);
+    if (k === 0) return null;
+    const previous = arrivalAnchoredCycleFor(k - 1, intervalMonths, anchor, row.arrival_offset_days).deadline;
+    return previous >= anchor ? previous : null;
+  }
+
+  const nextDeadline = computeDeadline(row).deadline;
   const previous = (row.schedule_type ?? 'INTERVAL') === 'FIXED_DAY'
     ? addMonths(nextDeadline, -(row.fixed_day_interval_months ?? 1))
     : addDays(nextDeadline, -(row.interval_days ?? DEFAULT_INTERVAL_DAYS));

@@ -125,3 +125,37 @@ export function addBusinessDays(dateStr: string, offsetDays: number, isNonDelive
   }
   return current;
 }
+
+/**
+ * addBusinessDays의 역방향 — 도착예정일이 고정 앵커이고 결제일이 거기서 영업일만큼 거꾸로
+ * 역산되는 케이스(정기배송 실측 데이터로 검증됨)에 쓰인다. addBusinessDays와 정확히 대칭이라
+ * 어느 한쪽으로 N일 세었다가 반대 방향으로 N일 다시 세면 원래 날짜로 돌아온다.
+ */
+export function subtractBusinessDays(dateStr: string, offsetDays: number, isNonDeliveryDay: (d: string) => boolean): string {
+  let current = dateStr;
+  let remaining = offsetDays;
+  while (remaining > 0) {
+    current = addDays(current, -1);
+    if (!isNonDeliveryDay(current)) remaining -= 1;
+  }
+  while (isNonDeliveryDay(current)) {
+    current = addDays(current, -1);
+  }
+  return current;
+}
+
+/**
+ * fromStr(결제일)과 toStr(도착일) 사이의 영업일 수 — daysBetween의 영업일 버전. 이메일 추출
+ * 시 orderDate/expectedDeliveryDate 간격으로 arrival_offset_days를 자동 계산할 때 쓴다
+ * (달력일이 아니라 영업일로 세어야 addBusinessDays/subtractBusinessDays와 단위가 맞는다).
+ * toStr이 fromStr보다 앞이면 0을 반환한다(음수 오프셋은 의미가 없다).
+ */
+export function businessDaysBetween(fromStr: string, toStr: string, isNonDeliveryDay: (d: string) => boolean): number {
+  let count = 0;
+  let current = fromStr;
+  while (current < toStr) {
+    current = addDays(current, 1);
+    if (!isNonDeliveryDay(current)) count += 1;
+  }
+  return count;
+}

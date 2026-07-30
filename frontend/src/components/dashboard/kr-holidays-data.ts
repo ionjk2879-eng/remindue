@@ -1,6 +1,8 @@
-// 자동 생성 파일 — workers/scripts/generate-kr-holidays.mjs로 생성됨. 직접 수정하지 말 것.
-// 출처: @hyunbinseo/holidays-kr(관보/한국천문연구원 월력요항 기반, MIT). 커버 연도: 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027.
-// 다음 해가 관보에 확정되면 npm update @hyunbinseo/holidays-kr 후 이 스크립트를 다시 실행할 것.
+// workers/src/lib/kr-holidays-data.ts를 그대로 복사한 파일 — 프론트/백엔드가 별도 패키지라
+// 공유할 수 없어서(dashboardUtils.ts도 purchase-logic.ts 스케줄 계산을 통째로 복제하는 기존
+// 패턴과 동일) 직접 복사해 둔다. 원본은 workers/scripts/generate-kr-holidays.mjs로 생성됨.
+// 출처: @hyunbinseo/holidays-kr(관보/한국천문연구원 월력요항 기반, MIT). 커버 연도: 2018~2027.
+// workers 쪽을 갱신했다면(다음 해 공휴일 확정 시) 이 파일도 함께 복사해 갱신할 것.
 
 export const KR_HOLIDAY_DATES: ReadonlySet<string> = new Set([
   '2018-01-01',
