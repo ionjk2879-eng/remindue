@@ -1445,6 +1445,12 @@ button.summary-board__tile:hover {
   list-style: none;
 }
 
+/* li 자체는 시맨틱 래퍼일 뿐 — display:contents로 박스를 없애서 안쪽 button이
+   month-list의 실제 flex 아이템이 되게 한다(li로는 flex 세로배치를 못 주므로). */
+.spending-detail__month-list > li {
+  display: contents;
+}
+
 .spending-detail__month-item {
   display: flex;
   flex: 1 1 84px;
@@ -1459,6 +1465,15 @@ button.summary-board__tile:hover {
   padding: 8px 10px;
   font-size: 0.8rem;
   color: var(--ink-soft);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.spending-detail__month-item:hover,
+.spending-detail__month-item:focus-visible {
+  border-color: var(--hairline-strong);
+  background: var(--surface-soft, var(--neutral-bg));
 }
 
 .spending-detail__month-item .mono {
@@ -2065,6 +2080,22 @@ button.summary-board__tile:hover {
 .install-modal__close {
   display: block;
   margin: 20px auto 0;
+}
+
+/* 올해 예상 지출 월별 내역에서 한 달을 눌렀을 때 뜨는 팝업 — install-modal과 같은 오버레이 위에
+   뜨지만, spending-detail 목록을 그대로 담아야 해서 폭을 더 넓게 잡는다. */
+.month-spend-modal {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-lift);
+  padding: 28px;
+  text-align: left;
 }
 
 /* --------------------------------------------------------------------------

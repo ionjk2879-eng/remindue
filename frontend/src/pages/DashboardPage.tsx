@@ -330,6 +330,7 @@ export default function DashboardPage() {
   const [originalCurrency, setOriginalCurrency] = useState<string | null>(null);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [showYearlyDetail, setShowYearlyDetail] = useState(false);
+  const [selectedSpendMonth, setSelectedSpendMonth] = useState<number | null>(null);
   const [showSavingsDetail, setShowSavingsDetail] = useState(false);
   const [showSpecificSpendCalculator, setShowSpecificSpendCalculator] = useState(false);
   /** 카테고리를 고르지 않으면 전체 범위를 보여 주되, 계산할 항목은 기본으로 선택하지 않는다. */
@@ -1185,40 +1186,90 @@ export default function DashboardPage() {
   const [currentYearNum, currentMonthNum] = today.split('-').map(Number);
 
   /**
-   * "이번 달 예상지출" 클릭 시 펼쳐지는 항목별 내역 — 정기배송/구독은 이번 달에 실제로 결제되는
-   * 날짜마다 한 줄씩(같은 항목이 여러 번 결제되면 그만큼 여러 줄), GENERAL 같은
-   * 1회성 결제도 baseDate가 이번 달이면 그 날짜에 포함한다. 금액이 없는 항목은 제외.
+   * "이번 달 예상지출"/"올해 예상 지출" 월별 항목 클릭 시 보여주는 항목별 내역 — 정기배송/구독은
+   * 해당 달에 실제로 결제되는 날짜마다 한 줄씩(같은 항목이 여러 번 결제되면 그만큼 여러 줄),
+   * GENERAL 같은 1회성 결제도 baseDate가 그 달이면 그 날짜에 포함한다. 금액이 없는 항목은 제외.
+   * 이번 달뿐 아니라 올해 예상 지출의 다른 달을 눌렀을 때도 재사용한다.
    */
-  const spendingOccurrences = spendHistoryPurchases.flatMap((p) => {
-    if (p.amount === null) return [];
-    if (isRecurringType(p.type)) {
-      return occurrenceDatesInMonth(p, currentYearNum, currentMonthNum).map((date, idx) => ({
-        key: `${p.id}-${idx}`,
-        itemName: p.itemName,
-        type: p.type,
-        date,
-        amount: p.amount!,
-      }));
-    }
-    const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
-    if (baseYear !== currentYearNum || baseMonth !== currentMonthNum) return [];
-    return [{ key: String(p.id), itemName: p.itemName, type: p.type, date: p.baseDate, amount: p.amount }];
-  });
+  const computeSpendingByDate = (year: number, month: number) => {
+    const occurrences = spendHistoryPurchases.flatMap((p) => {
+      if (p.amount === null) return [];
+      if (isRecurringType(p.type)) {
+        return occurrenceDatesInMonth(p, year, month).map((date, idx) => ({
+          key: `${p.id}-${idx}`,
+          itemName: p.itemName,
+          type: p.type,
+          date,
+          amount: p.amount!,
+        }));
+      }
+      const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);
+      if (baseYear !== year || baseMonth !== month) return [];
+      return [{ key: String(p.id), itemName: p.itemName, type: p.type, date: p.baseDate, amount: p.amount }];
+    });
 
-  /** 위 내역을 날짜순으로 묶은 것 — "8월 7일 아래 상품 2개, 8월 16일 아래 상품 1개" 형태로 보여준다. */
-  const spendingByDate = Object.values(
-    spendingOccurrences.reduce<Record<string, { date: string; items: typeof spendingOccurrences; total: number }>>(
-      (acc, occ) => {
-        if (!acc[occ.date]) acc[occ.date] = { date: occ.date, items: [], total: 0 };
-        acc[occ.date].items.push(occ);
-        acc[occ.date].total += occ.amount;
-        return acc;
-      },
-      {}
-    )
-  ).sort((a, b) => a.date.localeCompare(b.date));
+    /** 위 내역을 날짜순으로 묶은 것 — "8월 7일 아래 상품 2개, 8월 16일 아래 상품 1개" 형태로 보여준다. */
+    const byDate = Object.values(
+      occurrences.reduce<Record<string, { date: string; items: typeof occurrences; total: number }>>(
+        (acc, occ) => {
+          if (!acc[occ.date]) acc[occ.date] = { date: occ.date, items: [], total: 0 };
+          acc[occ.date].items.push(occ);
+          acc[occ.date].total += occ.amount;
+          return acc;
+        },
+        {}
+      )
+    ).sort((a, b) => a.date.localeCompare(b.date));
 
-  const monthlySpendEstimate = spendingOccurrences.reduce((sum, occ) => sum + occ.amount, 0);
+    const total = occurrences.reduce((sum, occ) => sum + occ.amount, 0);
+    return { byDate, total };
+  };
+
+  const { byDate: spendingByDate, total: monthlySpendEstimate } = computeSpendingByDate(currentYearNum, currentMonthNum);
+
+  const selectedMonthSpending = selectedSpendMonth !== null ? computeSpendingByDate(currentYearNum, selectedSpendMonth) : null;
+
+  /** "N월 예상지출 내역" 본문 — 이번 달 아코디언과 올해 예상 지출의 월별 팝업이 공유한다. */
+  const renderMonthSpendingBody = (
+    month: number,
+    byDate: ReturnType<typeof computeSpendingByDate>['byDate'],
+    total: number
+  ) =>
+    byDate.length === 0 ? (
+      <p className="spending-detail__empty">
+        금액이 등록된 항목이 없어요. 항목을 "수정"해서 금액을 입력하면 여기 반영돼요.
+      </p>
+    ) : (
+      <>
+        <div className="spending-detail__by-date">
+          {byDate.map((group) => (
+            <div className="spending-detail__date-group" key={group.date}>
+              <p className="spending-detail__date-heading">
+                {formatKoreanMonthDay(group.date)}{' '}
+                <span className="mono">{group.total.toLocaleString('ko-KR')}원</span>
+              </p>
+              <ul className="spending-detail__list">
+                {group.items.map((item) => (
+                  <li key={item.key}>
+                    <span>
+                      <span className="spending-detail__list-type">
+                        {TYPE_SHORT_LABEL[item.type]}
+                      </span>
+                      {item.itemName}
+                    </span>
+                    <span className="mono">{item.amount.toLocaleString('ko-KR')}원</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <p className="spending-detail__total">
+          {month}월 총 지출{' '}
+          <span className="mono">{total.toLocaleString('ko-KR')}원</span>
+        </p>
+      </>
+    );
 
   /** 특정 지출 계산기: 활성 항목을 카테고리와 개별 항목으로 좁혀 이번 달 발생 예정액을 계산한다. */
   const calculatorCandidates = purchases.filter((p) => p.amount !== null && p.discontinuedAt === null);
@@ -1632,41 +1683,7 @@ export default function DashboardPage() {
         <div className="spending-detail">
           <div className="spending-detail__section">
             <p className="spending-detail__heading">📋 {currentMonthNum}월 예상지출 내역</p>
-            {spendingByDate.length === 0 ? (
-              <p className="spending-detail__empty">
-                금액이 등록된 항목이 없어요. 항목을 "수정"해서 금액을 입력하면 여기 반영돼요.
-              </p>
-            ) : (
-              <>
-                <div className="spending-detail__by-date">
-                  {spendingByDate.map((group) => (
-                    <div className="spending-detail__date-group" key={group.date}>
-                      <p className="spending-detail__date-heading">
-                        {formatKoreanMonthDay(group.date)}{' '}
-                        <span className="mono">{group.total.toLocaleString('ko-KR')}원</span>
-                      </p>
-                      <ul className="spending-detail__list">
-                        {group.items.map((item) => (
-                          <li key={item.key}>
-                            <span>
-                              <span className="spending-detail__list-type">
-                                {TYPE_SHORT_LABEL[item.type]}
-                              </span>
-                              {item.itemName}
-                            </span>
-                            <span className="mono">{item.amount.toLocaleString('ko-KR')}원</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-                <p className="spending-detail__total">
-                  {currentMonthNum}월 총 지출{' '}
-                  <span className="mono">{monthlySpendEstimate.toLocaleString('ko-KR')}원</span>
-                </p>
-              </>
-            )}
+            {renderMonthSpendingBody(currentMonthNum, spendingByDate, monthlySpendEstimate)}
           </div>
 
           {categoryCounts.length > 0 && (
@@ -1703,22 +1720,24 @@ export default function DashboardPage() {
             <p className="spending-detail__heading">📈 올해 예상 지출 — 월별 내역</p>
             <ul className="spending-detail__month-list">
               {monthlySpendDetails.map(({ month, total, trend, percentLabel, isFuture }) => (
-                <li
-                  key={month}
-                  className={`spending-detail__month-item${
-                    month === currentMonthNum ? ' spending-detail__month-item--current' : ''
-                  }`}
-                  style={{ alignItems: 'center', textAlign: 'center' }}
-                >
-                  <span>{month}월</span>
-                  <span className="mono" style={{ whiteSpace: 'nowrap' }}>{total.toLocaleString('ko-KR')}원</span>
-                  <span
-                    className={`spending-detail__month-change ${
-                      isFuture ? 'spending-detail__month-change--neutral' : `spending-detail__month-change--${trend}`
+                <li key={month}>
+                  <button
+                    type="button"
+                    className={`spending-detail__month-item${
+                      month === currentMonthNum ? ' spending-detail__month-item--current' : ''
                     }`}
+                    onClick={() => setSelectedSpendMonth(month)}
                   >
-                    {percentLabel}
-                  </span>
+                    <span>{month}월</span>
+                    <span className="mono" style={{ whiteSpace: 'nowrap' }}>{total.toLocaleString('ko-KR')}원</span>
+                    <span
+                      className={`spending-detail__month-change ${
+                        isFuture ? 'spending-detail__month-change--neutral' : `spending-detail__month-change--${trend}`
+                      }`}
+                    >
+                      {percentLabel}
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -1726,6 +1745,30 @@ export default function DashboardPage() {
               올해 예상 지출{' '}
               <span className="mono">{yearlySpendEstimate.toLocaleString('ko-KR')}원</span>
             </p>
+          </div>
+        </div>
+      )}
+
+      {selectedSpendMonth !== null && selectedMonthSpending !== null && (
+        <div
+          className="onboarding-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="month-spend-modal-title"
+          onClick={() => setSelectedSpendMonth(null)}
+        >
+          <div className="month-spend-modal" onClick={(e) => e.stopPropagation()}>
+            <p className="spending-detail__heading" id="month-spend-modal-title">
+              📋 {selectedSpendMonth}월 예상지출 내역
+            </p>
+            {renderMonthSpendingBody(selectedSpendMonth, selectedMonthSpending.byDate, selectedMonthSpending.total)}
+            <button
+              type="button"
+              className="btn-text install-modal__close"
+              onClick={() => setSelectedSpendMonth(null)}
+            >
+              닫기
+            </button>
           </div>
         </div>
       )}
