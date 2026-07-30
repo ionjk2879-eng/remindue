@@ -1334,6 +1334,9 @@ button.summary-board__tile:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .spending-detail__list li {
@@ -1344,7 +1347,7 @@ button.summary-board__tile:hover {
   color: var(--ink);
 }
 
-.spending-detail__list li span:first-child {
+.spending-detail__list li > span:first-child {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -1352,7 +1355,7 @@ button.summary-board__tile:hover {
   white-space: nowrap;
 }
 
-.spending-detail__list li span:last-child {
+.spending-detail__list li > span:last-child {
   flex: 0 0 auto;
   color: var(--ink-soft);
   white-space: nowrap;
@@ -1388,6 +1391,9 @@ button.summary-board__tile:hover {
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .spending-detail__category-list li {
@@ -1434,6 +1440,9 @@ button.summary-board__tile:hover {
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .spending-detail__month-item {
@@ -1490,6 +1499,9 @@ button.summary-board__tile:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .spending-detail__save-list li {
