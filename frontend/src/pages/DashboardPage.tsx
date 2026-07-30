@@ -1668,11 +1668,11 @@ export default function DashboardPage() {
               <p className="spending-detail__heading">🗂 카테고리별 분석</p>
               <ul className="spending-detail__category-list">
                 {categoryCounts.map(({ category: cat, count, amount }) => (
-                  <li key={cat}>
+                  <li key={cat} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 4 }}>
                     <span>
                       {CATEGORY_ICON[cat]} {CATEGORY_LABEL[cat]}
                     </span>
-                    <span className="spending-detail__category-stats">
+                    <span className="spending-detail__category-stats" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <span className="mono">{count}개</span>
                       <span className="mono">{amount.toLocaleString('ko-KR')}원</span>
                     </span>
@@ -1702,9 +1702,10 @@ export default function DashboardPage() {
                   className={`spending-detail__month-item${
                     month === currentMonthNum ? ' spending-detail__month-item--current' : ''
                   }`}
+                  style={{ alignItems: 'center', textAlign: 'center' }}
                 >
                   <span>{month}월</span>
-                  <span className="mono">{total.toLocaleString('ko-KR')}원</span>
+                  <span className="mono" style={{ whiteSpace: 'nowrap' }}>{total.toLocaleString('ko-KR')}원</span>
                   <span
                     className={`spending-detail__month-change ${
                       isFuture ? 'spending-detail__month-change--neutral' : `spending-detail__month-change--${trend}`
@@ -2373,7 +2374,7 @@ export default function DashboardPage() {
                       가격 반영
                     </button>
                   ) : (
-                    <button type="button" className="btn btn-sm" onClick={() => handlePendingRegisterClick(item)}>
+                    <button type="button" className="btn btn-sm" onClick={() => pendingConfirmId === item.id ? handleCancelEdit() : handlePendingRegisterClick(item)}>
                       확인 후 바로 등록
                     </button>
                   )}
@@ -2726,13 +2727,9 @@ export default function DashboardPage() {
 
           <div className="ticket-list">
             {pagedPurchases.map((p) => (
-              <div className="ticket-card" key={p.id}>
+              <div className={`ticket-card ticket-card--${p.type}`} key={p.id}>
                 <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
                 <div className="ticket-card__body">
-                  <div className="ticket-card__type-row">
-                    <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
-                    {renderCategoryBadge(p)}
-                  </div>
                   <div className="ticket-card__heading">
                     {p.brand && <BrandAvatar brand={p.brand} />}
                     <div className="ticket-card__heading-text">
@@ -2740,24 +2737,39 @@ export default function DashboardPage() {
                       <h3 className="ticket-card__title">{p.itemName}</h3>
                     </div>
                   </div>
-                  {isRecurringType(p.type) && p.deliveryRound !== null ? (
+                  <div className="ticket-card__info-grid">
+                    <div>
+                      <div className="ticket-card__info-label">
+                        {isRecurringType(p.type) ? '결제일' : '기한'}
+                      </div>
+                      <div className="ticket-card__info-value mono">
+                        {formatShortDate(p.deadline)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="ticket-card__info-label">금액</div>
+                      <div className="ticket-card__info-value mono">
+                        {p.amount !== null
+                          ? <PurchaseAmount amount={p.amount} originalAmount={p.originalAmount} originalCurrency={p.originalCurrency} />
+                          : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="ticket-card__info-label">유형</div>
+                      <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
+                    </div>
+                    <div>
+                      <div className="ticket-card__info-label">카테고리</div>
+                      {renderCategoryBadge(p) ?? <span className="ticket-card__info-value" style={{ color: 'var(--ink-soft)' }}>—</span>}
+                    </div>
+                  </div>
+                  {isRecurringType(p.type) && p.deliveryRound !== null && (
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
                       {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
                         ? ` · 매월 ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
                         : ` (${formatShortDate(p.deadline)})`}
                       {p.isOneTime && ' · 한 번만 사용'}
-                    </p>
-                  ) : (
-                    renderGeneralDeadlineLines(p)
-                  )}
-                  {p.amount !== null && (
-                    <p className="ticket-card__amount mono">
-                      <PurchaseAmount
-                        amount={p.amount}
-                        originalAmount={p.originalAmount}
-                        originalCurrency={p.originalCurrency}
-                      />
                     </p>
                   )}
                   <div className="ticket-card__actions">
@@ -2823,13 +2835,9 @@ export default function DashboardPage() {
           )}
           <div className="ticket-list">
             {overdueItems.map((p) => (
-              <div className="ticket-card" key={p.id}>
+              <div className={`ticket-card ticket-card--${p.type}`} key={p.id}>
                 <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
                 <div className="ticket-card__body">
-                  <div className="ticket-card__type-row">
-                    <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
-                    {renderCategoryBadge(p)}
-                  </div>
                   <div className="ticket-card__heading">
                     {p.brand && <BrandAvatar brand={p.brand} />}
                     <div className="ticket-card__heading-text">
@@ -2837,23 +2845,38 @@ export default function DashboardPage() {
                       <h3 className="ticket-card__title">{p.itemName}</h3>
                     </div>
                   </div>
-                  {isRecurringType(p.type) && p.deliveryRound !== null ? (
+                  <div className="ticket-card__info-grid">
+                    <div>
+                      <div className="ticket-card__info-label">
+                        {isRecurringType(p.type) ? '결제일' : '기한'}
+                      </div>
+                      <div className="ticket-card__info-value mono">
+                        {formatShortDate(p.deadline)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="ticket-card__info-label">금액</div>
+                      <div className="ticket-card__info-value mono">
+                        {p.amount !== null
+                          ? <PurchaseAmount amount={p.amount} originalAmount={p.originalAmount} originalCurrency={p.originalCurrency} />
+                          : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="ticket-card__info-label">유형</div>
+                      <span className={`ticket-card__type ticket-card__type--${p.type}`}>{TYPE_LABEL[p.type]}</span>
+                    </div>
+                    <div>
+                      <div className="ticket-card__info-label">카테고리</div>
+                      {renderCategoryBadge(p) ?? <span className="ticket-card__info-value" style={{ color: 'var(--ink-soft)' }}>—</span>}
+                    </div>
+                  </div>
+                  {isRecurringType(p.type) && p.deliveryRound !== null && (
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
                       {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
                         ? ` · 매월 ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
                         : ` (${formatShortDate(p.deadline)})`}
-                    </p>
-                  ) : (
-                    renderGeneralDeadlineLines(p)
-                  )}
-                  {p.amount !== null && (
-                    <p className="ticket-card__amount mono">
-                      <PurchaseAmount
-                        amount={p.amount}
-                        originalAmount={p.originalAmount}
-                        originalCurrency={p.originalCurrency}
-                      />
                     </p>
                   )}
                   <div className="ticket-card__actions">

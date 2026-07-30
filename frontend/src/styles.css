@@ -1339,13 +1339,14 @@ button.summary-board__tile:hover {
 .spending-detail__list li {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   font-size: 0.88rem;
   color: var(--ink);
 }
 
 .spending-detail__list li span:first-child {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1354,6 +1355,7 @@ button.summary-board__tile:hover {
 .spending-detail__list li span:last-child {
   flex: 0 0 auto;
   color: var(--ink-soft);
+  white-space: nowrap;
 }
 
 .spending-detail__list-type {
@@ -1386,21 +1388,23 @@ button.summary-board__tile:hover {
 
 .spending-detail__category-list li {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: center;
+  gap: 4px;
   background: var(--neutral-bg);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   font-size: 0.85rem;
   color: var(--ink);
+  text-align: center;
 }
 
 .spending-detail__category-stats {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 
 .spending-detail__category-stats span:first-child {
@@ -1428,6 +1432,8 @@ button.summary-board__tile:hover {
 .spending-detail__month-item {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 2px;
   background: var(--neutral-bg);
   border: 1px solid transparent;
@@ -1441,6 +1447,7 @@ button.summary-board__tile:hover {
   font-size: 0.88rem;
   font-weight: 700;
   color: var(--ink);
+  white-space: nowrap;
 }
 
 .spending-detail__month-item--current {
@@ -3203,6 +3210,42 @@ button.summary-board__tile:hover {
 .ticket-card:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-lift);
+}
+
+.ticket-card--GENERAL {
+  border: 2px solid var(--type-general);
+}
+
+.ticket-card--RECURRING_DELIVERY {
+  border: 2px solid var(--type-recurring);
+}
+
+.ticket-card--SUBSCRIPTION {
+  border: 2px solid var(--type-subscription);
+}
+
+.ticket-card__info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 0;
+  background: var(--neutral-bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0 10px;
+}
+
+.ticket-card__info-label {
+  font-size: 0.56rem;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 3px;
+}
+
+.ticket-card__info-value {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 /* 종류(type) 책갈피 탭 — flex의 첫 아이템이라 데스크톱에선 왼쪽 세로 바,

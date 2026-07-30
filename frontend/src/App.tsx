@@ -29,6 +29,7 @@ const FeedbackDetailPage = lazy(() => import('./pages/FeedbackDetailPage'));
 const BillingSuccessPage = lazy(() => import('./pages/BillingSuccessPage'));
 const BillingAuthSuccessPage = lazy(() => import('./pages/BillingAuthSuccessPage'));
 const BillingFailPage = lazy(() => import('./pages/BillingFailPage'));
+const TicketDesignPreviewPage = lazy(() => import('./pages/TicketDesignPreviewPage'));
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated, isInitializing } = useAuth();
@@ -134,6 +135,7 @@ export default function App() {
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/faq" element={<FaqPage />} />
             <Route path="/install" element={<InstallGuidePage />} />
+            <Route path="/ticket-preview" element={<TicketDesignPreviewPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
