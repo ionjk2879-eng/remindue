@@ -161,12 +161,15 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
     }
 
     // 다음 일정은 자동으로 미래 회차로 넘어가므로, 직전 회차의 날짜로 다음 날/일주일 뒤를 판정한다.
+    // 하루 뒤 재알림(followUp)은 프리미엄 전용이다 — 무료는 당일 확인 + 절약검토, 이 2단계뿐.
     const previousDeadline = computePreviousScheduleDeadline(row);
     if (previousDeadline === null) continue;
     if (row.renewal_decision_for === previousDeadline) continue;
     if (missedRounds < 1) continue;
     const daysSincePreviousDeadline = computeDDay(previousDeadline);
-    if (daysSincePreviousDeadline !== -1 && daysSincePreviousDeadline !== -7) continue;
+    const isFollowUpDay = daysSincePreviousDeadline === -1 && row.user_is_premium === 1;
+    const isReviewDay = daysSincePreviousDeadline === -7;
+    if (!isFollowUpDay && !isReviewDay) continue;
 
     const bucket = bucketsByUserId.get(row.user_id) ?? {
       email: row.user_email,
@@ -175,7 +178,7 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
       followUp: [],
       reviewFlagged: [],
     };
-    if (daysSincePreviousDeadline === -1) {
+    if (isFollowUpDay) {
       bucket.followUp.push(row.item_name);
     } else {
       bucket.reviewFlagged.push(row.item_name);
