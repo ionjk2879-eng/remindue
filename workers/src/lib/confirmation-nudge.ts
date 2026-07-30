@@ -163,9 +163,10 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
     // 다음 일정은 자동으로 미래 회차로 넘어가므로, 직전 회차의 날짜로 다음 날/일주일 뒤를 판정한다.
     const previousDeadline = computePreviousScheduleDeadline(row);
     if (previousDeadline === null) continue;
-    const daysSincePreviousDeadline = computeDDay(previousDeadline);
-    if (daysSincePreviousDeadline !== -7 || row.renewal_decision_for === previousDeadline) continue;
+    if (row.renewal_decision_for === previousDeadline) continue;
     if (missedRounds < 1) continue;
+    const daysSincePreviousDeadline = computeDDay(previousDeadline);
+    if (daysSincePreviousDeadline !== -1 && daysSincePreviousDeadline !== -7) continue;
 
     const bucket = bucketsByUserId.get(row.user_id) ?? {
       email: row.user_email,
@@ -174,7 +175,11 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
       followUp: [],
       reviewFlagged: [],
     };
-    bucket.reviewFlagged.push(row.item_name);
+    if (daysSincePreviousDeadline === -1) {
+      bucket.followUp.push(row.item_name);
+    } else {
+      bucket.reviewFlagged.push(row.item_name);
+    }
     bucketsByUserId.set(row.user_id, bucket);
   }
 

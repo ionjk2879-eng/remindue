@@ -114,6 +114,17 @@ export function occurrencesInMonth(purchase: Purchase, year: number, month: numb
   return occurrenceDatesInMonth(purchase, year, month).length;
 }
 
+/**
+ * 티켓 카드 정보 그리드의 "결제일" 표시용 — purchase.deadline은 항상 "다음" 회차라서 이번 달
+ * 결제가 이미 지났으면 다음 달 날짜가 나온다("다음 일정" 줄과 중복되고 헷갈림). 이번 달에
+ * 해당하는 결제일이 있으면 그걸(여러 번이면 마지막) 보여주고, 이번 달엔 주기가 안 걸리면
+ * (예: 긴 간격) 다음 예정일로 대체한다.
+ */
+export function currentCycleDeadline(purchase: Purchase, year: number, month: number): string {
+  const inMonth = occurrenceDatesInMonth(purchase, year, month);
+  return inMonth.length > 0 ? inMonth[inMonth.length - 1] : purchase.deadline;
+}
+
 export function totalSpendInMonth(purchases: Purchase[], year: number, month: number): number {
   let total = 0;
   for (const purchase of purchases) {

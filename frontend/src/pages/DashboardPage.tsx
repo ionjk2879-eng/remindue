@@ -52,6 +52,7 @@ import {
   isWithinRecentDays,
   isWithinUpcomingDays,
   occurrenceDatesInMonth,
+  currentCycleDeadline,
   occurrencesInMonth,
   previousFixedScheduleDate,
   shiftDateOnly,
@@ -2880,7 +2881,9 @@ export default function DashboardPage() {
                         {isRecurringType(p.type) ? '결제일' : '구매일'}
                       </div>
                       <div className="ticket-card__info-value mono">
-                        {isRecurringType(p.type) ? formatShortDateWithYear(p.deadline) : formatShortDateWithYear(p.baseDate)}
+                        {isRecurringType(p.type)
+                          ? formatShortDateWithYear(currentCycleDeadline(p, currentYearNum, currentMonthNum))
+                          : formatShortDateWithYear(p.baseDate)}
                       </div>
                     </div>
                     <div>
@@ -2990,7 +2993,9 @@ export default function DashboardPage() {
                         {isRecurringType(p.type) ? '결제일' : '구매일'}
                       </div>
                       <div className="ticket-card__info-value mono">
-                        {isRecurringType(p.type) ? formatShortDateWithYear(p.deadline) : formatShortDateWithYear(p.baseDate)}
+                        {isRecurringType(p.type)
+                          ? formatShortDateWithYear(currentCycleDeadline(p, currentYearNum, currentMonthNum))
+                          : formatShortDateWithYear(p.baseDate)}
                       </div>
                     </div>
                     <div>
