@@ -1482,57 +1482,6 @@ export default function DashboardPage() {
 
       <PushPermissionBanner />
 
-      {forwardingEmail && (
-        <div className="forwarding-banner">
-          <span className="forwarding-banner__label">📧 주문확인 메일 자동 등록 주소</span>
-          <div className="forwarding-banner__row">
-            <span className="mono forwarding-banner__address">{forwardingEmail}</span>
-            <button type="button" className="btn btn-sm forwarding-banner__copy" onClick={handleCopyForwardingEmail}>
-              {addressCopied ? '복사됨 ✓' : '📋 복사'}
-            </button>
-            <button type="button" className="btn-text" onClick={handleRegenerateForwardingAddress} disabled={regenerating}>
-              {regenerating ? '재생성 중...' : '재생성'}
-            </button>
-          </div>
-          <p className="forwarding-banner__hint">
-            쇼핑몰 주문확인 메일을 이 주소로 전달(포워딩)하면 자동으로 아래 "확인 대기" 목록에 올라와요.
-          </p>
-          <div className="forwarding-banner__guides">
-            <details className="forwarding-guide">
-              <summary>일반배송 등록 방법</summary>
-              <div className="forwarding-guide__content">
-                메일 내용에 <strong>도착</strong>만 적어 보내주시면(배송 주기는 필요 없어요) 그 날짜를
-                기준으로 반품기한(7일)·A/S 보증(1년)을 계산해드려요.
-                <br />
-                <span className="mono">예시) 도착 4월 2일 / 4월 2일 도착</span>
-              </div>
-            </details>
-            <details className="forwarding-guide">
-              <summary>정기배송 등록 방법</summary>
-              <div className="forwarding-guide__content">
-                메일 내용에 <strong>배송 주기</strong>와 <strong>도착</strong>을 함께 적어 보내주시면
-                AI가 이후 결제일과 배송일을 자동으로 관리해요. 실제 스토어 주문확인 메일에는 배송
-                주기가 거의 안 적혀 있어서, 전달하실 때 이 두 가지를 직접 적어주셔야 해요. 몇 일마다
-                오는 게 아니라 <strong>매월 특정일에 고정으로</strong> 오는 경우엔 주기 대신 "고정
-                N일"처럼 적어주세요.
-                <br />
-                <span className="mono">
-                  예시) 주기 4주 / 1개월 / 2개월 주기 / 6개월 주기
-                  <br />
-                  예시) 고정 15일 / 매월 15일 고정
-                  <br />
-                  예시) 도착 4월 2일 / 4월 2일 도착
-                </span>
-              </div>
-            </details>
-          </div>
-          <p className="forwarding-banner__privacy">
-            🔒 전달하신 이메일은 상품명·날짜 추출을 위해 Claude API(Anthropic)로 처리되며, 처리 후
-            원본은 저장되지 않습니다.
-          </p>
-        </div>
-      )}
-
       {purchasesLoaded && purchases.length > 0 && (
         <div className="summary-board">
           <button
@@ -2245,6 +2194,57 @@ export default function DashboardPage() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {forwardingEmail && (
+        <div className="forwarding-banner">
+          <span className="forwarding-banner__label">📧 주문확인 메일 자동 등록 주소</span>
+          <div className="forwarding-banner__row">
+            <span className="mono forwarding-banner__address">{forwardingEmail}</span>
+            <button type="button" className="btn btn-sm forwarding-banner__copy" onClick={handleCopyForwardingEmail}>
+              {addressCopied ? '복사됨 ✓' : '📋 복사'}
+            </button>
+            <button type="button" className="btn-text" onClick={handleRegenerateForwardingAddress} disabled={regenerating}>
+              {regenerating ? '재생성 중...' : '재생성'}
+            </button>
+          </div>
+          <p className="forwarding-banner__hint">
+            쇼핑몰 주문확인 메일을 이 주소로 전달(포워딩)하면 자동으로 아래 "확인 대기" 목록에 올라와요.
+          </p>
+          <div className="forwarding-banner__guides">
+            <details className="forwarding-guide">
+              <summary>일반배송 등록 방법</summary>
+              <div className="forwarding-guide__content">
+                메일 내용에 <strong>도착</strong>만 적어 보내주시면(배송 주기는 필요 없어요) 그 날짜를
+                기준으로 반품기한(7일)·A/S 보증(1년)을 계산해드려요.
+                <br />
+                <span className="mono">예시) 도착 4월 2일 / 4월 2일 도착</span>
+              </div>
+            </details>
+            <details className="forwarding-guide">
+              <summary>정기배송 등록 방법</summary>
+              <div className="forwarding-guide__content">
+                메일 내용에 <strong>배송 주기</strong>와 <strong>도착</strong>을 함께 적어 보내주시면
+                AI가 이후 결제일과 배송일을 자동으로 관리해요. 실제 스토어 주문확인 메일에는 배송
+                주기가 거의 안 적혀 있어서, 전달하실 때 이 두 가지를 직접 적어주셔야 해요. 몇 일마다
+                오는 게 아니라 <strong>매월 특정일에 고정으로</strong> 오는 경우엔 주기 대신 "고정
+                N일"처럼 적어주세요.
+                <br />
+                <span className="mono">
+                  예시) 주기 4주 / 1개월 / 2개월 주기 / 6개월 주기
+                  <br />
+                  예시) 고정 15일 / 매월 15일 고정
+                  <br />
+                  예시) 도착 4월 2일 / 4월 2일 도착
+                </span>
+              </div>
+            </details>
+          </div>
+          <p className="forwarding-banner__privacy">
+            🔒 전달하신 이메일은 상품명·날짜 추출을 위해 Claude API(Anthropic)로 처리되며, 처리 후
+            원본은 저장되지 않습니다.
+          </p>
         </div>
       )}
 
