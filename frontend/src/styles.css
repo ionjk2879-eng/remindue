@@ -3619,6 +3619,31 @@ button.summary-board__tile:hover {
   top: 100%;
 }
 
+/* 점선/반구 노치를 카드 몸통과 D-day 스텁을 나누는 유형별 색으로 통일한다. */
+.ticket-card--GENERAL .ticket-card__perforation {
+  border-color: var(--type-general);
+}
+.ticket-card--GENERAL .ticket-card__perforation::before,
+.ticket-card--GENERAL .ticket-card__perforation::after {
+  background: var(--type-general);
+}
+
+.ticket-card--RECURRING_DELIVERY .ticket-card__perforation {
+  border-color: var(--type-recurring);
+}
+.ticket-card--RECURRING_DELIVERY .ticket-card__perforation::before,
+.ticket-card--RECURRING_DELIVERY .ticket-card__perforation::after {
+  background: var(--type-recurring);
+}
+
+.ticket-card--SUBSCRIPTION .ticket-card__perforation {
+  border-color: var(--type-subscription);
+}
+.ticket-card--SUBSCRIPTION .ticket-card__perforation::before,
+.ticket-card--SUBSCRIPTION .ticket-card__perforation::after {
+  background: var(--type-subscription);
+}
+
 .ticket-card__stub {
   flex: 0 0 110px;
   display: flex;
