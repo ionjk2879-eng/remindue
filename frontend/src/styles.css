@@ -3554,6 +3554,23 @@ button.summary-board__tile:hover {
   animation: confirmPopIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
+/* AI 절약 제안 후보(missedRoundsFor >= MISSED_ROUNDS_REVIEW_THRESHOLD)로 잡힌 정기구독·배송
+   카드 상단에 붙는 경고 배지 — 그 분류를 별도 패널을 열지 않아도 카드만 보고 알 수 있게 한다. */
+.ticket-card__missed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--stamp-amber);
+  background: var(--amber-bg);
+  border: 1px solid var(--stamp-amber);
+  border-radius: 999px;
+  padding: 2px 9px;
+  margin-bottom: 6px;
+}
+
 .confirm-badge--sm {
   margin-left: 8px;
   padding: 1px 8px;

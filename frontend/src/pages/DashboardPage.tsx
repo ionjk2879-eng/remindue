@@ -2862,6 +2862,11 @@ export default function DashboardPage() {
               <div className={`ticket-card ticket-card--${p.type}`} key={p.id}>
                 <div className={`ticket-card__type-tab ticket-card__type-tab--${p.type}`} aria-hidden="true" />
                 <div className="ticket-card__body">
+                  {isRecurringType(p.type) && !p.isOneTime && missedRoundsFor(p) >= MISSED_ROUNDS_REVIEW_THRESHOLD && (
+                    <span className="ticket-card__missed-badge">
+                      ⚠️ {missedRoundsFor(p)}회차 미확인
+                    </span>
+                  )}
                   <div className="ticket-card__heading">
                     {p.brand && <BrandAvatar brand={p.brand} />}
                     <div className="ticket-card__heading-text">
