@@ -686,6 +686,12 @@ export default function DashboardPage() {
     setOriginalAmount(p.originalAmount ?? null);
     setOriginalCurrency(p.originalCurrency ?? null);
     setExchangeRate(p.exchangeRate ?? null);
+    // 폼이 접혀있던 상태였다면 이 시점엔 아직 DOM에 없다 — 다음 페인트 이후로 미뤄서
+    // itemNameInputRef가 실제로 붙은 뒤에 스크롤/포커스한다.
+    setTimeout(() => {
+      itemNameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      itemNameInputRef.current?.focus();
+    }, 0);
   };
 
   const handleCancelEdit = () => {
@@ -1643,10 +1649,10 @@ export default function DashboardPage() {
                         {group.items.map((item) => (
                           <li key={item.key}>
                             <span>
-                              {item.itemName}
                               <span className="spending-detail__list-type">
-                                {isRecurringType(item.type) ? '정기' : TYPE_SHORT_LABEL[item.type]}
+                                {TYPE_SHORT_LABEL[item.type]}
                               </span>
+                              {item.itemName}
                             </span>
                             <span className="mono">{item.amount.toLocaleString('ko-KR')}원</span>
                           </li>
@@ -1740,10 +1746,10 @@ export default function DashboardPage() {
                     {group.items.map((p) => (
                       <li key={p.id}>
                         <span>
-                          {p.itemName}
                           <span className="spending-detail__list-type">
                             {formatKoreanMonthDay(p.deadline)} · {p.deliveryRound}회차
                           </span>
+                          {p.itemName}
                         </span>
                         <span className="mono">{p.amount !== null ? `${p.amount.toLocaleString('ko-KR')}원` : '-'}</span>
                       </li>
@@ -1772,14 +1778,14 @@ export default function DashboardPage() {
                     {group.items.map((p) => (
                       <li key={p.id}>
                         <span>
-                          {p.itemName}
                           <span className="spending-detail__list-type">
                             {p.discontinuedAt !== null
                               ? `${p.deliveryRound}회차 (유지 안 함)`
                               : p.isOneTime
-                                ? `${formatKoreanMonthDay(p.deadline)} · 한 번만 사용`
+                                ? `${formatKoreanMonthDay(p.deadline)} · 1회성`
                                 : `${formatKoreanMonthDay(p.deadline)} · ${p.deliveryRound}회차`}
                           </span>
+                          {p.itemName}
                         </span>
                         <span className="mono">{p.amount !== null ? `${p.amount.toLocaleString('ko-KR')}원` : '-'}</span>
                       </li>
