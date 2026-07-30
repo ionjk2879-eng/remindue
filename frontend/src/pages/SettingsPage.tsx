@@ -19,7 +19,7 @@ import { isNative } from '../lib/native';
 
 /** 백엔드 lib/notification-prefs.ts의 NOTIFICATION_DAY_OPTIONS와 같은 목록 — 설정 화면 체크박스 후보. */
 const NOTIFICATION_DAY_OPTIONS = [10, 7, 5, 3, 2, 1, 0];
-const FREE_PLAN_FIXED_DAYS = [7, 3, 1, 0];
+const FREE_PLAN_FIXED_DAYS = [7, 3, 0];
 
 function formatDayLabel(day: number): string {
   return day === 0 ? '당일' : `${day}일 전`;

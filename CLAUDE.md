@@ -276,7 +276,7 @@ don't remount it there). Auth uses KakaoPay's newer `Authorization: SECRET_KEY
 
 ## Notification preferences (`users.notification_days`)
 
-Free plan is hard-locked to `7,3,1,0` regardless of what's stored in the
+Free plan is hard-locked to `7,3,0` regardless of what's stored in the
 column — `lib/notification-prefs.ts`'s `effectiveNotificationDays(isPremium,
 raw)` is the only place that's allowed to decide what days actually apply, and
 both `lib/digest.ts` (daily D-day mail/push) and `routes/settings.ts`
