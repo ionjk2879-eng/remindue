@@ -43,6 +43,8 @@ export interface PurchaseRow {
   schedule_type: ScheduleType;
   /** FIXED_DAY일 때만 사용: 매월 결제/배송되는 날짜(1~31). */
   fixed_day_of_month: number | null;
+  /** FIXED_DAY 스케줄이 몇 개월 간격인지(기본 1=매월). 실제 정기배송은 2~6개월 간격도 흔하다. */
+  fixed_day_interval_months: number;
   /** 정기 항목을 한 번만 사용해 보는 경우 1. 목록에는 남지만 이후 회차·유지 확인은 만들지 않는다. */
   is_one_time: number;
   last_delivered_date: string | null;
@@ -56,6 +58,12 @@ export interface PurchaseRow {
    * 항상 NULL(실물 배송이 없어 도착일 개념 자체가 없다).
    */
   expected_delivery_date: string | null;
+  /**
+   * RECURRING_DELIVERY 전용 — 결제일(deadline)로부터 보통 영업일 며칠 후 도착하는지(사용자 입력).
+   * NULL이면 도착예정 추정 자체를 안 한다(computeArrivalEstimate). 실제 매장 사례를 역산해보면
+   * "결제일+N영업일(토·일·공휴일 제외)"이 정확한 도착예정일과 일치했다 — purchase-logic.ts 참고.
+   */
+  arrival_offset_days: number | null;
   /** "오늘 받으셨나요?" 알림에서 "아직요"를 누르면 내일 날짜가 채워져 하루 뒤 재발송 대상이 된다.
    *  확인이 끝나면(받았어요) NULL로 되돌아간다. RECURRING_DELIVERY 외에는 항상 NULL. */
   arrival_check_snoozed_until: string | null;
@@ -166,8 +174,12 @@ export interface PendingPurchaseRow {
   interval_days: number | null;
   schedule_type: ScheduleType;
   fixed_day_of_month: number | null;
+  /** FIXED_DAY 스케줄이 몇 개월 간격인지(기본 1=매월). */
+  fixed_day_interval_months: number;
   /** SQLite boolean(0/1) — true면 원본에 주기/고정일이 명시되지 않아 30일 기본값으로 추정한 값. */
   schedule_estimated: number;
+  /** RECURRING_DELIVERY 전용 — order_date/expected_delivery_date 차이로 자동 계산된 값. */
+  arrival_offset_days: number | null;
   /** AI가 추출한 금액(원). 원본에 없으면 NULL. */
   amount: number | null;
   /** AI가 추정한 서비스 카테고리 — 모든 구매 유형에 적용. 판단 불가면 NULL. */
@@ -206,7 +218,10 @@ export interface PendingPurchaseResponse {
   intervalDays: number | null;
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
+  fixedDayIntervalMonths: number;
   scheduleEstimated: boolean;
+  /** RECURRING_DELIVERY 전용 — order_date/expected_delivery_date 차이로 자동 계산된 값. */
+  arrivalOffsetDays: number | null;
   /** AI가 추출한 금액(원). 원본에 없으면 null. */
   amount: number | null;
   /** AI가 추정한 서비스 카테고리 — 모든 구매 유형에 적용. 판단 불가면 null. */
@@ -243,12 +258,18 @@ export interface PurchaseResponse {
   intervalDays: number | null;
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
+  /** FIXED_DAY 스케줄이 몇 개월 간격인지(기본 1=매월). */
+  fixedDayIntervalMonths: number;
   /** 정기 항목이지만 최초 1회만 사용. 목록은 유지하고 이후 지출·유지 확인만 제외한다. */
   isOneTime: boolean;
   /** GENERAL/RECURRING_DELIVERY 전용 도착(예정)일 앵커 — usesArrivalDate 참고. SUBSCRIPTION/미지정이면
    *  null(그런 경우 baseDate가 대신 앵커로 쓰인다). */
   expectedDeliveryDate: string | null;
   lastDeliveredDate: string | null;
+  /** RECURRING_DELIVERY 전용 — 결제일로부터 보통 영업일 며칠 후 도착하는지(사용자 입력). null이면 미설정. */
+  arrivalOffsetDays: number | null;
+  /** arrivalOffsetDays로 계산한 도착예정일(computeArrivalEstimate) — arrivalOffsetDays가 null이면 null. */
+  arrivalEstimate: string | null;
   /** 도착 확인에서 "아직 안 받았어요"를 선택하면 다음 날로 설정되는 재질문 날짜. */
   arrivalCheckSnoozedUntil: string | null;
   /** 정기구독·배송 유지 확인에 답한 회차의 deadline 값 — 이 값이 deadline과 같으면 이번 회차는
@@ -340,9 +361,12 @@ export interface PurchaseRequestBody {
   intervalDays?: number | null;
   scheduleType?: ScheduleType;
   fixedDayOfMonth?: number | null;
+  fixedDayIntervalMonths?: number;
   isOneTime?: boolean;
   /** GENERAL/RECURRING_DELIVERY 전용 — usesArrivalDate 참고. SUBSCRIPTION이면 무시된다. */
   expectedDeliveryDate?: string | null;
+  /** RECURRING_DELIVERY 전용 — 결제일로부터 보통 영업일 며칠 후 도착하는지. */
+  arrivalOffsetDays?: number | null;
   category?: PurchaseCategory | null;
   categoryTags?: PurchaseCategory[];
   brand?: string | null;

@@ -14,7 +14,16 @@ import {
 
 type DeadlineRow = Pick<
   PurchaseRow,
-  'type' | 'base_date' | 'warranty_months' | 'return_deadline_days' | 'interval_days' | 'schedule_type' | 'fixed_day_of_month' | 'is_one_time' | 'expected_delivery_date'
+  | 'type'
+  | 'base_date'
+  | 'warranty_months'
+  | 'return_deadline_days'
+  | 'interval_days'
+  | 'schedule_type'
+  | 'fixed_day_of_month'
+  | 'fixed_day_interval_months'
+  | 'is_one_time'
+  | 'expected_delivery_date'
 >;
 
 function row(type: PurchaseType, overrides: Partial<DeadlineRow> = {}): DeadlineRow {
@@ -26,6 +35,7 @@ function row(type: PurchaseType, overrides: Partial<DeadlineRow> = {}): Deadline
     interval_days: null,
     schedule_type: 'INTERVAL',
     fixed_day_of_month: null,
+    fixed_day_interval_months: 1,
     is_one_time: 0,
     expected_delivery_date: null,
     ...overrides,

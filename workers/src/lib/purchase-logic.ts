@@ -15,7 +15,8 @@
 // explicitly answers "did it arrive, and which day" (arrival-confirm.ts), never from silently
 // logging a click/cron tick.
 
-import { addDays, addMonths, daysBetween, nextFixedDayOfMonth, parseDateOnly, todayDateOnly } from './date';
+import { addBusinessDays, addDays, addMonths, daysBetween, nextFixedDayEveryNMonths, parseDateOnly, todayDateOnly } from './date';
+import { isNonDeliveryDay } from './kr-holidays';
 import { isRecurringType, usesArrivalDate, type PurchaseRow, type PurchaseType } from '../types';
 
 export const DEFAULT_WARRANTY_MONTHS = 12;
@@ -26,7 +27,16 @@ export const FREE_PLAN_MAX_PURCHASES = 5;
 
 type DeadlineInput = Pick<
   PurchaseRow,
-  'type' | 'base_date' | 'warranty_months' | 'return_deadline_days' | 'interval_days' | 'schedule_type' | 'fixed_day_of_month' | 'is_one_time' | 'expected_delivery_date'
+  | 'type'
+  | 'base_date'
+  | 'warranty_months'
+  | 'return_deadline_days'
+  | 'interval_days'
+  | 'schedule_type'
+  | 'fixed_day_of_month'
+  | 'fixed_day_interval_months'
+  | 'is_one_time'
+  | 'expected_delivery_date'
 >;
 
 /**
@@ -88,8 +98,9 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
       if (row.is_one_time === 1) {
         if (scheduleType === 'FIXED_DAY') {
           const fixedDay = row.fixed_day_of_month ?? 1;
+          const intervalMonths = row.fixed_day_interval_months ?? 1;
           // anchor와 같은 고정일이라도 이미 시작한 이번 달이 아니라 다음 달 고정일을 잡는다.
-          const deadline = nextFixedDayOfMonth(fixedDay, addDays(anchor, 1));
+          const deadline = nextFixedDayEveryNMonths(fixedDay, intervalMonths, anchor, addDays(anchor, 1));
           return [{ kind: 'SCHEDULE', deadline, deliveryRound: 1 }];
         }
 
@@ -98,14 +109,16 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
       }
 
       if (scheduleType === 'FIXED_DAY') {
-        // 매월 고정일 방식: 오늘 이후 가장 가까운 fixedDayOfMonth 날짜를 다음 일정으로 삼는다.
-        // 회차: 시작월(anchor 기준)부터 다음 일정까지 몇 달이 지났는지 + 1.
+        // 매 N개월 고정일 방식(기본 N=1=매월): anchor를 기준월로 삼아 N개월 단위 후보 중
+        // 오늘 이후 가장 가까운 fixedDayOfMonth 날짜를 다음 일정으로 삼는다.
+        // 회차: 시작월(anchor 기준)부터 다음 일정까지 몇 달이 지났는지 ÷ N + 1.
         const fixedDay = row.fixed_day_of_month ?? 1;
-        const deadline = nextFixedDayOfMonth(fixedDay, todayDateOnly());
+        const intervalMonths = row.fixed_day_interval_months ?? 1;
+        const deadline = nextFixedDayEveryNMonths(fixedDay, intervalMonths, anchor, todayDateOnly());
         const base = parseDateOnly(anchor);
         const next = parseDateOnly(deadline);
         const monthsElapsed = (next.year - base.year) * 12 + (next.month - base.month);
-        return [{ kind: 'SCHEDULE', deadline, deliveryRound: monthsElapsed + 1 }];
+        return [{ kind: 'SCHEDULE', deadline, deliveryRound: Math.round(monthsElapsed / intervalMonths) + 1 }];
       }
 
       // INTERVAL(기본): anchor + intervalDays*k 방식.
@@ -135,6 +148,18 @@ export function computeDeadline(row: DeadlineInput): DeadlineResult {
   const upcoming = instances.filter((i) => i.deadline >= today).sort((a, b) => a.deadline.localeCompare(b.deadline));
   const chosen = upcoming[0] ?? instances.slice().sort((a, b) => b.deadline.localeCompare(a.deadline))[0];
   return { deadline: chosen.deadline, deliveryRound: chosen.deliveryRound };
+}
+
+/**
+ * RECURRING_DELIVERY 전용 — 결제일(deadline)로부터 도착예정일을 추정한다. 실제 정기배송
+ * 회차별 상세정보(결제일/도착예정일 캡처 다수)를 역산한 결과 "결제일 + N영업일"(토·일·공휴일
+ * 제외하고 세기) 규칙이 대체공휴일이 낀 회차까지 정확히 들어맞았다 — 결제일 자체는 공휴일이어도
+ * 그대로 처리되지만(디지털 결제라 영업일과 무관), 실물 배송인 도착일은 영업일만 센다.
+ * offsetDays가 null이면(사용자가 아직 입력 안 함) 추정하지 않고 null을 반환한다.
+ */
+export function computeArrivalEstimate(deadline: string, offsetDays: number | null): string | null {
+  if (offsetDays === null) return null;
+  return addBusinessDays(deadline, offsetDays, isNonDeliveryDay);
 }
 
 /**

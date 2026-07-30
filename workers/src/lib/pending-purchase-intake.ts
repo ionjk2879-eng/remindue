@@ -3,6 +3,7 @@
 // sanitize를 거쳐 저장한다(모델이 스키마를 벗어난 값을 줄 수 있으므로).
 
 import { DEFAULT_RETURN_DEADLINE_DAYS, DEFAULT_INTERVAL_DAYS, DEFAULT_WARRANTY_MONTHS } from './purchase-logic';
+import { daysBetween } from './date';
 import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES, type PurchaseCategory, type PurchaseType } from '../types';
 import type { ExtractedOrder } from './order-extraction';
 
@@ -21,6 +22,11 @@ export function sanitizeReturnDeadlineDays(days: number | null): number {
  *  여기서 후처리로 검증한다. */
 export function sanitizeFixedDayOfMonth(day: number | null): number | null {
   return typeof day === 'number' && Number.isInteger(day) && day >= 1 && day <= 31 ? day : null;
+}
+
+/** AI가 준 "몇 달마다"가 1~6 범위를 벗어나면(모델 오류 등) 매월(1)로 되돌린다. */
+export function sanitizeFixedDayIntervalMonths(months: number | null): number {
+  return typeof months === 'number' && Number.isInteger(months) && months >= 1 && months <= 6 ? months : 1;
 }
 
 /** yyyy-MM-dd 문자열에서 "일"만 뽑아낸다 — SUBSCRIPTION의 애매한 주기를 FIXED_DAY 기본값으로
@@ -128,7 +134,9 @@ export interface PendingPurchaseFields {
   intervalDays: number | null;
   scheduleType: 'INTERVAL' | 'FIXED_DAY';
   fixedDayOfMonth: number | null;
+  fixedDayIntervalMonths: number;
   scheduleEstimated: 0 | 1;
+  arrivalOffsetDays: number | null;
   amount: number | null;
   category: PurchaseCategory | null;
   categoryTags: PurchaseCategory[];
@@ -162,6 +170,10 @@ export async function buildPendingPurchaseFields(extracted: ExtractedOrder): Pro
     ? 'INTERVAL'
     : requestedScheduleType;
   let fixedDayOfMonth = scheduleType === 'FIXED_DAY' ? sanitizedFixedDay : null;
+  // AI가 준 "몇 달마다"는 원래 AI가 직접 FIXED_DAY로 판단한 케이스에서만 신뢰한다 — 아래에서
+  // scheduleType이 서버 쪽 폴백(Patreon 규칙, SUBSCRIPTION 애매값 보정)으로 FIXED_DAY가 되는
+  // 경우는 전부 "매월"이 안전한 기본값이라 그때는 명시적으로 1로 둔다.
+  let fixedDayIntervalMonths = scheduleType === 'FIXED_DAY' ? sanitizeFixedDayIntervalMonths(extracted.fixedDayIntervalMonths) : 1;
 
   // INTERVAL로 확정됐는데 intervalDays가 없으면 — 원본에 주기가 전혀 없었다는 뜻이므로 30일
   // 기본 추정치로 채우고 scheduleEstimated=1로 표시한다. AI가 이미 scheduleEstimated=true를 준
@@ -185,6 +197,7 @@ export async function buildPendingPurchaseFields(extracted: ExtractedOrder): Pro
   if (type === 'SUBSCRIPTION' && isFirstDayMembership) {
     scheduleType = 'FIXED_DAY';
     fixedDayOfMonth = 1;
+    fixedDayIntervalMonths = 1;
     intervalDays = null;
     scheduleEstimated = 0;
   }
@@ -200,9 +213,19 @@ export async function buildPendingPurchaseFields(extracted: ExtractedOrder): Pro
     if (fallbackDay !== null) {
       scheduleType = 'FIXED_DAY';
       fixedDayOfMonth = fallbackDay;
+      fixedDayIntervalMonths = 1;
       intervalDays = null;
       scheduleEstimated = 1;
     }
+  }
+
+  // RECURRING_DELIVERY 전용 — 도착예정일 오프셋(arrival_offset_days)은 AI 프롬프트로 직접 뽑지
+  // 않고, 이미 추출된 orderDate(결제일)/expectedDeliveryDate(사용자가 적어 넣은 도착일)로부터
+  // 서버가 계산한다. 결제일보다 이전이거나 같은 날은 "도착"이라는 개념과 안 맞으므로 null로 둔다.
+  let arrivalOffsetDays: number | null = null;
+  if (type === 'RECURRING_DELIVERY' && extracted.orderDate && extracted.expectedDeliveryDate) {
+    const diff = daysBetween(extracted.orderDate, extracted.expectedDeliveryDate);
+    if (diff > 0) arrivalOffsetDays = diff;
   }
 
   const brand = typeof extracted.brand === 'string' && extracted.brand.trim() ? extracted.brand.trim() : null;
@@ -228,7 +251,9 @@ export async function buildPendingPurchaseFields(extracted: ExtractedOrder): Pro
     intervalDays,
     scheduleType,
     fixedDayOfMonth,
+    fixedDayIntervalMonths,
     scheduleEstimated,
+    arrivalOffsetDays,
     amount,
     category: sanitizeCategory(extracted.category),
     categoryTags: sanitizeCategoryTags(extracted.categoryTags, sanitizeCategory(extracted.category)),
@@ -289,8 +314,8 @@ export async function insertPendingPurchase(
   const result = await db
     .prepare(
       `INSERT INTO pending_purchases
-         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, warranty_months, interval_days, schedule_type, fixed_day_of_month, schedule_estimated, amount, category, category_tags, matched_purchase_id, previous_amount, brand, brand_domain, original_amount, original_currency, exchange_rate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, warranty_months, interval_days, schedule_type, fixed_day_of_month, fixed_day_interval_months, schedule_estimated, arrival_offset_days, amount, category, category_tags, matched_purchase_id, previous_amount, brand, brand_domain, original_amount, original_currency, exchange_rate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       userId,
@@ -305,7 +330,9 @@ export async function insertPendingPurchase(
       fields.intervalDays,
       fields.scheduleType,
       fields.fixedDayOfMonth,
+      fields.fixedDayIntervalMonths,
       fields.scheduleEstimated,
+      fields.arrivalOffsetDays,
       fields.amount,
       fields.category,
       JSON.stringify(fields.categoryTags),

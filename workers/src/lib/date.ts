@@ -70,3 +70,58 @@ export function nextFixedDayOfMonth(fixedDay: number, todayStr: string): string 
   const daysInNext = new Date(Date.UTC(nextYear, nextMonthIdx + 1, 0)).getUTCDate();
   return formatDateOnly(nextYear, nextMonthIdx, Math.min(fixedDay, daysInNext));
 }
+
+/**
+ * FIXED_DAY 스케줄을 "매월"이 아니라 "매 N개월"로 일반화한 버전 — anchorDateStr(1회차 기준일)의
+ * (year, month)에서 시작해 intervalMonths 단위로만 후보 월을 잡는다. 실제 정기배송 사례(회차별
+ * 상세정보)를 보면 결제일은 2회차부터 "같은 날짜가 N개월 간격으로" 반복되는 패턴으로 안정된다.
+ * intervalMonths=1이면 nextFixedDayOfMonth와 정확히 같은 결과를 낸다(날짜 클램프 규칙도 addMonths와
+ * 동일하게 해당 월의 마지막 날로 보정).
+ */
+export function nextFixedDayEveryNMonths(
+  fixedDay: number,
+  intervalMonths: number,
+  anchorDateStr: string,
+  todayStr: string
+): string {
+  const anchor = parseDateOnly(anchorDateStr);
+  const today = parseDateOnly(todayStr);
+
+  const anchorTotalMonths = anchor.year * 12 + (anchor.month - 1); // 0-indexed 월
+  const todayTotalMonths = today.year * 12 + (today.month - 1);
+
+  const candidateFor = (k: number): string => {
+    const totalMonths = anchorTotalMonths + k * intervalMonths;
+    const targetYear = Math.floor(totalMonths / 12);
+    const targetMonth = totalMonths - targetYear * 12; // 0-indexed
+    const daysInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+    const clampedDay = Math.min(fixedDay, daysInTargetMonth);
+    return formatDateOnly(targetYear, targetMonth, clampedDay);
+  };
+
+  let k = Math.max(0, Math.floor((todayTotalMonths - anchorTotalMonths) / intervalMonths));
+  let candidate = candidateFor(k);
+  while (candidate < todayStr) {
+    k += 1;
+    candidate = candidateFor(k);
+  }
+  return candidate;
+}
+
+/**
+ * 결제일로부터 "영업일"로 N일을 세어 도달하는 날짜 — 실제 정기배송 도착예정일 계산에 쓰인다.
+ * isNonDeliveryDay(토·일·공휴일)인 날은 세지 않고 건너뛴다. offsetDays=0이면 결제일 당일이
+ * 영업일일 때만 그대로 반환(영업일이 아니면 다음 영업일로).
+ */
+export function addBusinessDays(dateStr: string, offsetDays: number, isNonDeliveryDay: (d: string) => boolean): string {
+  let current = dateStr;
+  let remaining = offsetDays;
+  while (remaining > 0) {
+    current = addDays(current, 1);
+    if (!isNonDeliveryDay(current)) remaining -= 1;
+  }
+  while (isNonDeliveryDay(current)) {
+    current = addDays(current, 1);
+  }
+  return current;
+}

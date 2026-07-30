@@ -39,9 +39,9 @@ export function shiftDateOnly(dateStr: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
-export function previousFixedScheduleDate(dateStr: string, fixedDay: number): string {
+export function previousFixedScheduleDate(dateStr: string, fixedDay: number, intervalMonths = 1): string {
   const [year, month] = dateStr.split('-').map(Number);
-  const previousMonthIndex = month - 2;
+  const previousMonthIndex = month - 1 - Math.max(1, intervalMonths);
   const previousMonthLastDay = new Date(Date.UTC(year, previousMonthIndex + 1, 0)).getUTCDate();
   return new Date(Date.UTC(year, previousMonthIndex, Math.min(fixedDay, previousMonthLastDay))).toISOString().slice(0, 10);
 }
@@ -86,6 +86,11 @@ export function occurrenceDatesInMonth(purchase: Purchase, year: number, month: 
   if (purchase.scheduleType === 'FIXED_DAY') {
     const started = year > baseYear || (year === baseYear && month >= baseMonth);
     if (!started) return [];
+    // 매 N개월 고정일 스케줄 — 앵커 월(baseMonth)로부터 intervalMonths 간격인 달에만 회차가 있다
+    // (intervalMonths=1이면 기존 "매월" 동작과 완전히 동일).
+    const intervalMonths = Math.max(1, purchase.fixedDayIntervalMonths || 1);
+    const monthDiff = (year - baseYear) * 12 + (month - baseMonth);
+    if (monthDiff % intervalMonths !== 0) return [];
     const daysInMonth = new Date(year, month, 0).getDate();
     const day = Math.min(purchase.fixedDayOfMonth ?? 1, daysInMonth);
     const date = `${year}-${pad(month)}-${pad(day)}`;

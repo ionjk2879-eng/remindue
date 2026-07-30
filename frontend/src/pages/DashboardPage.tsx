@@ -299,6 +299,9 @@ export default function DashboardPage() {
   const [intervalDays, setIntervalDays] = useState('30');
   const [scheduleType, setScheduleType] = useState<ScheduleType>('INTERVAL');
   const [fixedDayOfMonth, setFixedDayOfMonth] = useState('1');
+  const [fixedDayIntervalMonths, setFixedDayIntervalMonths] = useState('1');
+  /** RECURRING_DELIVERY 전용 — 결제일로부터 보통 영업일 며칠 후 도착하는지. 비워두면 도착예정을 표시하지 않는다. */
+  const [arrivalOffsetDays, setArrivalOffsetDays] = useState('');
   const [isOneTime, setIsOneTime] = useState(false);
   const [category, setCategory] = useState<PurchaseCategory>('OTHER');
   const [categoryTags, setCategoryTags] = useState<PurchaseCategory[]>(['OTHER']);
@@ -656,6 +659,8 @@ export default function DashboardPage() {
     setIntervalDays('30');
     setScheduleType('INTERVAL');
     setFixedDayOfMonth('1');
+    setFixedDayIntervalMonths('1');
+    setArrivalOffsetDays('');
     setIsOneTime(false);
     setCategory('OTHER');
     setCategoryTags(['OTHER']);
@@ -682,6 +687,8 @@ export default function DashboardPage() {
     setIntervalDays(String(p.intervalDays ?? 30));
     setScheduleType(p.scheduleType ?? 'INTERVAL');
     setFixedDayOfMonth(String(p.fixedDayOfMonth ?? 1));
+    setFixedDayIntervalMonths(String(p.fixedDayIntervalMonths ?? 1));
+    setArrivalOffsetDays(p.arrivalOffsetDays !== null ? String(p.arrivalOffsetDays) : '');
     setIsOneTime(p.isOneTime);
     setCategory(p.category ?? 'OTHER');
     setCategoryTags(p.categoryTags.length > 0 ? p.categoryTags : [p.category ?? 'OTHER']);
@@ -724,11 +731,13 @@ export default function DashboardPage() {
       // 적어 넣은) "첫 배송 예정일"을 그대로 프리필한다. SUBSCRIPTION은 baseDate 하나로 충분하다.
       if (item.type === 'RECURRING_DELIVERY') {
         setExpectedDeliveryDate(item.expectedDeliveryDate ?? '');
+        if (item.arrivalOffsetDays !== null) setArrivalOffsetDays(String(item.arrivalOffsetDays));
       }
       const st = item.scheduleType ?? 'INTERVAL';
       setScheduleType(st);
       if (st === 'FIXED_DAY' && item.fixedDayOfMonth !== null) {
         setFixedDayOfMonth(String(item.fixedDayOfMonth));
+        setFixedDayIntervalMonths(String(item.fixedDayIntervalMonths ?? 1));
       } else if (item.intervalDays !== null) {
         setIntervalDays(String(item.intervalDays));
       }
@@ -920,6 +929,8 @@ export default function DashboardPage() {
       intervalDays: isRecurringType(type) && scheduleType === 'INTERVAL' ? Number(intervalDays) : undefined,
       scheduleType: isRecurringType(type) ? scheduleType : undefined,
       fixedDayOfMonth: isRecurringType(type) && scheduleType === 'FIXED_DAY' ? Number(fixedDayOfMonth) : undefined,
+      fixedDayIntervalMonths: isRecurringType(type) && scheduleType === 'FIXED_DAY' ? Number(fixedDayIntervalMonths) : undefined,
+      arrivalOffsetDays: type === 'RECURRING_DELIVERY' && arrivalOffsetDays.trim() !== '' ? Number(arrivalOffsetDays) : null,
       isOneTime: isRecurringType(type) ? isOneTime : false,
       category,
       categoryTags: categoryTags.includes(category) ? categoryTags : [category, ...categoryTags],
@@ -1098,8 +1109,8 @@ export default function DashboardPage() {
         : p.type === 'GENERAL' && p.expectedDeliveryDate !== null && isWithinUpcomingDays(p.expectedDeliveryDate, URGENT_WINDOW_DAYS))
     )
     .sort((a, b) => {
-      const aDate = a.type === 'GENERAL' ? a.expectedDeliveryDate! : a.deadline;
-      const bDate = b.type === 'GENERAL' ? b.expectedDeliveryDate! : b.deadline;
+      const aDate = a.type === 'GENERAL' ? a.expectedDeliveryDate! : a.arrivalEstimate ?? a.deadline;
+      const bDate = b.type === 'GENERAL' ? b.expectedDeliveryDate! : b.arrivalEstimate ?? b.deadline;
       return aDate.localeCompare(bDate);
     });
   // "한 번만 사용"도 이번 이용 기간의 예정에는 포함한다. 다음 갱신이 없다는 점은 목록에서 표시한다.
@@ -1134,7 +1145,7 @@ export default function DashboardPage() {
     purchase.discontinuedAt !== null && isWithinRecentDays(purchase.discontinuedAt.slice(0, 10), URGENT_WINDOW_DAYS);
   const previousSubscriptionSchedule = (purchase: Purchase) =>
     purchase.scheduleType === 'FIXED_DAY'
-      ? previousFixedScheduleDate(purchase.deadline, purchase.fixedDayOfMonth ?? 1)
+      ? previousFixedScheduleDate(purchase.deadline, purchase.fixedDayOfMonth ?? 1, purchase.fixedDayIntervalMonths)
       : shiftDateOnly(purchase.deadline, -(purchase.intervalDays ?? 30));
   const discontinuedScheduledThisWeek = (purchase: Purchase) =>
     purchase.discontinuedAt !== null && isWithinRecentDays(previousSubscriptionSchedule(purchase), URGENT_WINDOW_DAYS);
@@ -2677,15 +2688,41 @@ export default function DashboardPage() {
               </div>
             )}
             {scheduleType === 'FIXED_DAY' && (
+              <>
+                <div className="field field--narrow">
+                  <label htmlFor="fixedDayIntervalMonths">몇 달마다</label>
+                  <input
+                    id="fixedDayIntervalMonths"
+                    type="number"
+                    min={1}
+                    max={6}
+                    value={fixedDayIntervalMonths}
+                    onChange={(e) => setFixedDayIntervalMonths(e.target.value)}
+                  />
+                </div>
+                <div className="field field--narrow">
+                  <label htmlFor="fixedDayOfMonth">며칠</label>
+                  <input
+                    id="fixedDayOfMonth"
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={fixedDayOfMonth}
+                    onChange={(e) => setFixedDayOfMonth(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+            {type === 'RECURRING_DELIVERY' && (
               <div className="field field--narrow">
-                <label htmlFor="fixedDayOfMonth">매월 몇 일</label>
+                <label htmlFor="arrivalOffsetDays">도착까지 영업일</label>
                 <input
-                  id="fixedDayOfMonth"
+                  id="arrivalOffsetDays"
                   type="number"
-                  min={1}
-                  max={31}
-                  value={fixedDayOfMonth}
-                  onChange={(e) => setFixedDayOfMonth(e.target.value)}
+                  min={0}
+                  placeholder="예: 2"
+                  value={arrivalOffsetDays}
+                  onChange={(e) => setArrivalOffsetDays(e.target.value)}
                 />
               </div>
             )}
@@ -2909,8 +2946,9 @@ export default function DashboardPage() {
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
                       {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
-                        ? ` · 매월 ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
+                        ? ` · ${p.fixedDayIntervalMonths > 1 ? `${p.fixedDayIntervalMonths}달마다` : '매월'} ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
                         : ` (${formatShortDate(p.deadline)})`}
+                      {p.arrivalEstimate !== null && ` · 도착예정 ${formatShortDate(p.arrivalEstimate)}`}
                       {p.isOneTime && ' · 한 번만 사용'}
                     </p>
                   ) : (
@@ -3021,8 +3059,9 @@ export default function DashboardPage() {
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
                       {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
-                        ? ` · 매월 ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
+                        ? ` · ${p.fixedDayIntervalMonths > 1 ? `${p.fixedDayIntervalMonths}달마다` : '매월'} ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
                         : ` (${formatShortDate(p.deadline)})`}
+                      {p.arrivalEstimate !== null && ` · 도착예정 ${formatShortDate(p.arrivalEstimate)}`}
                     </p>
                   ) : (
                     !isRecurringType(p.type) && renderGeneralDeadlineLines(p)
@@ -3128,8 +3167,9 @@ export default function DashboardPage() {
                     <p className="ticket-card__deadline">
                       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
                       {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
-                        ? ` · 매월 ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
+                        ? ` · ${p.fixedDayIntervalMonths > 1 ? `${p.fixedDayIntervalMonths}달마다` : '매월'} ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
                         : ` (${formatShortDate(p.deadline)})`}
+                      {p.arrivalEstimate !== null && ` · 도착예정 ${formatShortDate(p.arrivalEstimate)}`}
                     </p>
                   ) : (
                     renderGeneralDeadlineLines(p)

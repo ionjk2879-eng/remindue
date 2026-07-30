@@ -15,7 +15,8 @@ export default function WeeklySummaryBanner({ deliveries, subscriptions }: {
           </span>
           <ul>
             {deliveries.map((purchase) => {
-              const arrivalDate = purchase.type === 'GENERAL' ? purchase.expectedDeliveryDate! : purchase.deadline;
+              const arrivalDate =
+                purchase.type === 'GENERAL' ? purchase.expectedDeliveryDate! : purchase.arrivalEstimate ?? purchase.deadline;
               return (
                 <li key={purchase.id}>
                   {purchase.itemName} — <span className="mono">{formatShortDate(arrivalDate)}</span>

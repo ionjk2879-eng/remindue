@@ -21,10 +21,16 @@ export interface Purchase {
   intervalDays: number | null;
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
+  /** scheduleType=FIXED_DAY일 때 몇 달마다 반복되는지(1~6). 기본 1(매월) — 기존 동작과 동일. */
+  fixedDayIntervalMonths: number;
   /** 정기 항목이지만 최초 1회만 사용. 목록은 유지하고 이후 지출·유지 확인만 제외한다. */
   isOneTime: boolean;
   /** RECURRING_DELIVERY 전용 스케줄 앵커("최초 도착(예정)일") — 없으면(null) baseDate가 대신 앵커로 쓰인다. */
   expectedDeliveryDate: string | null;
+  /** RECURRING_DELIVERY 전용: 결제일로부터 보통 영업일 며칠 후 도착하는지. 미입력이면 null(도착예정 표시 안 함). */
+  arrivalOffsetDays: number | null;
+  /** arrivalOffsetDays가 있을 때 서버가 계산한 도착예정일(결제일 + 영업일 N일, 주말·공휴일 제외). 그 외 null. */
+  arrivalEstimate: string | null;
   lastDeliveredDate: string | null;
   arrivalCheckSnoozedUntil: string | null;
   /** 정기구독·배송 유지 확인에 답한 회차의 deadline 값 — deadline과 같으면 이번 회차는 이미 답한 것. */
@@ -75,9 +81,12 @@ export interface PurchaseInput {
   intervalDays?: number;
   scheduleType?: ScheduleType;
   fixedDayOfMonth?: number | null;
+  fixedDayIntervalMonths?: number;
   isOneTime?: boolean;
   /** RECURRING_DELIVERY 전용 — 스케줄 앵커. GENERAL은 정보용으로만 저장되고 계산엔 영향 없다. */
   expectedDeliveryDate?: string | null;
+  /** RECURRING_DELIVERY 전용 — 결제일로부터 보통 영업일 며칠 후 도착하는지. */
+  arrivalOffsetDays?: number | null;
   category?: PurchaseCategory | null;
   categoryTags?: PurchaseCategory[];
   brand?: string | null;
@@ -116,8 +125,12 @@ export interface PendingPurchase {
   intervalDays: number | null;
   scheduleType: ScheduleType;
   fixedDayOfMonth: number | null;
+  /** scheduleType=FIXED_DAY일 때 몇 달마다 반복되는지(1~6). 기본 1(매월). */
+  fixedDayIntervalMonths: number;
   /** true면 원본(이메일/이미지)에 주기·고정일이 명시되지 않아 30일 기본값으로 추정한 값. */
   scheduleEstimated: boolean;
+  /** RECURRING_DELIVERY 전용: 서버가 orderDate/expectedDeliveryDate로부터 자동 계산한 결제→도착 영업일 오프셋. */
+  arrivalOffsetDays: number | null;
   /** AI가 추출한 금액(원). 원본에 없으면 null. */
   amount: number | null;
   /** AI가 추정한 서비스 카테고리 — 모든 구매 유형에 적용. 판단 불가면 null. */

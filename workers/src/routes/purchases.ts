@@ -62,6 +62,9 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
   // GENERAL은 반품기한·A/S보증 기산일로, RECURRING_DELIVERY는 배송 사이클 앵커로 실제 쓰인다
   // (둘 다 purchase-logic.ts computeDeadlines의 arrivalAnchor).
   const expectedDeliveryDate = body.type !== 'SUBSCRIPTION' ? (body.expectedDeliveryDate ?? null) : null;
+  // 도착예정 추정(computeArrivalEstimate)은 실물 배송이 있는 RECURRING_DELIVERY에서만 의미가
+  // 있다 — 다른 타입이면 값이 와도 저장하지 않는다.
+  const arrivalOffsetDays = body.type === 'RECURRING_DELIVERY' ? (body.arrivalOffsetDays ?? null) : null;
   // 일반 구매에는 반복 여부가 없으므로 무시한다. 정기 항목의 1회 사용은 "유지 안 함"과 달리
   // 목록을 보존하되 이후 회차만 만들지 않는 별도 상태다.
   const isOneTime = isRecurringType(body.type) && body.isOneTime === true;
@@ -86,8 +89,10 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
     intervalDays: body.intervalDays ?? null,
     scheduleType: body.scheduleType ?? 'INTERVAL',
     fixedDayOfMonth: body.fixedDayOfMonth ?? null,
+    fixedDayIntervalMonths: body.fixedDayIntervalMonths ?? 1,
     isOneTime,
     expectedDeliveryDate,
+    arrivalOffsetDays,
     category,
     categoryTags,
     brand: brand,
@@ -181,8 +186,8 @@ purchases.post('/', async (c) => {
 
   const insert = await c.env.DB.prepare(
     `INSERT INTO purchases
-       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, is_one_time, expected_delivery_date, last_delivered_date, category, category_tags, brand, brand_domain, original_amount, original_currency, exchange_rate)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, fixed_day_interval_months, is_one_time, expected_delivery_date, arrival_offset_days, last_delivered_date, category, category_tags, brand, brand_domain, original_amount, original_currency, exchange_rate)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       user.id,
@@ -196,8 +201,10 @@ purchases.post('/', async (c) => {
       body.intervalDays,
       body.scheduleType,
       body.fixedDayOfMonth,
+      body.fixedDayIntervalMonths,
       body.isOneTime ? 1 : 0,
       body.expectedDeliveryDate,
+      body.arrivalOffsetDays,
       lastDeliveredDate,
       body.category,
       JSON.stringify(body.categoryTags),
@@ -226,7 +233,8 @@ purchases.put('/:id', async (c) => {
     `UPDATE purchases
         SET type = ?, item_name = ?, base_date = ?, amount = ?, memo = ?,
             warranty_months = ?, return_deadline_days = ?, interval_days = ?,
-            schedule_type = ?, fixed_day_of_month = ?, is_one_time = ?, expected_delivery_date = ?,
+            schedule_type = ?, fixed_day_of_month = ?, fixed_day_interval_months = ?, is_one_time = ?, expected_delivery_date = ?,
+            arrival_offset_days = ?,
             category = ?, category_tags = ?, brand = ?, brand_domain = ?,
             original_amount = ?, original_currency = ?, exchange_rate = ?,
             updated_at = datetime('now')
@@ -243,8 +251,10 @@ purchases.put('/:id', async (c) => {
       body.intervalDays,
       body.scheduleType,
       body.fixedDayOfMonth,
+      body.fixedDayIntervalMonths,
       body.isOneTime ? 1 : 0,
       body.expectedDeliveryDate,
+      body.arrivalOffsetDays,
       body.category,
       JSON.stringify(body.categoryTags),
       body.brand,

@@ -47,6 +47,12 @@ export interface ExtractedOrder {
   /** scheduleType=FIXED_DAY일 때만 채운다: 매월 결제/배송되는 날짜(1~31). 그 외 null. */
   fixedDayOfMonth: number | null;
   /**
+   * scheduleType=FIXED_DAY일 때만 의미 있다: 몇 달마다 반복되는지(1~6). "고정 15일"처럼 매월이면
+   * 1. "2달마다 15일 고정"/"격월 15일 고정"처럼 개월 간격이 있으면 그 값(예: 2). 명시 안 됐거나
+   * scheduleType=INTERVAL이면 1(기존과 동일한 매월 동작).
+   */
+  fixedDayIntervalMonths: number | null;
+  /**
    * RECURRING_DELIVERY/SUBSCRIPTION이고 주기·고정일이 모호하게만 언급됐을 때(예: "매월
    * 자동결제"라고만 쓰여있고 정확한 날짜/주기 표기가 없음) true. 이때 intervalDays=30(기본
    * 추정치)으로 채워지므로, 화면에서 "추정치 — 정확한 주기를 확인해주세요" 경고를 보여줘야 한다.
@@ -221,6 +227,13 @@ const EXTRACTION_SCHEMA = {
         'scheduleType=FIXED_DAY일 때만 채운다: "매월 N일" 또는 사용자가 직접 적은 "고정 N일"에서 N(1~31 사이의 정수). ' +
         '"매월 1일 자동결제"→1, "15일에 청구"→15, "고정 20일"→20. scheduleType=INTERVAL이면 반드시 null.',
     },
+    fixedDayIntervalMonths: {
+      anyOf: [{ type: 'integer' }, { type: 'null' }],
+      description:
+        'scheduleType=FIXED_DAY일 때만 채운다: 몇 달마다 반복되는지(1~6). "고정 15일"처럼 개월 ' +
+        '간격 언급이 없으면 1. "2달마다 15일 고정"/"격월 15일 고정"/"분기마다 1일 고정"처럼 개월 ' +
+        '간격이 함께 있으면 그 값(격월=2, 분기=3, 반년마다=6). scheduleType=INTERVAL이면 반드시 null.',
+    },
     scheduleEstimated: {
       type: 'boolean',
       description:
@@ -265,6 +278,7 @@ const EXTRACTION_SCHEMA = {
     'intervalDays',
     'scheduleType',
     'fixedDayOfMonth',
+    'fixedDayIntervalMonths',
     'scheduleEstimated',
     'brand',
     'brandDomain',
@@ -336,7 +350,7 @@ isOrderConfirmation=false면 반드시 null.
 서버가 반품기한과 별개로 A/S 보증기간(기본 12개월)도 함께 등록 대기 목록에 프리필한다.
 RECURRING_DELIVERY/SUBSCRIPTION이거나 가전제품이 아니면 false.
 
-## 4단계: 스케줄 방식 판단 (scheduleType) + 주기 추출 (intervalDays / fixedDayOfMonth / scheduleEstimated)
+## 4단계: 스케줄 방식 판단 (scheduleType) + 주기 추출 (intervalDays / fixedDayOfMonth / fixedDayIntervalMonths / scheduleEstimated)
 RECURRING_DELIVERY 또는 SUBSCRIPTION으로 판단했을 때:
 
 **RECURRING_DELIVERY 전용 — 사용자가 직접 적어 넣은 값이 최우선**: 실제 스토어 주문확인 메일에는
@@ -350,23 +364,32 @@ RECURRING_DELIVERY 또는 SUBSCRIPTION으로 판단했을 때:
 - "배송 주기: 4주" / "주기 4주" / "배송주기 2주" / "격주 배송" → intervalDays(4주=28, 2주=14, 격주=14)
 - "1개월" / "2개월 주기" / "6개월 주기"(단독으로 적혀 있어도 주기 표기로 인정) → intervalDays(30, 60, 180)
 - "고정 15일" / "매월 15일 고정" / "고정 N일"(N=1~31, 순서·형식 무관) → scheduleType=FIXED_DAY,
-  fixedDayOfMonth=N, intervalDays=null — 정기배송이 며칠마다 오는 게 아니라 매월 특정일에 고정으로
-  오는 경우다. "고정"이라는 단어와 1~31 사이 날짜가 함께 있으면 위 주기(intervalDays) 표기보다
-  이걸 우선한다.
+  fixedDayOfMonth=N, intervalDays=null, fixedDayIntervalMonths=1(개월 간격 언급 없으면 매월) —
+  정기배송이 며칠마다 오는 게 아니라 매월(또는 몇 달마다) 특정일에 고정으로 오는 경우다. "고정"
+  이라는 단어와 1~31 사이 날짜가 함께 있으면 위 주기(intervalDays) 표기보다 이걸 우선한다.
+- "2달마다 고정 15일" / "격월 고정 15일" / "분기마다 고정 1일" / "반년마다 고정 10일"처럼 "고정
+  N일" 앞뒤에 개월 간격이 함께 있으면 → scheduleType=FIXED_DAY, fixedDayOfMonth=N, intervalDays=null,
+  fixedDayIntervalMonths=그 개월 수(격월=2, 분기=3, 반년마다=6, "3달마다"=3 등 — 1~6 범위).
 - "첫 배송 예정일: 2026-07-28" / "예상 도착일 826" / "도착 4월 2일" / "4월 2일 도착" → expectedDeliveryDate
   (구체적인 변환은 5단계 날짜 표기 규칙대로).
 예시: "배송 주기: 4주\n첫 배송 예정일: 2026-07-28" → intervalDays=28, scheduleType=INTERVAL,
 scheduleEstimated=false, expectedDeliveryDate="2026-07-28".
 예시: "주기 2개월 / 도착 4월 2일" → intervalDays=60, expectedDeliveryDate는 올해 4월 2일로 해석.
 예시: "고정 15일 / 도착 4월 2일" → scheduleType=FIXED_DAY, fixedDayOfMonth=15, intervalDays=null,
-expectedDeliveryDate는 올해 4월 2일로 해석(그달의 15일이 아니라 사용자가 적은 도착일 그대로).
+fixedDayIntervalMonths=1, expectedDeliveryDate는 올해 4월 2일로 해석(그달의 15일이 아니라 사용자가
+적은 도착일 그대로).
+예시: "2달마다 고정 1일 / 도착 10월 6일" → scheduleType=FIXED_DAY, fixedDayOfMonth=1, intervalDays=null,
+fixedDayIntervalMonths=2, expectedDeliveryDate는 올해 10월 6일로 해석.
 
 **FIXED_DAY 판단**: "매월 N일", "매월 N일에 자동결제", "every month on the Nth", 사용자가 직접
 적은 "고정 N일"/"매월 N일 고정" 등 달력의 특정 날짜가 고정된 경우 → scheduleType=FIXED_DAY,
-fixedDayOfMonth=N, intervalDays=null, scheduleEstimated=false
-예시: "매월 1일 자동결제됩니다" → FIXED_DAY, fixedDayOfMonth=1
-예시: "15일에 청구됩니다" + 월 단위 구독 → FIXED_DAY, fixedDayOfMonth=15
-예시: "고정 20일" → FIXED_DAY, fixedDayOfMonth=20
+fixedDayOfMonth=N, intervalDays=null, fixedDayIntervalMonths=1(개월 간격 언급 없으면 매월),
+scheduleEstimated=false. "격월 N일 결제"/"분기별 N일 청구"처럼 개월 간격이 명시되면
+fixedDayIntervalMonths을 그 값으로(격월=2, 분기=3, 반기=6).
+예시: "매월 1일 자동결제됩니다" → FIXED_DAY, fixedDayOfMonth=1, fixedDayIntervalMonths=1
+예시: "15일에 청구됩니다" + 월 단위 구독 → FIXED_DAY, fixedDayOfMonth=15, fixedDayIntervalMonths=1
+예시: "고정 20일" → FIXED_DAY, fixedDayOfMonth=20, fixedDayIntervalMonths=1
+예시: "매 분기 1일 청구" → FIXED_DAY, fixedDayOfMonth=1, fixedDayIntervalMonths=3
 
 **"결제일"이라고 명시적으로 안 써 있어도, 결제(예정) 관련 날짜 2개가 한 달 간격 + 같은 일(day)이면
 FIXED_DAY다 — 이게 가장 신뢰할 수 있는 신호다.** 구독 영수증은 "매월 N일"이라고 대놓고 말하는
@@ -419,7 +442,8 @@ true는 유지) — 대부분의 정기구독은 매월 특정일 고정 결제 
 기존대로 INTERVAL=30으로 남겨라. (이 기본값은 서버에서도 한 번 더 강제 적용되니, 애매하면 이
 쪽으로 판단하는 게 안전하다.)
 
-판단 불가능하면 scheduleType=INTERVAL(기본값), fixedDayOfMonth=null, scheduleEstimated=false.
+판단 불가능하면 scheduleType=INTERVAL(기본값), fixedDayOfMonth=null, fixedDayIntervalMonths=null,
+scheduleEstimated=false.
 
 ## 5단계: 날짜 추출
 - orderDate: 주문일/구독 신청일/결제일 (yyyy-MM-dd)

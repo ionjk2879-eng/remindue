@@ -1,4 +1,4 @@
-import { computeDDay, computeDeadline, computeDeadlines } from './purchase-logic';
+import { computeArrivalEstimate, computeDDay, computeDeadline, computeDeadlines } from './purchase-logic';
 import type { PendingPurchaseResponse, PendingPurchaseRow, PurchaseResponse, PurchaseRow } from '../types';
 
 function parseCategoryTags(value: string | null, primary: PurchaseRow['category']): PurchaseResponse['categoryTags'] {
@@ -33,11 +33,14 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     intervalDays: row.interval_days,
     scheduleType: row.schedule_type,
     fixedDayOfMonth: row.fixed_day_of_month,
+    fixedDayIntervalMonths: row.fixed_day_interval_months,
     isOneTime: row.is_one_time === 1,
     expectedDeliveryDate: row.expected_delivery_date,
     lastDeliveredDate: row.last_delivered_date,
     arrivalCheckSnoozedUntil: row.arrival_check_snoozed_until,
     renewalDecisionFor: row.renewal_decision_for,
+    arrivalOffsetDays: row.arrival_offset_days,
+    arrivalEstimate: computeArrivalEstimate(deadline, row.arrival_offset_days),
     deadline,
     dDay,
     deliveryRound,
@@ -76,7 +79,9 @@ export function toPendingPurchaseResponse(row: PendingPurchaseRow): PendingPurch
     intervalDays: row.interval_days,
     scheduleType: row.schedule_type,
     fixedDayOfMonth: row.fixed_day_of_month,
+    fixedDayIntervalMonths: row.fixed_day_interval_months,
     scheduleEstimated: row.schedule_estimated === 1,
+    arrivalOffsetDays: row.arrival_offset_days,
     amount: row.amount,
     category: row.category,
     categoryTags: parseCategoryTags(row.category_tags, row.category),
