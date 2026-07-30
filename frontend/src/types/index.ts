@@ -27,6 +27,8 @@ export interface Purchase {
   expectedDeliveryDate: string | null;
   lastDeliveredDate: string | null;
   arrivalCheckSnoozedUntil: string | null;
+  /** 정기구독·배송 유지 확인에 답한 회차의 deadline 값 — deadline과 같으면 이번 회차는 이미 답한 것. */
+  renewalDecisionFor: string | null;
   /** "가장 급한" 기한 — GENERAL이고 반품기한/A·S보증 둘 다 있으면 더 급한 쪽. */
   deadline: string;
   dDay: number;

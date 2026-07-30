@@ -37,6 +37,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     expectedDeliveryDate: row.expected_delivery_date,
     lastDeliveredDate: row.last_delivered_date,
     arrivalCheckSnoozedUntil: row.arrival_check_snoozed_until,
+    renewalDecisionFor: row.renewal_decision_for,
     deadline,
     dDay,
     deliveryRound,

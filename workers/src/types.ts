@@ -251,6 +251,9 @@ export interface PurchaseResponse {
   lastDeliveredDate: string | null;
   /** 도착 확인에서 "아직 안 받았어요"를 선택하면 다음 날로 설정되는 재질문 날짜. */
   arrivalCheckSnoozedUntil: string | null;
+  /** 정기구독·배송 유지 확인에 답한 회차의 deadline 값 — 이 값이 deadline과 같으면 이번 회차는
+   *  이미 답했다는 뜻(프론트가 "유지함" 표시에 쓰고, confirmation-nudge.ts가 중복 알림 방지에 쓴다). */
+  renewalDecisionFor: string | null;
   /** "가장 급한" 기한 — GENERAL이고 반품기한/A·S보증 둘 다 있으면 그 중 더 이른(지나지 않았다면
    *  더 가까운, 둘 다 지났다면 덜 지난) 쪽. 카드 배지·정렬·CSV/PDF export가 쓰는 단일 기한. */
   deadline: string;

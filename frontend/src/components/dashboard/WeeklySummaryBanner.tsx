@@ -14,12 +14,18 @@ export default function WeeklySummaryBanner({ deliveries, subscriptions }: {
             📦 이번 주 도착 예정 <span><span className="mono">{deliveries.length}</span>건</span>
           </span>
           <ul>
-            {deliveries.map((purchase) => (
-              <li key={purchase.id}>
-                {purchase.itemName} — <span className="mono">{formatShortDate(purchase.type === 'GENERAL' ? purchase.expectedDeliveryDate! : purchase.deadline)}</span>
-                {purchase.isOneTime && <span className="weekly-summary-banner__complete">유지 안 함</span>}
-              </li>
-            ))}
+            {deliveries.map((purchase) => {
+              const arrivalDate = purchase.type === 'GENERAL' ? purchase.expectedDeliveryDate! : purchase.deadline;
+              return (
+                <li key={purchase.id}>
+                  {purchase.itemName} — <span className="mono">{formatShortDate(arrivalDate)}</span>
+                  {purchase.lastDeliveredDate === arrivalDate && (
+                    <span className="weekly-summary-banner__complete">수령함</span>
+                  )}
+                  {purchase.isOneTime && <span className="weekly-summary-banner__complete">유지 안 함</span>}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
@@ -33,6 +39,9 @@ export default function WeeklySummaryBanner({ deliveries, subscriptions }: {
             {subscriptions.map((purchase) => (
               <li key={purchase.id}>
                 {purchase.itemName} — <span className="mono">{formatShortDate(purchase.deadline)}</span>
+                {purchase.renewalDecisionFor === purchase.deadline && (
+                  <span className="weekly-summary-banner__complete">유지함</span>
+                )}
                 {purchase.isOneTime && <span className="weekly-summary-banner__complete">유지 안 함</span>}
               </li>
             ))}

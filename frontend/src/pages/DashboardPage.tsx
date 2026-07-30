@@ -1103,7 +1103,9 @@ export default function DashboardPage() {
       return aDate.localeCompare(bDate);
     });
   // "한 번만 사용"도 이번 이용 기간의 예정에는 포함한다. 다음 갱신이 없다는 점은 목록에서 표시한다.
-  const weeklySubscriptions = weeklyRecurring.filter((p) => p.type === 'SUBSCRIPTION');
+  // 정기배송은 도착 예정과 결제 예정 둘 다에 해당하니(배송=결제 주기) weeklyDeliveries와 겹쳐도
+  // 여기 포함한다 — "수령함"/"유지함"이 서로 다른 질문이라 각자 독립적으로 표시돼야 한다.
+  const weeklySubscriptions = weeklyRecurring;
   const today = todayDateOnly();
   const calendarWeek = currentCalendarWeekRange(today);
   /**
