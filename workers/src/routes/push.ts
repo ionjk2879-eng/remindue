@@ -34,17 +34,21 @@ function validateSubscriptionBody(body: Partial<PushSubscriptionRequestBody>): P
 async function recordArrival(db: D1Database, purchase: PurchaseRow, daysAgo: number): Promise<void> {
   if (purchase.type === 'SUBSCRIPTION') throw new BadRequestError('정기구독 항목은 도착 확인 대상이 아닙니다');
   const arrivalDate = resolveArrivalDate(daysAgo);
-  if (purchase.type === 'RECURRING_DELIVERY') {
+  // RECURRING_DELIVERY에 결제일과 별도의 도착예정일(arrival_offset_days)이 설정돼 있으면, 확인된
+  // 실제 도착일을 결제 사이클 앵커(expected_delivery_date)에 반영하지 않는다 — 반영하면 다음 회차
+  // 결제일 계산이 "결제 주기"가 아니라 "도착 주기"를 따라가게 되어, 확인할 때마다 오프셋만큼씩
+  // 결제일이 뒤로 밀리는 누적 드리프트가 생긴다(결제일은 공휴일과도 무관하게 그대로 굴러가야 함).
+  // 이 경우는 last_delivered_date만 기록해 수령 이력만 남긴다.
+  if (purchase.type === 'RECURRING_DELIVERY' && purchase.arrival_offset_days !== null) {
     await db.prepare(
-      `UPDATE purchases SET expected_delivery_date = ?, last_delivered_date = ?,
-       arrival_check_snoozed_until = NULL, updated_at = datetime('now') WHERE id = ?`
-    ).bind(arrivalDate, arrivalDate, purchase.id).run();
-  } else {
-    await db.prepare(
-      `UPDATE purchases SET expected_delivery_date = ?, last_delivered_date = ?, arrival_check_snoozed_until = NULL,
-       updated_at = datetime('now') WHERE id = ?`
-    ).bind(arrivalDate, arrivalDate, purchase.id).run();
+      `UPDATE purchases SET last_delivered_date = ?, arrival_check_snoozed_until = NULL, updated_at = datetime('now') WHERE id = ?`
+    ).bind(arrivalDate, purchase.id).run();
+    return;
   }
+  await db.prepare(
+    `UPDATE purchases SET expected_delivery_date = ?, last_delivered_date = ?, arrival_check_snoozed_until = NULL,
+     updated_at = datetime('now') WHERE id = ?`
+  ).bind(arrivalDate, arrivalDate, purchase.id).run();
 }
 
 
@@ -289,15 +293,13 @@ push.post('/snooze-arrival', async (c) => {
 
 /**
  * "오늘 주문하신 물건이 오셨나요?" 알림의 "받았어요" 후속 — 며칠 전에 받았는지(0/1/2일 전) 답하면
- * 그 실제 도착일을 새 expected_delivery_date(도착 앵커)로 확정한다. 액션 버튼 하나로 끝낼 수
- * 없는 후속 질문이라(오늘/하루전/이틀전 3지선다), 알림 탭 시 대시보드가 열리고 거기서 이 토큰과
- * 함께 이 엔드포인트를 부른다 — 그래도 인증은 요구하지 않는다(토큰 소유 자체가 권한이라는 같은
- * 원칙, 알림을 탭한 직후엔 세션이 아직 안 살아있을 수도 있어서).
+ * 그 실제 도착일을 기록한다. 액션 버튼 하나로 끝낼 수 없는 후속 질문이라(오늘/하루전/이틀전
+ * 3지선다), 알림 탭 시 대시보드가 열리고 거기서 이 토큰과 함께 이 엔드포인트를 부른다 — 그래도
+ * 인증은 요구하지 않는다(토큰 소유 자체가 권한이라는 같은 원칙, 알림을 탭한 직후엔 세션이 아직
+ * 안 살아있을 수도 있어서).
  *
- * RECURRING_DELIVERY는 이 앵커가 배송 사이클의 위상 기준점이라 이번 회차 확인(delivery_confirm_count
- * 증가·discontinued_at 해제)까지 같이 처리하지만, GENERAL은 반복 사이클이 없어(반품기한·A/S
- * 보증 기산일만 이 날짜로 확정되면 끝) 그 두 필드는 건드리지 않는다 — 정기배송·구독 전용 "유지
- * 확인" 개념을 1회성 구매에 억지로 끼워넣지 않기 위함(GENERAL은 discontinue 라우트 자체도 없다).
+ * 실제 저장 동작은 recordArrival 참고 — 결제일과 도착예정일이 분리된(arrival_offset_days 설정된)
+ * RECURRING_DELIVERY는 결제 사이클 앵커(expected_delivery_date)를 건드리지 않고 수령 이력만 남긴다.
  */
 push.post('/confirm-arrival', async (c) => {
   const body = await c.req.json<{ token?: string; daysAgo?: number }>().catch(() => ({}) as { token?: string; daysAgo?: number });
@@ -319,25 +321,7 @@ push.post('/confirm-arrival', async (c) => {
     throw new BadRequestError('정기구독 항목은 도착 확인 대상이 아닙니다');
   }
 
-  const arrivalDate = resolveArrivalDate(body.daysAgo);
-  if (purchase.type === 'RECURRING_DELIVERY') {
-    await c.env.DB.prepare(
-      `UPDATE purchases
-          SET expected_delivery_date = ?, last_delivered_date = ?,
-              arrival_check_snoozed_until = NULL, updated_at = datetime('now')
-        WHERE id = ?`
-    )
-      .bind(arrivalDate, arrivalDate, purchaseId)
-      .run();
-  } else {
-    await c.env.DB.prepare(
-      `UPDATE purchases
-          SET expected_delivery_date = ?, last_delivered_date = ?, arrival_check_snoozed_until = NULL, updated_at = datetime('now')
-        WHERE id = ?`
-    )
-      .bind(arrivalDate, arrivalDate, purchaseId)
-      .run();
-  }
+  await recordArrival(c.env.DB, purchase, body.daysAgo);
 
   return c.body(null, 204);
 });

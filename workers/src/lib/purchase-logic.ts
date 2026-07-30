@@ -172,7 +172,7 @@ export function computePreviousScheduleDeadline(row: DeadlineInput): string | nu
   const nextDeadline = computeDeadline(row).deadline;
   const anchor = arrivalAnchor(row);
   const previous = (row.schedule_type ?? 'INTERVAL') === 'FIXED_DAY'
-    ? addMonths(nextDeadline, -1)
+    ? addMonths(nextDeadline, -(row.fixed_day_interval_months ?? 1))
     : addDays(nextDeadline, -(row.interval_days ?? DEFAULT_INTERVAL_DAYS));
 
   return previous >= anchor ? previous : null;

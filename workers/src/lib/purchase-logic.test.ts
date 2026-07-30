@@ -73,6 +73,18 @@ describe('purchase deadline logic', () => {
     expect(computePreviousScheduleDeadline(recurring)).toBe('2026-07-21');
   });
 
+  it('steps back by fixed_day_interval_months for multi-month FIXED_DAY schedules', () => {
+    const bimonthly = row('RECURRING_DELIVERY', {
+      expected_delivery_date: '2026-03-01',
+      schedule_type: 'FIXED_DAY',
+      fixed_day_of_month: 1,
+      fixed_day_interval_months: 2,
+    });
+    expect(computeDeadline(bimonthly).deadline).toBe('2026-09-01');
+    // 1달만 되돌리면(과거 버그) 2026-08-01이 나오지만, 실제 직전 회차는 2달 전인 2026-07-01이다.
+    expect(computePreviousScheduleDeadline(bimonthly)).toBe('2026-07-01');
+  });
+
   it('uses the next period as the only deadline for one-time recurring items', () => {
     expect(computeDeadline(row('SUBSCRIPTION', {
       base_date: '2026-07-01',
