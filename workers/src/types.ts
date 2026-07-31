@@ -282,7 +282,12 @@ export interface PurchaseResponse {
   /** "가장 급한" 기한 — GENERAL이고 반품기한/A·S보증 둘 다 있으면 그 중 더 이른(지나지 않았다면
    *  더 가까운, 둘 다 지났다면 덜 지난) 쪽. 카드 배지·정렬·CSV/PDF export가 쓰는 단일 기한. */
   deadline: string;
+  /** 카드 배지 표시용 — awaitingArrival이면 도착예정일 기준, 아니면 결제일 기준(paymentDDay와 동일).
+   *  "지금 뭘 기다리는 중인지"를 보여주는 값이라 결제 여부를 판단하는 로직에는 쓰면 안 된다 —
+   *  그런 곳(유지하기 버튼 노출, 이번 주 결제 예정, 마감 임박 배너 등)은 항상 paymentDDay를 쓸 것. */
   dDay: number;
+  /** 결제일(deadline) 기준 D-day — awaitingArrival 여부와 무관하게 항상 결제일까지의 일수다. */
+  paymentDDay: number;
   /** RECURRING_DELIVERY 전용 — 몇 회차인지(1부터 시작). 그 외 타입은 null. */
   deliveryRound: number | null;
   /** 이력 보관(프리미엄) 시각. null이면 활성 항목. */

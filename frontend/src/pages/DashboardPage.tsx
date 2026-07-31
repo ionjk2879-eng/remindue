@@ -300,12 +300,13 @@ function groupByCategory(items: Purchase[]): { category: PurchaseCategory | 'UNC
 /**
  * 이 항목이 연속 몇 회차째 "유지하기"가 안 눌린 채로 지나갔는지 — 정확한 회차별 이력을 저장하진
  * 않지만(deliveryConfirmCount는 누적 총합일 뿐), "지금까지 확인 기회가 있었던 회차 수 - 실제
- * 확인한 횟수"로 근사한다. dDay>0(아직 이번 회차 기한 전)이면 이번 회차는 아직 확인 기회가
- * 안 왔다고 보고 이전 회차까지만 센다.
+ * 확인한 횟수"로 근사한다. paymentDDay>0(아직 이번 회차 결제 전)이면 이번 회차는 아직 확인
+ * 기회가 안 왔다고 보고 이전 회차까지만 센다 — dDay는 결제완료·도착대기 상태일 때 도착일
+ * 기준으로 바뀌어 있어서(양수) 이 판정에 못 쓴다.
  */
 function missedRoundsFor(p: Purchase): number {
   if (!isRecurringType(p.type) || p.deliveryRound === null) return 0;
-  const confirmableRounds = p.dDay <= 0 ? p.deliveryRound : p.deliveryRound - 1;
+  const confirmableRounds = p.paymentDDay <= 0 ? p.deliveryRound : p.deliveryRound - 1;
   return Math.max(0, confirmableRounds - p.deliveryConfirmCount);
 }
 
@@ -554,15 +555,17 @@ export default function DashboardPage() {
 
     const topCatLabel = topCat ? CATEGORY_LABEL[topCat.cat] : null;
 
-    // 다음 결제/배송(가장 가까운 dDay의 정기배송·구독) — AI가 아니라 실제 데이터로 직접 계산한다
-    // (날짜·이름은 모델이 지어내면 안 되는 값이라서). 가격 인상/사용 안 함 항목은 "가격 인상" 타일의
+    // 다음 결제/배송(가장 가까운 paymentDDay의 정기배송·구독) — AI가 아니라 실제 데이터로 직접
+    // 계산한다(날짜·이름은 모델이 지어내면 안 되는 값이라서). dDay가 아니라 paymentDDay를 쓰는
+    // 이유: dDay는 결제완료·도착대기 상태일 때 도착일 기준으로 바뀌어 있어서, "다음 결제"를
+    // 뽑는 데 쓰면 이미 결제된 항목이 뽑힐 수 있다. 가격 인상/사용 안 함 항목은 "가격 인상" 타일의
     // 3분류 계산(priceUpItems/unusedItems, 컴포넌트 상단에서 이미 계산됨)을 그대로 재사용한다.
     const upcoming = purchases
       // 한 번만 사용하는 항목과 이미 "유지 안 함"으로 끝낸 항목은 자동 결제를
       // 확인할 대상이 아니다. 목록에는 이력을 위해 남아도 소비 매니저의 다음
       // 확인 서비스 후보에는 넣지 않는다.
       .filter((p) => isRecurringType(p.type) && !p.isOneTime && p.discontinuedAt === null)
-      .sort((a, b) => a.dDay - b.dDay)[0] ?? null;
+      .sort((a, b) => a.paymentDDay - b.paymentDDay)[0] ?? null;
     const priceChangeItems = priceUpItems.map((p) => p.itemName);
     const unusedServiceItems = unusedItems.map((p) => p.itemName);
 
@@ -587,7 +590,7 @@ export default function DashboardPage() {
       topCategoryAmount: topCat?.total ?? null,
       nextPaymentDate: upcoming?.deadline ?? null,
       nextPaymentItem: upcoming?.itemName ?? null,
-      nextPaymentDDay: upcoming?.dDay ?? null,
+      nextPaymentDDay: upcoming?.paymentDDay ?? null,
       priceChangeItems,
       unusedServiceItems,
       savingsEstimate,
@@ -1147,15 +1150,18 @@ export default function DashboardPage() {
     }
   };
 
+  // 정기배송/구독은 dDay가 아니라 paymentDDay로 판정한다 — dDay는 결제완료·도착대기 상태일 때
+  // 도착일 기준으로 바뀌어 있어서, 어제 결제됐지만 아직 안 도착한 항목까지 "결제 예정/마감"에
+  // 잘못 잡히게 된다(실제로는 이미 결제가 끝난 상태).
   const urgent = purchases
-    .filter((p) => isRecurringType(p.type) ? p.dDay === 0 : p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
+    .filter((p) => isRecurringType(p.type) ? p.paymentDDay === 0 : p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.dDay - b.dDay);
   const urgentAllHandled = urgent.length > 0 && urgent.every(isFullyConfirmed);
 
-  /** 프리미엄 알림 기능(주간 요약) — 이번 주(오늘부터 7일 이내) 예정인 정기배송·구독. */
+  /** 프리미엄 알림 기능(주간 요약) — 이번 주(오늘부터 7일 이내) 예정인 정기배송·구독 결제. */
   const weeklyRecurring = purchases
-    .filter((p) => isRecurringType(p.type) && p.discontinuedAt === null && p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS)
-    .sort((a, b) => a.dDay - b.dDay);
+    .filter((p) => isRecurringType(p.type) && p.discontinuedAt === null && p.paymentDDay >= 0 && p.paymentDDay <= URGENT_WINDOW_DAYS)
+    .sort((a, b) => a.paymentDDay - b.paymentDDay);
   /**
    * 배송 예정에는 정기배송뿐 아니라 도착 예정일이 있는 일반 구매도 포함한다.
    * GENERAL의 deadline은 반품/A·S 기한이라 실제 도착일과 다르므로 expectedDeliveryDate를 따로 본다.
@@ -3019,7 +3025,7 @@ export default function DashboardPage() {
                         기한 알림 끄기
                       </button>
                     )}
-                    {isRecurringType(p.type) && !p.isOneTime && p.dDay <= 0 &&
+                    {isRecurringType(p.type) && !p.isOneTime && p.paymentDDay <= 0 &&
                       (isFullyConfirmed(p) ? (
                         <span className="confirm-badge">✓ 확인완료</span>
                       ) : (

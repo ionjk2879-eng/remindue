@@ -52,6 +52,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     awaitingArrival,
     deadline,
     dDay,
+    paymentDDay,
     deliveryRound,
     archivedAt: row.archived_at,
     discardedAt: row.discarded_at,

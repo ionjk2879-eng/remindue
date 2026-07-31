@@ -67,6 +67,10 @@ describe('toPurchaseResponse — awaitingArrival(결제완료·도착대기) 판
     expect(res.deliveryRound).toBe(1);
     expect(res.arrivalEstimate).toBe('2026-08-03');
     expect(res.dDay).toBe(3); // 도착일까지 D-3 (결제일 기준이면 음수/지남이었을 값)
+    // paymentDDay는 awaitingArrival과 무관하게 항상 결제일(7/30) 기준으로 음수로 남아있어야
+    // "이번 주 결제 예정"/"유지하기" 버튼 노출 같은 결제 판정 로직이 이미 지난 결제를
+    // 다시 "예정"으로 잘못 집계하지 않는다.
+    expect(res.paymentDDay).toBe(-1);
   });
 
   it('도착일이 지나 다음 회차로 넘어가면 다시 결제일 기준(awaitingArrival=false)', () => {

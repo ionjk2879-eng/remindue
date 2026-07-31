@@ -40,7 +40,12 @@ export interface Purchase {
   renewalDecisionFor: string | null;
   /** "가장 급한" 기한 — GENERAL이고 반품기한/A·S보증 둘 다 있으면 더 급한 쪽. */
   deadline: string;
+  /** 카드 배지 표시용 — awaitingArrival이면 도착예정일 기준, 아니면 결제일 기준(paymentDDay와 동일).
+   *  결제 여부를 판단하는 로직(유지하기 버튼, 이번 주 결제 예정, 마감 임박 등)에는 쓰지 말 것 —
+   *  그런 곳은 항상 paymentDDay를 쓴다. */
   dDay: number;
+  /** 결제일(deadline) 기준 D-day — awaitingArrival 여부와 무관하게 항상 결제일까지의 일수다. */
+  paymentDDay: number;
   deliveryRound: number | null;
   archivedAt: string | null;
   /** "삭제"(취소와 다름) 시각. discard된 항목은 목록 조회에 안 잡히므로 사실상 항상 null. */
