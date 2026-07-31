@@ -88,8 +88,8 @@ interface AiBriefData extends AiBriefSections {
    */
   nextPaymentDate: string | null;
   nextPaymentItem: string | null;
-  /** 확인 대기 목록에서 가격 인상이 감지된 항목명 목록. 마찬가지로 결정론적 계산값. */
-  priceIncreaseItems: string[];
+  /** 확인 대기 목록에서 가격 변동이 감지된 항목명 목록. 마찬가지로 결정론적 계산값. */
+  priceChangeItems: string[];
   /** "유지 안 함" 표시했거나 3회차 이상 미확인인 구독/정기배송 항목명 목록(절약 후보). */
   unusedServiceItems: string[];
   /** 다음 결제까지 남은 일수(오늘 기준 D-day). 없으면 null. */
@@ -522,7 +522,7 @@ export default function DashboardPage() {
       // 확인 서비스 후보에는 넣지 않는다.
       .filter((p) => isRecurringType(p.type) && !p.isOneTime && p.discontinuedAt === null)
       .sort((a, b) => a.dDay - b.dDay)[0] ?? null;
-    const priceIncreaseItems = priceUpItems.map((p) => p.itemName);
+    const priceChangeItems = priceUpItems.map((p) => p.itemName);
     const unusedServiceItems = unusedItems.map((p) => p.itemName);
 
     // "AI 소비 건강도" — 실제로는 AI가 아니라 위 신호들을 규칙 기반으로 점수화한 결정론적 지수.
@@ -547,7 +547,7 @@ export default function DashboardPage() {
       nextPaymentDate: upcoming?.deadline ?? null,
       nextPaymentItem: upcoming?.itemName ?? null,
       nextPaymentDDay: upcoming?.dDay ?? null,
-      priceIncreaseItems,
+      priceChangeItems,
       unusedServiceItems,
       savingsEstimate,
       healthScore,
@@ -611,7 +611,7 @@ export default function DashboardPage() {
       totalItems: purchases.length,
       nextPaymentDate: upcoming?.deadline ?? null,
       nextPaymentItem: upcoming?.itemName ?? null,
-      priceIncreaseItems,
+      priceChangeItems,
     };
 
     fetchAiSummary(input)
@@ -733,13 +733,26 @@ export default function DashboardPage() {
         setExpectedDeliveryDate(item.expectedDeliveryDate ?? '');
         if (item.arrivalOffsetDays !== null) setArrivalOffsetDays(String(item.arrivalOffsetDays));
       }
-      const st = item.scheduleType ?? 'INTERVAL';
-      setScheduleType(st);
-      if (st === 'FIXED_DAY' && item.fixedDayOfMonth !== null) {
-        setFixedDayOfMonth(String(item.fixedDayOfMonth));
-        setFixedDayIntervalMonths(String(item.fixedDayIntervalMonths ?? 1));
-      } else if (item.intervalDays !== null) {
-        setIntervalDays(String(item.intervalDays));
+      if (item.type === 'RECURRING_DELIVERY') {
+        // 정기배송은 달 단위(FIXED_DAY)가 기본 — 예상 도착일의 "일"을 고정일로 자동 채운다.
+        setScheduleType('FIXED_DAY');
+        const deliveryDay = item.expectedDeliveryDate
+          ? parseInt(item.expectedDeliveryDate.split('-')[2], 10)
+          : (item.fixedDayOfMonth ?? 1);
+        setFixedDayOfMonth(String(deliveryDay));
+        // AI가 추출한 intervalDays(일 단위)를 개월로 환산해 초기값으로 쓴다(부정확하면 수동 수정).
+        const months = item.fixedDayIntervalMonths
+          ?? (item.intervalDays ? Math.max(1, Math.round(item.intervalDays / 30)) : 1);
+        setFixedDayIntervalMonths(String(months));
+      } else {
+        const st = item.scheduleType ?? 'INTERVAL';
+        setScheduleType(st);
+        if (st === 'FIXED_DAY' && item.fixedDayOfMonth !== null) {
+          setFixedDayOfMonth(String(item.fixedDayOfMonth));
+          setFixedDayIntervalMonths(String(item.fixedDayIntervalMonths ?? 1));
+        } else if (item.intervalDays !== null) {
+          setIntervalDays(String(item.intervalDays));
+        }
       }
       setCategory(item.category ?? 'OTHER');
       setCategoryTags(item.categoryTags.length > 0 ? item.categoryTags : [item.category ?? 'OTHER']);
@@ -778,7 +791,7 @@ export default function DashboardPage() {
     setPendingItems((items) => items.filter((item) => item.id !== id));
   };
 
-  /** 가격 인상 감지 카드의 "가격 반영" — 새 항목을 만들지 않고 매칭된 기존 항목의 금액만 갱신한다. */
+  /** 가격 변동 감지 카드의 "가격 반영" — 새 항목을 만들지 않고 매칭된 기존 항목의 금액만 갱신한다. */
   const handleApplyPriceChange = async (id: number) => {
     await applyPriceChange(id);
     await loadPending();
@@ -1372,7 +1385,7 @@ export default function DashboardPage() {
 
   const selectedCategoryItems = selectedSpendCategory !== null ? computeCategoryItems(selectedSpendCategory) : null;
 
-  /** 확인 대기 중인 "가격 인상 감지" 건수 — pending-purchase-intake.ts가 matched_purchase_id를 채운 것만. */
+  /** 확인 대기 중인 "가격 변동 감지" 건수 — pending-purchase-intake.ts가 matched_purchase_id를 채운 것만. */
   const priceChangeCount = pendingItems.filter((item) => item.matchedPurchaseId !== null).length;
 
   /**
@@ -1661,7 +1674,7 @@ export default function DashboardPage() {
             >
               <span className="summary-board__icon" aria-hidden="true">⚠</span>
               <div className="summary-board__text">
-                <span className="summary-board__label">가격 인상 감지</span>
+                <span className="summary-board__label">가격 변동 감지</span>
                 <span className="summary-board__value mono">
                   {priceChangeCount}
                   <span className="summary-board__unit">건</span>
@@ -1673,7 +1686,7 @@ export default function DashboardPage() {
             <Link to="/pricing" className="summary-board__tile summary-board__tile--price-change summary-board__tile--clickable">
               <span className="summary-board__icon" aria-hidden="true">⚠</span>
               <div className="summary-board__text">
-                <span className="summary-board__label">가격 인상 감지</span>
+                <span className="summary-board__label">가격 변동 감지</span>
                 <span className="summary-board__ai-cta">🔒 프리미엄 전용</span>
               </div>
             </Link>
@@ -1941,7 +1954,7 @@ export default function DashboardPage() {
           {priceUpItems.length > 0 && (
             <div className="spending-detail__section">
               <p className="spending-detail__heading">
-                🟡 가격 인상 <span className="mono">{priceUpItems.length}</span>건
+                🟡 가격 변동 <span className="mono">{priceUpItems.length}</span>건
               </p>
               <ul className="spending-detail__save-list">
                 {priceUpItems.map((p) => (
@@ -1952,7 +1965,7 @@ export default function DashboardPage() {
                         {p.itemName}
                       </p>
                       <p className="spending-detail__save-item-reason">
-                        확인 대기 목록에서 인상분을 확인해보세요.
+                        확인 대기 목록에서 변동 금액을 확인해보세요.
                       </p>
                     </div>
                   </li>
@@ -2196,12 +2209,12 @@ export default function DashboardPage() {
                   서비스명·건수처럼 틀리면 안 되는 값은 여기서 직접 채운다. */}
               <div className="ai-brief__checklist">
                 <div className="ai-brief__check">
-                  <span className={`ai-brief__check-mark${aiBrief.priceIncreaseItems.length > 0 ? ' ai-brief__check-mark--warn' : ''}`}>
-                    {aiBrief.priceIncreaseItems.length > 0 ? '⚠' : '✔'}
+                  <span className={`ai-brief__check-mark${aiBrief.priceChangeItems.length > 0 ? ' ai-brief__check-mark--warn' : ''}`}>
+                    {aiBrief.priceChangeItems.length > 0 ? '⚠' : '✔'}
                   </span>
-                  <span className="ai-brief__check-label">가격 인상</span>
+                  <span className="ai-brief__check-label">가격 변동</span>
                   <span className="ai-brief__check-detail">
-                    {aiBrief.priceIncreaseItems.length > 0 ? aiBrief.priceIncreaseItems.join(', ') : '없음'}
+                    {aiBrief.priceChangeItems.length > 0 ? aiBrief.priceChangeItems.join(', ') : '없음'}
                   </span>
                 </div>
                 <div className="ai-brief__check">
@@ -2419,13 +2432,16 @@ export default function DashboardPage() {
                       </p>
                     </div>
                   </div>
-                  {isPriceChange && (
+                  {isPriceChange && (() => {
+                    const delta = item.amount! - item.previousAmount!;
+                    const isIncrease = delta > 0;
+                    return (
                     <p className="pending-card__price-change">
-                      ⚠ 가격 인상 감지 — <span className="mono">{item.previousAmount!.toLocaleString('ko-KR')}원</span>
+                      {isIncrease ? '⚠ 가격 인상 감지' : '⬇ 가격 인하 감지'} — <span className="mono">{item.previousAmount!.toLocaleString('ko-KR')}원</span>
                       {' → '}
                       <span className="mono">{item.amount!.toLocaleString('ko-KR')}원</span>{' '}
                       <span className="pending-card__price-change-delta">
-                        (+{(item.amount! - item.previousAmount!).toLocaleString('ko-KR')}원)
+                        ({isIncrease ? '+' : ''}{delta.toLocaleString('ko-KR')}원)
                       </span>
                       <FxHint
                         originalAmount={item.originalAmount}
@@ -2439,7 +2455,8 @@ export default function DashboardPage() {
                         </span>
                       )}
                     </p>
-                  )}
+                    );
+                  })()}
                   <p className="pending-card__meta">
                     {isRecurringType(item.type) ? (
                       <>
@@ -2550,7 +2567,11 @@ export default function DashboardPage() {
             <label htmlFor="type">종류</label>
             <div className="type-select-row">
               <span className={`type-dot type-dot--${type}`} aria-hidden="true" />
-              <select id="type" value={type} onChange={(e) => setType(e.target.value as PurchaseType)}>
+              <select id="type" value={type} onChange={(e) => {
+              const t = e.target.value as PurchaseType;
+              setType(t);
+              if (t === 'RECURRING_DELIVERY') setScheduleType('FIXED_DAY');
+            }}>
                 <option value="GENERAL">일반 구매</option>
                 <option value="RECURRING_DELIVERY">정기배송</option>
                 <option value="SUBSCRIPTION">정기구독</option>
@@ -2690,18 +2711,18 @@ export default function DashboardPage() {
             {scheduleType === 'FIXED_DAY' && (
               <>
                 <div className="field field--narrow">
-                  <label htmlFor="fixedDayIntervalMonths">몇 달마다</label>
+                  <label htmlFor="fixedDayIntervalMonths">{type === 'RECURRING_DELIVERY' ? 'N개월마다' : '몇 달마다'}</label>
                   <input
                     id="fixedDayIntervalMonths"
                     type="number"
                     min={1}
-                    max={6}
+                    max={type === 'RECURRING_DELIVERY' ? 12 : 6}
                     value={fixedDayIntervalMonths}
                     onChange={(e) => setFixedDayIntervalMonths(e.target.value)}
                   />
                 </div>
                 <div className="field field--narrow">
-                  <label htmlFor="fixedDayOfMonth">며칠</label>
+                  <label htmlFor="fixedDayOfMonth">{type === 'RECURRING_DELIVERY' ? '도착 기준일' : '며칠'}</label>
                   <input
                     id="fixedDayOfMonth"
                     type="number"
@@ -2735,7 +2756,7 @@ export default function DashboardPage() {
                   checked={scheduleType === 'INTERVAL'}
                   onChange={() => setScheduleType('INTERVAL')}
                 />
-                N일마다
+                {type === 'RECURRING_DELIVERY' ? '주·일 단위' : 'N일마다'}
               </label>
               <label className={`schedule-type-toggle__option${scheduleType === 'FIXED_DAY' ? ' schedule-type-toggle__option--active' : ''}`}>
                 <input
@@ -2745,7 +2766,7 @@ export default function DashboardPage() {
                   checked={scheduleType === 'FIXED_DAY'}
                   onChange={() => setScheduleType('FIXED_DAY')}
                 />
-                매월 N일 고정
+                {type === 'RECURRING_DELIVERY' ? '달 단위' : '매월 N일 고정'}
               </label>
             </div>
             <label className="one-time-toggle">

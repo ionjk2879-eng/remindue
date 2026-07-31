@@ -19,7 +19,7 @@ interface SpendingSummaryInput {
   totalItems: number;
   nextPaymentDate: string | null;
   nextPaymentItem: string | null;
-  priceIncreaseItems: string[];
+  priceChangeItems: string[];
 }
 
 function validateSpendingSummaryInput(value: unknown): SpendingSummaryInput {
@@ -42,8 +42,8 @@ function validateSpendingSummaryInput(value: unknown): SpendingSummaryInput {
   if (!isNullableString(input.topCategory, 50) || !isNullableString(input.nextPaymentDate, 10) || !isNullableString(input.nextPaymentItem, 120)) {
     throw new BadRequestError('분석 항목이 올바르지 않습니다.');
   }
-  if (!Array.isArray(input.priceIncreaseItems) || input.priceIncreaseItems.length > 20 || input.priceIncreaseItems.some((item) => typeof item !== 'string' || item.length > 120)) {
-    throw new BadRequestError('가격 인상 항목이 올바르지 않습니다.');
+  if (!Array.isArray(input.priceChangeItems) || input.priceChangeItems.length > 20 || input.priceChangeItems.some((item) => typeof item !== 'string' || item.length > 120)) {
+    throw new BadRequestError('가격 변동 항목이 올바르지 않습니다.');
   }
   return input as unknown as SpendingSummaryInput;
 }
@@ -126,7 +126,7 @@ aiSummary.post('/spending-summary', async (c) => {
       reviewCount,
       nextPaymentDate,
       nextPaymentItem,
-      priceIncreaseItems,
+      priceChangeItems,
     } = body;
 
     const fmt = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -152,9 +152,9 @@ aiSummary.post('/spending-summary', async (c) => {
       nextPaymentItem && nextPaymentDate
         ? `- 다음 결제/배송 예정: ${nextPaymentDate} ${nextPaymentItem}`
         : '- 다음 결제/배송 예정: 없음',
-      priceIncreaseItems.length > 0
-        ? `- 최근 가격 인상 감지된 서비스: ${priceIncreaseItems.join(', ')}`
-        : '- 최근 가격 인상 감지된 서비스: 없음',
+      priceChangeItems.length > 0
+        ? `- 최근 가격 변동 감지된 서비스: ${priceChangeItems.join(', ')}`
+        : '- 최근 가격 변동 감지된 서비스: 없음',
     ]
       .filter(Boolean)
       .join('\n');

@@ -237,7 +237,7 @@ export default function PricingPage() {
             <td>O</td>
           </tr>
           <tr>
-            <td>가격 인상 감지</td>
+            <td>가격 변동 감지</td>
             <td>X</td>
             <td>O</td>
           </tr>

@@ -90,8 +90,8 @@ export interface AiSummaryInput {
    *  그대로만 인용해야 하는 값이라 서버 프롬프트에서 "지어내지 마라"로 못박아둔다. */
   nextPaymentDate: string | null;
   nextPaymentItem: string | null;
-  /** 확인 대기 목록에서 가격 인상이 감지된 항목명 목록. 없으면 빈 배열. */
-  priceIncreaseItems: string[];
+  /** 확인 대기 목록에서 가격 변동이 감지된 항목명 목록. 없으면 빈 배열. */
+  priceChangeItems: string[];
 }
 
 export interface AiBriefSections {

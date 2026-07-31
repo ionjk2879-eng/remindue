@@ -470,7 +470,7 @@ export default function LandingPage() {
             <div className="summary-board__tile summary-board__tile--price-change">
               <span className="summary-board__icon" aria-hidden="true">⚠</span>
               <div className="summary-board__text">
-                <span className="summary-board__label">가격 인상 감지</span>
+                <span className="summary-board__label">가격 변동 감지</span>
                 <span className="summary-board__value mono">
                   1<span className="summary-board__unit">건</span>
                 </span>
