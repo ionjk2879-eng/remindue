@@ -2973,9 +2973,6 @@ export default function DashboardPage() {
                 유형 옆에 드롭다운 하나로 좁혀서, 선택하면 그 카테고리만 남긴다. */}
             {categoryFilterOptions.length > 0 && (
               <div className="category-filter">
-                <label htmlFor="categoryFilterSelect" className="category-filter__label">
-                  🗂
-                </label>
                 <select
                   id="categoryFilterSelect"
                   className="category-filter__select"

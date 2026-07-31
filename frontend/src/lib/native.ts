@@ -57,32 +57,77 @@ export function setupBackButton(): () => void {
   return () => { handle.then((h) => h.remove()); };
 }
 
-/** 네이티브 푸시 알림 권한 요청 및 토큰 등록 — 토큰 문자열 반환, 실패 시 null */
+export type NativePushPermissionStatus = 'granted' | 'denied' | 'prompt' | 'unsupported';
+
+/**
+ * 설정 화면의 "알림 켜기" 상태 표시용 — OS 다이얼로그를 띄우지 않고 현재 권한 상태만 확인한다.
+ * 'denied'는 한 번 거부된 뒤로는 앱에서 다시 요청해도 다이얼로그가 안 뜨는 상태라, 이 경우엔
+ * 기기 설정으로 안내하는 수밖에 없다(requestPermissions를 다시 불러도 소용없음).
+ */
+export async function getNativePushPermissionStatus(): Promise<NativePushPermissionStatus> {
+  if (!isNative) return 'unsupported';
+  try {
+    const status = await PushNotifications.checkPermissions();
+    return status.receive === 'granted' || status.receive === 'denied' ? status.receive : 'prompt';
+  } catch {
+    return 'unsupported';
+  }
+}
+
+/** register() 호출 후 FCM 토큰이 오길 기다린다 — 권한이 이미 granted인 상태에서만 불러야 한다. */
+async function registerAndAwaitToken(): Promise<string | null> {
+  await PushNotifications.register();
+
+  return new Promise<string | null>((resolve) => {
+    const timeout = setTimeout(() => resolve(null), 10_000);
+
+    PushNotifications.addListener('registration', (token) => {
+      clearTimeout(timeout);
+      resolve(token.value);
+    });
+
+    PushNotifications.addListener('registrationError', () => {
+      clearTimeout(timeout);
+      resolve(null);
+    });
+  });
+}
+
+/**
+ * 네이티브 푸시 알림 권한을 요청(OS 다이얼로그 노출)하고 토큰을 등록한다 — 토큰 문자열 반환,
+ * 실패 시 null. 사용자가 명시적으로 누른 버튼(설정 화면의 "알림 켜기") 안에서만 호출해야 한다 —
+ * 앱 시작 시 자동으로 부르면 사용자가 준비되기 전에 다이얼로그가 뜨고, 얼결에 거부하면 이후로는
+ * 앱에서 다시 물어볼 방법이 없어진다. 자동 호출용은 registerNativePushIfGranted를 대신 쓴다.
+ */
 export async function registerNativePush(): Promise<string | null> {
   if (!isNative) return null;
 
   try {
     let status = await PushNotifications.checkPermissions();
-    if (status.receive === 'prompt') {
+    if (status.receive === 'prompt' || status.receive === 'prompt-with-rationale') {
       status = await PushNotifications.requestPermissions();
     }
     if (status.receive !== 'granted') return null;
 
-    await PushNotifications.register();
+    return await registerAndAwaitToken();
+  } catch {
+    return null;
+  }
+}
 
-    return new Promise<string | null>((resolve) => {
-      const timeout = setTimeout(() => resolve(null), 10_000);
+/**
+ * 앱 시작 시 자동 호출용 — 이미 권한이 허용된 경우에만 토큰을 (재)등록하고, 'prompt' 상태여도
+ * 절대 OS 다이얼로그를 띄우지 않는다. 권한 요청은 설정 화면의 "알림 켜기" 버튼(registerNativePush)
+ * 에서만 일어나야 한다.
+ */
+export async function registerNativePushIfGranted(): Promise<string | null> {
+  if (!isNative) return null;
 
-      PushNotifications.addListener('registration', (token) => {
-        clearTimeout(timeout);
-        resolve(token.value);
-      });
+  try {
+    const status = await PushNotifications.checkPermissions();
+    if (status.receive !== 'granted') return null;
 
-      PushNotifications.addListener('registrationError', () => {
-        clearTimeout(timeout);
-        resolve(null);
-      });
-    });
+    return await registerAndAwaitToken();
   } catch {
     return null;
   }
@@ -117,7 +162,7 @@ interface OtaManifest {
 export async function checkForLiveUpdate(): Promise<void> {
   if (!isNative) return;
   try {
-    const res = await fetch(`${apiOrigin}/app-update/manifest`);
+    const res = await fetch(`${apiOrigin}/api/app-update/manifest`);
     if (!res.ok) return;
     const manifest: OtaManifest = await res.json();
     if (!manifest.bundleId) return;
@@ -127,7 +172,7 @@ export async function checkForLiveUpdate(): Promise<void> {
 
     await LiveUpdate.downloadBundle({
       bundleId: manifest.bundleId,
-      url: `${apiOrigin}/app-update/bundle/${manifest.bundleId}`,
+      url: `${apiOrigin}/api/app-update/bundle/${manifest.bundleId}`,
       checksum: manifest.checksum,
     });
     await LiveUpdate.setNextBundle({ bundleId: manifest.bundleId });

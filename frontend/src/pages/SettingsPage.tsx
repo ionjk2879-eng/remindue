@@ -15,7 +15,8 @@ import Skeleton from '../components/Skeleton';
 import SubscriptionStatus from '../components/SubscriptionStatus';
 import type { SharedAccess } from '../types';
 import { getNotificationPermission } from '../lib/push';
-import { isNative } from '../lib/native';
+import { isNative, getNativePushPermissionStatus, registerNativePush, type NativePushPermissionStatus } from '../lib/native';
+import { registerNativePushToken } from '../api/push';
 
 /** 백엔드 lib/notification-prefs.ts의 NOTIFICATION_DAY_OPTIONS와 같은 목록 — 설정 화면 체크박스 후보. */
 const NOTIFICATION_DAY_OPTIONS = [10, 7, 5, 3, 2, 1, 0];
@@ -42,6 +43,8 @@ export default function SettingsPage() {
   const [renewalDaysMessage, setRenewalDaysMessage] = useState<string | null>(null);
   const [sendingTestPush, setSendingTestPush] = useState<PushTestKind | null>(null);
   const [testPushMessage, setTestPushMessage] = useState<string | null>(null);
+  const [nativePushStatus, setNativePushStatus] = useState<NativePushPermissionStatus>('unsupported');
+  const [enablingNativePush, setEnablingNativePush] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -74,7 +77,23 @@ export default function SettingsPage() {
   useEffect(() => {
     loadNotificationDays();
     loadSharing();
+    if (isNative) {
+      getNativePushPermissionStatus().then(setNativePushStatus);
+    }
   }, []);
+
+  const handleEnableNativePush = async () => {
+    setEnablingNativePush(true);
+    try {
+      const token = await registerNativePush();
+      if (token) {
+        await registerNativePushToken(token);
+      }
+    } finally {
+      setNativePushStatus(await getNativePushPermissionStatus());
+      setEnablingNativePush(false);
+    }
+  };
 
   const handleNicknameEdit = () => {
     setNicknameInput(nickname ?? '');
@@ -364,6 +383,24 @@ export default function SettingsPage() {
           <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미수령 시 다음 날 재알림</label>
         </div>
       </section>
+
+      {isNative && (
+        <section className="settings-section">
+          <h2>알림 권한</h2>
+          <p className="settings-section__hint">기기 알림이 꺼져 있으면 기한·결제·배송 알림을 받을 수 없어요.</p>
+          {nativePushStatus === 'granted' && <p className="settings-section__message">알림이 켜져 있어요.</p>}
+          {nativePushStatus === 'prompt' && (
+            <button className="btn btn-sm" onClick={handleEnableNativePush} disabled={enablingNativePush}>
+              {enablingNativePush ? '요청 중...' : '알림 켜기'}
+            </button>
+          )}
+          {nativePushStatus === 'denied' && (
+            <p className="settings-section__message">
+              알림이 꺼져 있어요. 앱 안에서는 다시 요청할 수 없어서, 기기 설정 &gt; 앱 &gt; Remindue &gt; 알림에서 직접 켜주셔야 해요.
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="settings-section">
         <h2>알림 테스트</h2>

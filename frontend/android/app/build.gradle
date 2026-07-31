@@ -13,8 +13,8 @@ android {
         applicationId "com.remindue.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // 심사/테스트 배포용 APK를 Cloudflare Workers 정적 자산 크기 제한(25MB) 아래로 유지하기
         // 위해 실기기 대부분을 차지하는 arm64만 담는다 — 전체 ABI를 담은 "유니버설" APK는

@@ -6,7 +6,7 @@ import {
   initNative,
   hideSplash,
   setupBackButton,
-  registerNativePush,
+  registerNativePushIfGranted,
   isNative,
   markLiveUpdateReady,
   checkForLiveUpdate,
@@ -36,9 +36,10 @@ export default function NativeInitializer() {
     // Android 뒤로가기 버튼
     const cleanup = setupBackButton();
 
-    // 토큰은 권한 허용 후 바로 받을 수 있으므로 시작 시 가져와 두고,
+    // 이미 권한이 허용된 기기에서만 토큰을 가져와 둔다 — 아직 답하지 않은 사용자에게 앱 시작과
+    // 동시에 OS 권한 다이얼로그를 띄우지 않기 위해서다(설정 화면의 "알림 켜기"에서만 요청한다).
     // 실제 서버 등록은 인증 상태가 확정된 뒤 아래 effect에서 처리한다.
-    registerNativePush().then((token) => {
+    registerNativePushIfGranted().then((token) => {
       fcmTokenRef.current = token;
     });
 
@@ -58,8 +59,8 @@ export default function NativeInitializer() {
     const registerToken = async () => {
       if (!fcmTokenRef.current) {
         console.info('[FCM] 토큰 요청 중...');
-        const token = await registerNativePush();
-        console.info('[FCM] 토큰 결과:', token ? token.slice(0, 20) + '…' : 'null (권한 거부 또는 실패)');
+        const token = await registerNativePushIfGranted();
+        console.info('[FCM] 토큰 결과:', token ? token.slice(0, 20) + '…' : 'null (권한 미허용)');
         fcmTokenRef.current = token;
       }
       if (fcmTokenRef.current) {
