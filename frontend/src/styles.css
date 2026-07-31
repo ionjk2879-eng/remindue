@@ -2228,16 +2228,6 @@ button.summary-board__tile:hover {
   opacity: 0.7;
 }
 
-/* 종류 필터 아래 2차 카테고리 필터 — 살짝 더 작고, 위 줄과 더 붙어 보이게 여백을 줄인다. */
-.type-filter--category {
-  margin-top: -10px;
-}
-
-.type-filter--category .type-filter__btn {
-  font-size: 0.76rem;
-  padding: 5px 12px;
-}
-
 .type-filter__btn--active {
   color: var(--ink);
   background: var(--neutral-bg);
@@ -2263,59 +2253,52 @@ button.summary-board__tile:hover {
   border-color: var(--type-subscription);
 }
 
-/* 2차 카테고리 필터 칩 — 눌렀을 때 해당 카테고리 색으로 배경이 채워져서 선택 상태가 잘 보이게 한다. */
-.type-filter__btn--SOFTWARE.type-filter__btn--active {
-  color: var(--category-software);
-  background: var(--category-software-bg);
-  border-color: var(--category-software);
+/* 유형 필터 옆 카테고리 드롭다운 — 칩으로 늘어놓기엔 카테고리(12개+미지정)가 너무 많아서
+   하나로 좁혔다. 유형 필터와 한 줄에 나란히 두고, 좁은 화면에서는 아래로 떨어진다. */
+.filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 18px;
 }
 
-.type-filter__btn--AI.type-filter__btn--active {
-  color: var(--category-ai);
-  background: var(--category-ai-bg);
-  border-color: var(--category-ai);
+.filters-row .type-filter {
+  margin-bottom: 0;
 }
 
-.type-filter__btn--ENTERTAINMENT.type-filter__btn--active {
-  color: var(--category-entertainment);
-  background: var(--category-entertainment-bg);
-  border-color: var(--category-entertainment);
+.category-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.type-filter__btn--SHOPPING.type-filter__btn--active {
-  color: var(--category-shopping);
-  background: var(--category-shopping-bg);
-  border-color: var(--category-shopping);
+.category-filter__label {
+  font-size: 0.9rem;
+  line-height: 1;
 }
 
-.type-filter__btn--FOOD.type-filter__btn--active {
-  color: var(--category-food);
-  background: var(--category-food-bg);
-  border-color: var(--category-food);
+.category-filter__select {
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--paper-card);
+  border: 1.5px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
 
-.type-filter__btn--CREATOR_SUPPORT.type-filter__btn--active {
-  color: var(--category-creator-support);
-  background: var(--category-creator-support-bg);
-  border-color: var(--category-creator-support);
+.category-filter__select:hover {
+  color: var(--ink);
+  border-color: var(--ink-soft);
 }
 
-.type-filter__btn--CLOUD.type-filter__btn--active {
-  color: var(--category-cloud);
-  background: var(--category-cloud-bg);
-  border-color: var(--category-cloud);
-}
-
-.type-filter__btn--OTHER.type-filter__btn--active {
-  color: var(--category-other);
-  background: var(--category-other-bg);
-  border-color: var(--category-other);
-}
-
-.type-filter__btn--UNCATEGORIZED.type-filter__btn--active {
-  color: var(--overdue-grey);
-  background: var(--neutral-bg);
-  border-color: var(--overdue-grey);
+.category-filter__select:focus-visible {
+  outline: 2px solid var(--ink-soft);
+  outline-offset: 2px;
 }
 
 .type-select-row {

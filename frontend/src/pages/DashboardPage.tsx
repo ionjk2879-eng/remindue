@@ -1495,14 +1495,16 @@ export default function DashboardPage() {
   const overdueItems = purchases.filter(isOverdue);
   const nonOverduePurchases = purchases.filter((p) => !isOverdue(p));
 
-  /** 이 종류(filterType) 안에 실제로 존재하는 카테고리만 2차 필터 칩으로 노출한다(빈 칩 방지). */
-  const categoryFilterOptions: ('UNCATEGORIZED' | PurchaseCategory)[] =
-    filterType === 'ALL'
-      ? []
-      : [
-          ...PURCHASE_CATEGORIES.filter((c) => nonOverduePurchases.some((p) => p.type === filterType && p.category === c)),
-          ...(nonOverduePurchases.some((p) => p.type === filterType && p.category === null) ? (['UNCATEGORIZED'] as const) : []),
-        ];
+  /** 실제로 존재하는 카테고리만 드롭다운 옵션으로 노출한다(빈 옵션 방지) — 종류를 "전체"로 두면
+   *  전체 항목 기준, 특정 종류를 골랐으면 그 종류 안에서만 존재하는 카테고리로 좁힌다. */
+  const categoryFilterOptions: ('UNCATEGORIZED' | PurchaseCategory)[] = [
+    ...PURCHASE_CATEGORIES.filter((c) =>
+      nonOverduePurchases.some((p) => (filterType === 'ALL' || p.type === filterType) && p.category === c)
+    ),
+    ...(nonOverduePurchases.some((p) => (filterType === 'ALL' || p.type === filterType) && p.category === null)
+      ? (['UNCATEGORIZED'] as const)
+      : []),
+  ];
 
   const displayedPurchases = nonOverduePurchases.filter((p) => {
     if (filterType !== 'ALL' && p.type !== filterType) return false;
@@ -2904,70 +2906,68 @@ export default function DashboardPage() {
 
       {view === 'ACTIVE' && (
         <>
-          <div className="type-filter" role="tablist" aria-label="종류별 필터">
-            {FILTER_OPTIONS.map((opt) => {
-              const count =
-                opt.key === 'ALL' ? nonOverduePurchases.length : nonOverduePurchases.filter((p) => p.type === opt.key).length;
-              return (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={filterType === opt.key}
-                  key={opt.key}
-                  className={`type-filter__btn${opt.key !== 'ALL' ? ` type-filter__btn--${opt.key}` : ''}${
-                    filterType === opt.key ? ' type-filter__btn--active' : ''
-                  }`}
-                  onClick={() => {
-                    setFilterType(opt.key);
-                    setFilterCategory('ALL');
-                    setPurchasesPage(1);
-                  }}
-                >
-                  {opt.key !== 'ALL' && <span className={`type-dot type-dot--${opt.key}`} aria-hidden="true" />}
-                  {opt.label}
-                  <span className="mono type-filter__count">{count}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {categoryFilterOptions.length > 0 && (
-            <div className="type-filter type-filter--category" role="tablist" aria-label="카테고리별 필터">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={filterCategory === 'ALL'}
-                className={`type-filter__btn${filterCategory === 'ALL' ? ' type-filter__btn--active' : ''}`}
-                onClick={() => {
-                  setFilterCategory('ALL');
-                  setPurchasesPage(1);
-                }}
-              >
-                전체
-              </button>
-              {categoryFilterOptions.map((c) => {
-                const count = purchases.filter(
-                  (p) => p.type === filterType && (c === 'UNCATEGORIZED' ? p.category === null : p.category === c)
-                ).length;
+          <div className="filters-row">
+            <div className="type-filter" role="tablist" aria-label="종류별 필터">
+              {FILTER_OPTIONS.map((opt) => {
+                const count =
+                  opt.key === 'ALL' ? nonOverduePurchases.length : nonOverduePurchases.filter((p) => p.type === opt.key).length;
                 return (
                   <button
                     type="button"
                     role="tab"
-                    key={c}
-                    aria-selected={filterCategory === c}
-                    className={`type-filter__btn type-filter__btn--${c}${filterCategory === c ? ' type-filter__btn--active' : ''}`}
+                    aria-selected={filterType === opt.key}
+                    key={opt.key}
+                    className={`type-filter__btn${opt.key !== 'ALL' ? ` type-filter__btn--${opt.key}` : ''}${
+                      filterType === opt.key ? ' type-filter__btn--active' : ''
+                    }`}
                     onClick={() => {
-                      setFilterCategory(c);
+                      setFilterType(opt.key);
+                      setFilterCategory('ALL');
                       setPurchasesPage(1);
                     }}
                   >
-                    {c === 'UNCATEGORIZED' ? '🗂 미지정' : `${CATEGORY_ICON[c]} ${CATEGORY_LABEL[c]}`}
+                    {opt.key !== 'ALL' && <span className={`type-dot type-dot--${opt.key}`} aria-hidden="true" />}
+                    {opt.label}
                     <span className="mono type-filter__count">{count}</span>
                   </button>
                 );
               })}
             </div>
-          )}
+
+            {/* 카테고리는 12개+미지정이라 유형처럼 칩으로 늘어놓으면 화면이 지저분해진다 —
+                유형 옆에 드롭다운 하나로 좁혀서, 선택하면 그 카테고리만 남긴다. */}
+            {categoryFilterOptions.length > 0 && (
+              <div className="category-filter">
+                <label htmlFor="categoryFilterSelect" className="category-filter__label">
+                  🗂
+                </label>
+                <select
+                  id="categoryFilterSelect"
+                  className="category-filter__select"
+                  aria-label="카테고리별 필터"
+                  value={filterCategory}
+                  onChange={(e) => {
+                    setFilterCategory(e.target.value as 'ALL' | 'UNCATEGORIZED' | PurchaseCategory);
+                    setPurchasesPage(1);
+                  }}
+                >
+                  <option value="ALL">카테고리 전체</option>
+                  {categoryFilterOptions.map((c) => {
+                    const count = purchases.filter(
+                      (p) =>
+                        (filterType === 'ALL' || p.type === filterType) &&
+                        (c === 'UNCATEGORIZED' ? p.category === null : p.category === c)
+                    ).length;
+                    return (
+                      <option key={c} value={c}>
+                        {c === 'UNCATEGORIZED' ? '미지정' : `${CATEGORY_ICON[c]} ${CATEGORY_LABEL[c]}`} ({count})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
+          </div>
 
           <div className="ticket-list">
             {pagedPurchases.map((p) => (
