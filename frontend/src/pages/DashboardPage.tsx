@@ -1326,7 +1326,7 @@ export default function DashboardPage() {
                 {group.items.map((item) => (
                   <li key={item.key}>
                     <span>
-                      <span className="spending-detail__list-type">
+                      <span className={`spending-detail__list-type spending-detail__list-type--${item.type}`}>
                         {TYPE_SHORT_LABEL[item.type]}
                       </span>
                       {item.itemName}
@@ -1891,7 +1891,7 @@ export default function DashboardPage() {
                   {selectedCategoryItems.map((item) => (
                     <li key={item.id}>
                       <span>
-                        <span className="spending-detail__list-type">
+                        <span className={`spending-detail__list-type spending-detail__list-type--${item.type}`}>
                           {TYPE_SHORT_LABEL[item.type]}
                         </span>
                         {item.itemName}
@@ -1935,7 +1935,7 @@ export default function DashboardPage() {
                     {group.items.map((p) => (
                       <li key={p.id}>
                         <span>
-                          <span className="spending-detail__list-type">
+                          <span className={`spending-detail__list-type spending-detail__list-type--${p.type}`}>
                             {formatKoreanMonthDay(p.deadline)} · {p.deliveryRound}회차
                           </span>
                           {p.itemName}
@@ -1967,7 +1967,7 @@ export default function DashboardPage() {
                     {group.items.map((p) => (
                       <li key={p.id}>
                         <span>
-                          <span className="spending-detail__list-type">
+                          <span className={`spending-detail__list-type spending-detail__list-type--${p.type}`}>
                             {p.discontinuedAt !== null
                               ? `${p.deliveryRound}회차 (유지 안 함)`
                               : p.isOneTime
@@ -2006,7 +2006,7 @@ export default function DashboardPage() {
                   <li key={p.id}>
                     <div className="spending-detail__save-item-info">
                       <p className="spending-detail__save-item-name">
-                        <span className="spending-detail__list-type">{TYPE_SHORT_LABEL[p.type]}</span>
+                        <span className={`spending-detail__list-type spending-detail__list-type--${p.type}`}>{TYPE_SHORT_LABEL[p.type]}</span>
                         {p.itemName}
                       </p>
                       <p className="spending-detail__save-item-reason">
@@ -2029,7 +2029,7 @@ export default function DashboardPage() {
                   <li key={p.id}>
                     <div className="spending-detail__save-item-info">
                       <p className="spending-detail__save-item-name">
-                        <span className="spending-detail__list-type">{TYPE_SHORT_LABEL[p.type]}</span>
+                        <span className={`spending-detail__list-type spending-detail__list-type--${p.type}`}>{TYPE_SHORT_LABEL[p.type]}</span>
                         {p.itemName}
                       </p>
                       <p className="spending-detail__save-item-reason">
@@ -2151,7 +2151,7 @@ export default function DashboardPage() {
                     <li key={item.id}>
                       <div className="spending-detail__save-item-info">
                         <p className="spending-detail__save-item-name">
-                          <span className="spending-detail__list-type">{TYPE_SHORT_LABEL[item.type]}</span>
+                          <span className={`spending-detail__list-type spending-detail__list-type--${item.type}`}>{TYPE_SHORT_LABEL[item.type]}</span>
                           {item.itemName}
                         </p>
                         <p className="spending-detail__save-item-reason">

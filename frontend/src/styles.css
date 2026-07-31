@@ -1375,6 +1375,22 @@ button.summary-board__tile:hover {
   text-align: center;
 }
 
+/* 종류별 색상 — type-dot/ticket-card__type/pending-card__type과 동일한 3색 팔레트를 재사용한다. */
+.spending-detail__list-type--GENERAL {
+  color: var(--type-general);
+  background: var(--type-general-bg);
+}
+
+.spending-detail__list-type--RECURRING_DELIVERY {
+  color: var(--type-recurring);
+  background: var(--type-recurring-bg);
+}
+
+.spending-detail__list-type--SUBSCRIPTION {
+  color: var(--type-subscription);
+  background: var(--type-subscription-bg);
+}
+
 .spending-detail__total {
   margin-top: 10px;
   padding-top: 10px;
