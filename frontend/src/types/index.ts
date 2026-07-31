@@ -31,6 +31,9 @@ export interface Purchase {
   arrivalOffsetDays: number | null;
   /** arrivalOffsetDays가 있을 때 서버가 계산한 도착예정일(결제일 + 영업일 N일, 주말·공휴일 제외). 그 외 null. */
   arrivalEstimate: string | null;
+  /** 결제일은 지났지만 도착예정일은 아직 안 지난 상태(결제완료·도착대기) — true면 dDay는 결제일이
+   *  아니라 arrivalEstimate 기준이다. */
+  awaitingArrival: boolean;
   lastDeliveredDate: string | null;
   arrivalCheckSnoozedUntil: string | null;
   /** 정기구독·배송 유지 확인에 답한 회차의 deadline 값 — deadline과 같으면 이번 회차는 이미 답한 것. */

@@ -221,6 +221,46 @@ function renderGeneralDeadlineLines(p: Purchase) {
   );
 }
 
+/**
+ * RECURRING_DELIVERY/SUBSCRIPTION 카드의 "다음 일정" 줄 — awaitingArrival(결제완료·도착대기)
+ * 이면 이미 끝난 결제일은 "결제완료"로, 아직 안 지난 도착예정일을 다음 이벤트로 보여준다.
+ * 아니면 기존처럼 결제(예정)일이 다음 이벤트다. 배지(dDay)도 이 상태에서 도착일 기준으로
+ * 바뀌어 있으므로(mapper.ts) 여기서 보여주는 "다음 일정"과 배지 카운트다운이 서로 맞는다.
+ */
+function renderRecurringScheduleLine(p: Purchase) {
+  const scheduleDesc =
+    p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
+      ? `${p.fixedDayIntervalMonths > 1 ? `${p.fixedDayIntervalMonths}달마다` : '매월'} ${p.fixedDayOfMonth}일`
+      : null;
+  return (
+    <p className="ticket-card__deadline">
+      다음 일정: <span className="mono">{p.deliveryRound}회차</span>
+      {scheduleDesc && ` · ${scheduleDesc}`}
+      {p.awaitingArrival ? (
+        <>
+          {' · 결제완료 '}
+          <span className="mono">{formatShortDate(p.deadline)}</span>
+          {' · 도착예정 '}
+          <span className="mono">{formatShortDate(p.arrivalEstimate!)}</span>
+        </>
+      ) : (
+        <>
+          {' ('}
+          <span className="mono">{formatShortDate(p.deadline)}</span>
+          {')'}
+          {p.arrivalEstimate !== null && (
+            <>
+              {' · 도착예정 '}
+              <span className="mono">{formatShortDate(p.arrivalEstimate)}</span>
+            </>
+          )}
+        </>
+      )}
+      {p.isOneTime && ' · 한 번만 사용'}
+    </p>
+  );
+}
+
 /** urgent 배너처럼 "기한 1개"만 보여줄 수 있는 곳에서 p.deadline(soonest/primary)이 반품기한과
  *  A/S보증 중 어느 쪽인지 라벨링한다. */
 function primaryDeadlineLabel(p: Purchase): string {
@@ -2969,14 +3009,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   {isRecurringType(p.type) && p.deliveryRound !== null ? (
-                    <p className="ticket-card__deadline">
-                      다음 일정: <span className="mono">{p.deliveryRound}회차</span>
-                      {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
-                        ? ` · ${p.fixedDayIntervalMonths > 1 ? `${p.fixedDayIntervalMonths}달마다` : '매월'} ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
-                        : ` (${formatShortDate(p.deadline)})`}
-                      {p.arrivalEstimate !== null && ` · 도착예정 ${formatShortDate(p.arrivalEstimate)}`}
-                      {p.isOneTime && ' · 한 번만 사용'}
-                    </p>
+                    renderRecurringScheduleLine(p)
                   ) : (
                     !isRecurringType(p.type) && renderGeneralDeadlineLines(p)
                   )}
@@ -3082,13 +3115,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   {isRecurringType(p.type) && p.deliveryRound !== null ? (
-                    <p className="ticket-card__deadline">
-                      다음 일정: <span className="mono">{p.deliveryRound}회차</span>
-                      {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
-                        ? ` · ${p.fixedDayIntervalMonths > 1 ? `${p.fixedDayIntervalMonths}달마다` : '매월'} ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
-                        : ` (${formatShortDate(p.deadline)})`}
-                      {p.arrivalEstimate !== null && ` · 도착예정 ${formatShortDate(p.arrivalEstimate)}`}
-                    </p>
+                    renderRecurringScheduleLine(p)
                   ) : (
                     !isRecurringType(p.type) && renderGeneralDeadlineLines(p)
                   )}
@@ -3190,13 +3217,7 @@ export default function DashboardPage() {
                   </div>
                   <h3 className="ticket-card__title">{p.itemName}</h3>
                   {isRecurringType(p.type) && p.deliveryRound !== null ? (
-                    <p className="ticket-card__deadline">
-                      다음 일정: <span className="mono">{p.deliveryRound}회차</span>
-                      {p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
-                        ? ` · ${p.fixedDayIntervalMonths > 1 ? `${p.fixedDayIntervalMonths}달마다` : '매월'} ${p.fixedDayOfMonth}일 (${formatShortDate(p.deadline)})`
-                        : ` (${formatShortDate(p.deadline)})`}
-                      {p.arrivalEstimate !== null && ` · 도착예정 ${formatShortDate(p.arrivalEstimate)}`}
-                    </p>
+                    renderRecurringScheduleLine(p)
                   ) : (
                     renderGeneralDeadlineLines(p)
                   )}

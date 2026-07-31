@@ -13,7 +13,15 @@ function parseCategoryTags(value: string | null, primary: PurchaseRow['category'
 
 export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
   const { deadline, deliveryRound } = computeDeadline(row);
-  const dDay = computeDDay(deadline);
+  const arrivalEstimate = computeArrivalEstimate(deadline, row.arrival_offset_days);
+  const paymentDDay = computeDDay(deadline);
+  // 결제일은 지났는데(paymentDDay<0) 아직 도착예정일 전이면 "결제완료·도착대기" 상태다 — 회차
+  // 판정 로직(computeDeadline)이 도착일까지는 같은 회차를 유지하도록 고쳐져 있어서, 표시 중인
+  // 회차가 이 상태라면 항상 아직 도착 전이다(이미 도착일이 지났다면 다음 회차로 넘어가 있음).
+  // 이때 dDay를 결제일 기준 그대로 두면 배지가 "지남"으로 뜨고 이번 주 배송 예정에서도 빠지므로,
+  // 도착예정일 기준으로 바꿔 보여준다.
+  const awaitingArrival = arrivalEstimate !== null && paymentDDay < 0;
+  const dDay = awaitingArrival ? computeDDay(arrivalEstimate) : paymentDDay;
 
   // GENERAL이 반품기한/A·S보증을 동시에 가질 수 있어서(computeDeadlines 참고) 카드가 둘 다 따로
   // 보여줄 수 있게 각 인스턴스의 날짜/D-day를 별도 필드로도 노출한다. 하나만 있으면 나머지는 null.
@@ -40,7 +48,8 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     arrivalCheckSnoozedUntil: row.arrival_check_snoozed_until,
     renewalDecisionFor: row.renewal_decision_for,
     arrivalOffsetDays: row.arrival_offset_days,
-    arrivalEstimate: computeArrivalEstimate(deadline, row.arrival_offset_days),
+    arrivalEstimate,
+    awaitingArrival,
     deadline,
     dDay,
     deliveryRound,

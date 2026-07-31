@@ -270,6 +270,10 @@ export interface PurchaseResponse {
   arrivalOffsetDays: number | null;
   /** arrivalOffsetDays로 계산한 도착예정일(computeArrivalEstimate) — arrivalOffsetDays가 null이면 null. */
   arrivalEstimate: string | null;
+  /** 이 회차 결제일은 지났지만 도착예정일은 아직 안 지난 상태(결제완료·도착대기) — true면 dDay는
+   *  결제일이 아니라 arrivalEstimate 기준이다. RECURRING_DELIVERY + arrivalOffsetDays 전용,
+   *  그 외 타입은 항상 false. */
+  awaitingArrival: boolean;
   /** 도착 확인에서 "아직 안 받았어요"를 선택하면 다음 날로 설정되는 재질문 날짜. */
   arrivalCheckSnoozedUntil: string | null;
   /** 정기구독·배송 유지 확인에 답한 회차의 deadline 값 — 이 값이 deadline과 같으면 이번 회차는
