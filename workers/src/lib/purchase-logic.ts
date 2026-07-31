@@ -189,7 +189,13 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
       const interval = row.interval_days ?? DEFAULT_INTERVAL_DAYS;
       const daysSinceStart = daysBetween(anchor, todayDateOnly());
       const cyclesElapsed = Math.max(0, Math.ceil(daysSinceStart / interval));
-      const arrivalDate = addDays(anchor, interval * cyclesElapsed);
+      // FIXED_DAY와 동일하게 도착 예정일이 토·일·공휴일이면 다음 영업일로 밀고,
+      // arrival_offset_days가 있으면 그 도착일로부터 영업일 역산으로 결제일을 구한다.
+      const rawArrivalDate = addDays(anchor, interval * cyclesElapsed);
+      const arrivalDate =
+        row.arrival_offset_days !== null
+          ? addBusinessDays(rawArrivalDate, 0, isNonDeliveryDay)
+          : rawArrivalDate;
 
       // arrival_offset_days가 설정된 경우 FIXED_DAY와 동일하게 도착일에서 영업일 역산으로 결제일을
       // 구한다 — 주/일 단위 정기배송도 "도착 N영업일 전 = 결제" 패턴을 쓰기 때문이다.
@@ -255,10 +261,10 @@ export function computePreviousScheduleDeadline(row: DeadlineInput): string | nu
     previous = addMonths(nextDeadline, -(row.fixed_day_interval_months ?? 1));
   } else if (row.arrival_offset_days !== null) {
     // INTERVAL + arrival_offset_days: nextDeadline이 결제일이므로, 도착일을 복원한 뒤
-    // 1회차 전 도착일 → 결제일로 역산한다.
+    // 직전 회차 도착일(공휴일이면 다음 영업일로 보정) → 결제일로 역산한다.
     const interval = row.interval_days ?? DEFAULT_INTERVAL_DAYS;
     const nextArrival = addBusinessDays(nextDeadline, row.arrival_offset_days, isNonDeliveryDay);
-    const prevArrival = addDays(nextArrival, -interval);
+    const prevArrival = addBusinessDays(addDays(nextArrival, -interval), 0, isNonDeliveryDay);
     previous = subtractBusinessDays(prevArrival, row.arrival_offset_days, isNonDeliveryDay);
   } else {
     previous = addDays(nextDeadline, -(row.interval_days ?? DEFAULT_INTERVAL_DAYS));
