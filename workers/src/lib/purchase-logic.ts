@@ -118,6 +118,29 @@ function nextArrivalAnchoredCycle(
 }
 
 /**
+ * INTERVAL(주·일 단위) + arrival_offset_days 전용 — todayStr 기준 "현재" 회차(0-based
+ * cyclesElapsed)를 찾는다. 원시 도착일(anchor + interval*k)이 아니라 영업일 보정까지 끝난
+ * 실제 도착일이 today를 지나야 다음 회차로 넘어간다 — ceil(daysSinceStart/interval) 같은
+ * 닫힌 식으로는 원시 도착일이 주말/공휴일이라 실제 도착일이 뒤로 밀린 회차에서, 원시 날짜만
+ * 지났을 뿐 실제 도착 전인데도 벌써 다음 회차로 표시되는 문제가 있었다(FIXED_DAY의
+ * nextArrivalAnchoredCycle과 같은 종류의 문제, 여기선 개월이 아니라 일 단위라 별도 함수).
+ */
+function nextIntervalAnchoredCycle(
+  interval: number,
+  anchorDateStr: string,
+  todayStr: string
+): { cyclesElapsed: number; arrivalDate: string } {
+  const cycleArrival = (k: number) => addBusinessDays(addDays(anchorDateStr, interval * k), 0, isNonDeliveryDay);
+  let cyclesElapsed = Math.max(0, Math.floor(daysBetween(anchorDateStr, todayStr) / interval) - 1);
+  let arrivalDate = cycleArrival(cyclesElapsed);
+  while (arrivalDate < todayStr) {
+    cyclesElapsed += 1;
+    arrivalDate = cycleArrival(cyclesElapsed);
+  }
+  return { cyclesElapsed, arrivalDate };
+}
+
+/**
  * GENERAL은 반품기한/A·S 보증기간을 동시에 가질 수 있어(둘 다 선택 입력) 한 구매 행이 서로 다른
  * 시점의 리마인드를 최대 2건 만들어낼 수 있다 — D-day 다이제스트(digest.ts)는 이 배열을 그대로
  * 순회해서 각 인스턴스를 독립적으로 알림 대상 여부를 판단한다. RECURRING_DELIVERY/SUBSCRIPTION은
@@ -198,22 +221,21 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
       // INTERVAL(기본): anchor + intervalDays*k 방식.
       // 회차: 1회차 = anchor(k=0), n회차 = anchor + (n-1)*intervalDays.
       const interval = row.interval_days ?? DEFAULT_INTERVAL_DAYS;
-      const daysSinceStart = daysBetween(anchor, todayDateOnly());
-      const cyclesElapsed = Math.max(0, Math.ceil(daysSinceStart / interval));
-      // FIXED_DAY와 동일하게 도착 예정일이 토·일·공휴일이면 다음 영업일로 밀고,
-      // arrival_offset_days가 있으면 그 도착일로부터 영업일 역산으로 결제일을 구한다.
-      const rawArrivalDate = addDays(anchor, interval * cyclesElapsed);
-      const arrivalDate =
-        row.arrival_offset_days !== null
-          ? addBusinessDays(rawArrivalDate, 0, isNonDeliveryDay)
-          : rawArrivalDate;
 
       // arrival_offset_days가 설정된 경우 FIXED_DAY와 동일하게 도착일에서 영업일 역산으로 결제일을
-      // 구한다 — 주/일 단위 정기배송도 "도착 N영업일 전 = 결제" 패턴을 쓰기 때문이다.
+      // 구한다 — 주/일 단위 정기배송도 "도착 N영업일 전 = 결제" 패턴을 쓰기 때문이다. 몇 회차인지도
+      // 원시 날짜(anchor + interval*k)가 아니라 영업일 보정까지 끝난 실제 도착일 기준으로 찾는다 —
+      // ceil(daysSinceStart/interval) 같은 닫힌 식으로는 원시 도착일이 주말/공휴일이라 실제 도착일이
+      // 뒤로 밀린 회차에서, 원시 날짜만 지났을 뿐 실제 도착 전인데도 벌써 다음 회차로 넘어가버린다.
       if (row.arrival_offset_days !== null) {
+        const { cyclesElapsed, arrivalDate } = nextIntervalAnchoredCycle(interval, anchor, todayDateOnly());
         const deadline = subtractBusinessDays(arrivalDate, row.arrival_offset_days, isNonDeliveryDay);
         return [{ kind: 'SCHEDULE', deadline, deliveryRound: cyclesElapsed + 1 }];
       }
+
+      const daysSinceStart = daysBetween(anchor, todayDateOnly());
+      const cyclesElapsed = Math.max(0, Math.ceil(daysSinceStart / interval));
+      const arrivalDate = addDays(anchor, interval * cyclesElapsed);
       return [
         {
           kind: 'SCHEDULE',

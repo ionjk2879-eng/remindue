@@ -254,3 +254,31 @@ describe('INTERVAL(주·일 단위) + arrival_offset_days — 같은 1회차 pre
     expect(computePreviousScheduleDeadline(purchase)).not.toBeNull();
   });
 });
+
+describe('INTERVAL(주·일 단위) + arrival_offset_days — 원시 도착일이 주말이라 밀리는 회차의 경계', () => {
+  afterEach(() => vi.useRealTimers());
+
+  // anchor(2026-08-01)가 토요일 — 원시 도착일은 토요일, 실제(영업일 보정) 도착일은 다음 월요일(8/3).
+  const weeklySaturdayAnchor = () =>
+    row('RECURRING_DELIVERY', {
+      base_date: '2026-08-01',
+      expected_delivery_date: '2026-08-01',
+      schedule_type: 'INTERVAL',
+      interval_days: 7,
+      arrival_offset_days: 2,
+    });
+
+  it('원시 도착일(토)과 그 다음날(일)에도 실제 도착 전이라 여전히 1회차', () => {
+    vi.setSystemTime(new Date('2026-08-01T03:00:00.000Z'));
+    expect(computeDeadline(weeklySaturdayAnchor()).deliveryRound).toBe(1);
+    vi.setSystemTime(new Date('2026-08-02T03:00:00.000Z'));
+    expect(computeDeadline(weeklySaturdayAnchor()).deliveryRound).toBe(1);
+  });
+
+  it('실제(영업일 보정된) 도착일 당일(월)까지는 1회차, 다음날(화)부터 2회차', () => {
+    vi.setSystemTime(new Date('2026-08-03T03:00:00.000Z'));
+    expect(computeDeadline(weeklySaturdayAnchor()).deliveryRound).toBe(1);
+    vi.setSystemTime(new Date('2026-08-04T03:00:00.000Z'));
+    expect(computeDeadline(weeklySaturdayAnchor()).deliveryRound).toBe(2);
+  });
+});
