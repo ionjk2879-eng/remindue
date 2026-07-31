@@ -2958,13 +2958,21 @@ button.summary-board__tile:hover {
   align-items: flex-end;
 }
 
-/* 정기 항목의 주기 입력, 방식 토글, 1회 사용 옵션은 각자 높이가 다르다. grid로 세 칸을
-   고정한 뒤 하단 기준선을 맞춰, 토글만 위로 떠 보이거나 체크 카드가 어색하게 내려가지 않게 한다. */
+/* 정기 항목의 주기 입력, 방식 토글, 1회 사용 옵션은 각자 높이가 다르다. flex 하단 정렬로
+   맞춰, 토글만 위로 떠 보이거나 체크 카드가 어색하게 내려가지 않게 한다.
+   항목 수가 종류(정기배송/구독)·방식(달/일 단위)에 따라 3~5개로 달라지므로 고정 그리드 대신
+   flex-wrap을 쓴다. */
 .register-form__row--recurring {
-  display: grid;
-  grid-template-columns: minmax(150px, 170px) max-content minmax(250px, 1fr);
-  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   gap: 10px;
+}
+
+/* 한 번만 사용 카드는 남은 공간을 채우도록 늘어난다. */
+.register-form__row--recurring .one-time-toggle {
+  flex: 1 1 220px;
+  max-width: 320px;
 }
 
 .register-form__row .field {
@@ -4616,7 +4624,13 @@ button.summary-board__tile:hover {
   }
 
   .register-form__row--recurring {
-    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+
+  .register-form__row--recurring .one-time-toggle {
+    max-width: none;
   }
 
   .schedule-type-toggle,
