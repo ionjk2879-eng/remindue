@@ -190,4 +190,15 @@ describe('도착일 고정 앵커 + 결제일 역산 (arrival_offset_days, 실�
     // 1개월 전(addMonths 방식)이면 9/30이 나오지만, 실제 직전 회차는 10/1이다.
     expect(computePreviousScheduleDeadline(purchase)).toBe('2026-10-01');
   });
+
+  it('직전 회차가 1회차여도 null이 아니라 1회차 결제일을 정확히 돌려준다', () => {
+    // 1회차 결제일(7/30)은 anchor(도착일, 8/3)보다 항상 이르므로 "결제일 >= anchor" 식
+    // 가드로는 늘 걸러진다 — 결제일이 아니라 도착일이 신뢰값이라는 실제 사용 사례에 따라
+    // 그 가드를 제거했다. 1회차 도착(8/3) 다음날 기준으로 검증한다.
+    vi.setSystemTime(new Date('2026-08-04T03:00:00.000Z'));
+    const purchase = monthly();
+    expect(computeDeadline(purchase).deadline).toBe('2026-09-01');
+    expect(computeDeadline(purchase).deliveryRound).toBe(2);
+    expect(computePreviousScheduleDeadline(purchase)).toBe('2026-07-30');
+  });
 });

@@ -251,8 +251,12 @@ export function computePreviousScheduleDeadline(row: DeadlineInput): string | nu
     const intervalMonths = row.fixed_day_interval_months ?? 1;
     const { k } = nextArrivalAnchoredCycle(intervalMonths, anchor, todayDateOnly(), row.arrival_offset_days);
     if (k === 0) return null;
-    const previous = arrivalAnchoredCycleFor(k - 1, intervalMonths, anchor, row.arrival_offset_days).deadline;
-    return previous >= anchor ? previous : null;
+    // k-1(직전 회차)이 1회차(k-1===0)면 그 결제일은 도착일(anchor)에서 영업일만큼 역산한 값이라
+    // anchor보다 항상 이르다 — "결제일이 anchor 이상이어야 유효"라는 가드는 결제일과 도착일 단위를
+    // 혼동한 것이었다. 실제 사용자(1회차는 스토어가 정한 날짜에 그대로 도착하고, 결제일 자체가
+    // 로직과 어긋나도 무방하다 — arrival이 신뢰값)의 확인으로 가드를 제거함. k-1>=1인 경우는
+    // 원래도 이 조건이 항상 참이라 동작 변화 없음.
+    return arrivalAnchoredCycleFor(k - 1, intervalMonths, anchor, row.arrival_offset_days).deadline;
   }
 
   const nextDeadline = computeDeadline(row).deadline;
