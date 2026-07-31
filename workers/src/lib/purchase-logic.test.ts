@@ -201,6 +201,22 @@ describe('도착일 고정 앵커 + 결제일 역산 (arrival_offset_days, 실�
     expect(computeDeadline(purchase).deliveryRound).toBe(2);
     expect(computePreviousScheduleDeadline(purchase)).toBe('2026-07-30');
   });
+
+  it('결제 다음날이어도 도착 전이면 여전히 1회차를 보여준다(D-day가 앞서가지 않음)', () => {
+    // 1회차 결제(7/30) 다음날, 도착(8/3) 전 — "다음 일정"이 벌써 2회차(10/1)로 넘어가
+    // 있으면 사용자 눈엔 이제 막 시작한 1회차의 도착예정일이 반영 안 된 것처럼 보인다.
+    vi.setSystemTime(new Date('2026-07-31T03:00:00.000Z'));
+    const purchase = monthly();
+    expect(computeDeadline(purchase)).toEqual({ deadline: '2026-07-30', deliveryRound: 1 });
+    expect(computeArrivalEstimate('2026-07-30', purchase.arrival_offset_days)).toBe('2026-08-03');
+  });
+
+  it('도착일 당일까지는 1회차, 그다음 날부터 2회차로 넘어간다', () => {
+    vi.setSystemTime(new Date('2026-08-03T03:00:00.000Z')); // 도착 당일
+    expect(computeDeadline(monthly()).deliveryRound).toBe(1);
+    vi.setSystemTime(new Date('2026-08-04T03:00:00.000Z')); // 도착 다음날
+    expect(computeDeadline(monthly()).deliveryRound).toBe(2);
+  });
 });
 
 describe('INTERVAL(주·일 단위) + arrival_offset_days — 같은 1회차 previous 버그가 없는지', () => {

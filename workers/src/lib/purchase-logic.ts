@@ -87,12 +87,20 @@ function arrivalAnchoredCycleFor(
   return { deadline, arrivalDate };
 }
 
-/** todayStr 기준 결제일(deadline)이 today 이후(포함)가 되는 가장 가까운 회차를 찾는다. */
+/**
+ * todayStr 기준으로 "현재" 회차를 찾는다. compareBy='arrivalDate'(기본)면 도착일이 today
+ * 이후(포함)인 가장 가까운 회차 — 결제는 이미 끝났어도 아직 도착 전이면 그 회차를 그대로
+ * 유지한다(1회차 결제 다음날처럼 도착 전 상태에서 벌써 다음 회차로 넘어가 보이던 버그 수정,
+ * INTERVAL+offset 쪽 cyclesElapsed 계산은 원래부터 도착일 기준이었다 — 그것과 맞춘 것).
+ * compareBy='deadline'은 "한 번만 사용" 계산에서만 쓴다 — 그건 유일한 일정으로 다음 주기
+ * 경계(k=1) 자체를 원하므로 todayStr을 anchor+1일로 넘겨 결제일 기준으로 강제 스킵한다.
+ */
 function nextArrivalAnchoredCycle(
   intervalMonths: number,
   anchorDateStr: string,
   todayStr: string,
-  offsetBusinessDays: number
+  offsetBusinessDays: number,
+  compareBy: 'deadline' | 'arrivalDate' = 'arrivalDate'
 ): { deadline: string; arrivalDate: string; k: number } {
   const anchor = parseDateOnly(anchorDateStr);
   const today = parseDateOnly(todayStr);
@@ -102,7 +110,7 @@ function nextArrivalAnchoredCycle(
   // 결제일이 도착일보다 항상 앞서므로, 도착일 기준 k값보다 한 회차 앞에서부터 확인을 시작한다.
   let k = Math.max(0, Math.floor((todayTotalMonths - anchorTotalMonths) / intervalMonths) - 1);
   let cycle = arrivalAnchoredCycleFor(k, intervalMonths, anchorDateStr, offsetBusinessDays);
-  while (cycle.deadline < todayStr) {
+  while (cycle[compareBy] < todayStr) {
     k += 1;
     cycle = arrivalAnchoredCycleFor(k, intervalMonths, anchorDateStr, offsetBusinessDays);
   }
@@ -151,7 +159,10 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
           // 거기서 거꾸로 역산한다(arrivalAnchoredCycleFor 참고). 그 외(오프셋 없음)는 기존처럼
           // fixedDayOfMonth 자체가 결제일이고 공휴일 보정이 없다.
           if (row.arrival_offset_days !== null) {
-            const { deadline } = nextArrivalAnchoredCycle(intervalMonths, anchor, addDays(anchor, 1), row.arrival_offset_days);
+            // "한 번만 사용"은 최초 주기의 끝(다음 결제일 경계)을 원하는 것이라 기존 그대로
+            // 결제일 기준으로 anchor+1일부터 찾는다 — 도착일 기준으로 바꾸면 anchor 자체가
+            // 다음 도착일보다 이르다는 이유만으로 k=0에 그대로 머물러버릴 수 있다.
+            const { deadline } = nextArrivalAnchoredCycle(intervalMonths, anchor, addDays(anchor, 1), row.arrival_offset_days, 'deadline');
             return [{ kind: 'SCHEDULE', deadline, deliveryRound: 1 }];
           }
           const fixedDay = row.fixed_day_of_month ?? 1;
