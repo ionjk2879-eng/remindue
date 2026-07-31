@@ -1,0 +1,62 @@
+name: Update KR holidays
+
+# 대한민국 공휴일 데이터(workers/src/lib/kr-holidays-data.ts)는 @hyunbinseo/holidays-kr
+# 패키지가 번들한 연도별 데이터를 그대로 굳혀 넣은 정적 파일이다(kr-holidays.ts 참고 — 배송일
+# 계산이 동기 함수라 런타임에 패키지를 import하지 않는다). 다음 해 공휴일이 관보에 확정되면
+# 그 패키지가 업데이트되므로, 매달 최신 버전으로 업데이트해보고 실제로 데이터가 바뀌었을 때만
+# PR을 올린다. 결제일/도착일 계산에 바로 영향을 주는 데이터라 자동 병합은 하지 않는다 — PR이
+# 뜨면 기존 CI(typecheck/test)가 그 위에서 돌고, 사람이 확인 후 머지한다.
+
+on:
+  schedule:
+    - cron: '0 0 1 * *' # 매달 1일 00:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: workers/package-lock.json
+
+      - name: Install Worker dependencies
+        working-directory: workers
+        run: npm ci
+
+      - name: Update @hyunbinseo/holidays-kr
+        working-directory: workers
+        run: npm update @hyunbinseo/holidays-kr
+
+      - name: Regenerate kr-holidays-data.ts
+        working-directory: workers
+        run: node scripts/generate-kr-holidays.mjs
+
+      - name: Create PR if data changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'chore: 대한민국 공휴일 데이터 갱신 (@hyunbinseo/holidays-kr)'
+          title: 'chore: 대한민국 공휴일 데이터 갱신'
+          body: |
+            `@hyunbinseo/holidays-kr` 패키지 업데이트 결과 공휴일 데이터가 바뀌어 자동으로 열린 PR입니다.
+
+            - 보통 다음 해 공휴일이 관보에 새로 확정됐을 때 발생합니다.
+            - 정기배송/구독의 결제일·도착일 계산에 직접 쓰이는 데이터이니, 커버 연도 주석과 diff를
+              한 번 확인한 뒤 머지해주세요.
+          branch: chore/update-kr-holidays
+          base: dev
+          add-paths: |
+            workers/package.json
+            workers/package-lock.json
+            workers/src/lib/kr-holidays-data.ts
+          delete-branch: true
