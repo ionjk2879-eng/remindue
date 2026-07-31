@@ -27,6 +27,16 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- android:icon(@mipmap/ic_launcher)은 불투명 풀컬러라 FCM이 상태바 아이콘으로 그대로
+             쓰면 알파 채널이 없어 그냥 흰 사각형/얼룩으로만 보인다(Android가 상태바 아이콘은
+             항상 단색 실루엣으로 강제 렌더링하기 때문 — workers/src/lib/fcm.ts 참고). 그래서
+             ic_stat_notify를 따로 두고 기본 알림 아이콘으로 지정한다 — public/notification-*.png
+             (PC/PWA 알림과 Android 펼친 알림의 큰 이미지가 이미 쓰는 시계 아이콘)에서 뽑아낸
+             흰색 실루엣이라, 플랫폼마다 알림에 쓰이는 아이콘 모양이 같다. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notify" />
     </application>
 
     <!-- Permissions -->
