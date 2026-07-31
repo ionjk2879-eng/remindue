@@ -46,6 +46,7 @@ import WeeklySummaryBanner from '../components/dashboard/WeeklySummaryBanner';
 import {
   currentCalendarWeekRange,
   daysSinceBaseDate,
+  formatIntervalDaysLabel,
   formatKoreanMonthDay,
   formatShortDate,
   formatShortDateWithYear,
@@ -2467,7 +2468,7 @@ export default function DashboardPage() {
                         {item.scheduleType === 'FIXED_DAY' && item.fixedDayOfMonth !== null ? (
                           <>매월 <span className="mono">{item.fixedDayOfMonth}일</span> 고정</>
                         ) : item.intervalDays !== null ? (
-                          <>배송주기 <span className="mono">{item.intervalDays}일마다</span></>
+                          <>배송주기 <span className="mono">{formatIntervalDaysLabel(item.intervalDays)}마다</span></>
                         ) : null}
                         {item.expectedDeliveryDate && (
                           <>
@@ -2531,7 +2532,7 @@ export default function DashboardPage() {
                   )}
                   {isRecurringType(item.type) && item.scheduleEstimated && (
                     <p className="pending-card__hint">
-                      주기가 명확히 적혀있지 않아 30일마다로 추정했어요 — 정확한 주기를 확인해주세요.
+                      주기가 명확히 적혀있지 않아 1달마다로 추정했어요 — 정확한 주기를 확인해주세요.
                     </p>
                   )}
                 </div>

@@ -6,6 +6,18 @@ export function formatShortDate(dateStr: string): string {
   return `${month}/${day}`;
 }
 
+/**
+ * intervalDays(일 단위)를 등록 폼과 같은 감각의 "N주"/"N달" 표현으로 바꾼다. 30의 배수면
+ * 달, 7의 배수면 주로 보여주고, 어느 쪽도 나누어떨어지지 않으면(예: 60일이 아니라 45일처럼
+ * 애매한 값) 반올림해서 보여주지 않고 원래 "N일"을 그대로 쓴다 — 반올림하면 이 표시값과
+ * 실제 배송주기 계산(intervalDays 그대로 사용)이 어긋나 보일 수 있기 때문이다.
+ */
+export function formatIntervalDaysLabel(days: number): string {
+  if (days % 30 === 0) return `${days / 30}달`;
+  if (days % 7 === 0) return `${days / 7}주`;
+  return `${days}일`;
+}
+
 /** 티켓 카드 정보 그리드용 — formatShortDate에 연도를 더한 버전. */
 export function formatShortDateWithYear(dateStr: string): string {
   const [year, month, day] = dateStr.split('-').map(Number);
