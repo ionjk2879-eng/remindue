@@ -269,6 +269,23 @@ function primaryDeadlineLabel(p: Purchase): string {
   return '반품기한';
 }
 
+/** 금액 옆 인상/인하 화살표 — 확인 대기 중인 가격 변동이 매칭돼 있을 때만 보여준다. */
+function renderAmountChangeArrow(p: Purchase, pendingPriceChangeByPurchaseId: Map<number, PendingPurchase>) {
+  const pending = pendingPriceChangeByPurchaseId.get(p.id);
+  if (!pending) return null;
+  const isIncrease = pending.amount! > pending.previousAmount!;
+  return (
+    <span
+      className={`amount-change-arrow amount-change-arrow--${isIncrease ? 'up' : 'down'}`}
+      role="img"
+      aria-label={isIncrease ? '가격 인상 감지' : '가격 인하 감지'}
+      title={isIncrease ? '가격 인상 감지' : '가격 인하 감지'}
+    >
+      {isIncrease ? '↗' : '↘'}
+    </span>
+  );
+}
+
 /** 종류 배지 옆에 붙는 서비스 카테고리 배지 — category가 없으면 아무것도 표시하지 않는다. */
 function renderCategoryBadge(p: Purchase) {
   const tags = p.categoryTags.length > 0 ? p.categoryTags : p.category ? [p.category] : [];
@@ -1251,6 +1268,18 @@ export default function DashboardPage() {
     return p.type === 'GENERAL' ? p.lastDeliveredDate === null && p.expectedDeliveryDate === today : p.isOneTime ? p.lastDeliveredDate === null && p.expectedDeliveryDate === today : p.dDay === 0;
   });
   const arrivalSnoozedCount = arrivalChecks.filter((p) => p.arrivalCheckSnoozedUntil !== null).length;
+  const arrivalCheckIds = new Set(arrivalChecks.map((p) => p.id));
+  /**
+   * 카드의 D-day 도장에 느낌표를 얹을지 — "유지하시겠어요?" 또는 "오늘 받으셨나요?" 질문에
+   * 아직 응답하지 않은 정기배송·구독만 대상이다. 일반구매의 반품기한/A·S보증은 이미 대시보드
+   * 다른 곳(7일 이내 마감 등)에 따로 노출되고 있어서 여기서는 대상에서 뺀다.
+   */
+  const needsAttentionBadge = (p: Purchase) => {
+    if (p.type === 'GENERAL') return false;
+    const needsRenewalResponse = !p.isOneTime && p.discontinuedAt === null && missedRoundsFor(p) >= 1;
+    const needsArrivalResponse = p.type === 'RECURRING_DELIVERY' && arrivalCheckIds.has(p.id);
+    return needsRenewalResponse || needsArrivalResponse;
+  };
 
   /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
   const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY' && p.discontinuedAt === null).length;
@@ -1480,6 +1509,12 @@ export default function DashboardPage() {
    */
   const priceChangePurchaseIds = new Set(
     pendingItems.filter((item) => item.matchedPurchaseId !== null).map((item) => item.matchedPurchaseId!)
+  );
+  /** 등록된 항목 카드의 금액 옆 인상/인하 화살표용 — 매칭된 확인 대기 항목에서 방향을 가져온다. */
+  const pendingPriceChangeByPurchaseId = new Map(
+    pendingItems
+      .filter((item) => item.matchedPurchaseId !== null && item.previousAmount !== null && item.amount !== null)
+      .map((item) => [item.matchedPurchaseId!, item])
   );
   const reviewCandidateIds = new Set(reviewCandidates.map((item) => item.id));
   const recurringPurchases = purchases.filter((p) => isRecurringType(p.type));
@@ -3003,6 +3038,7 @@ export default function DashboardPage() {
                         {p.amount !== null
                           ? <PurchaseAmount amount={p.amount} originalAmount={p.originalAmount} originalCurrency={p.originalCurrency} />
                           : '—'}
+                        {renderAmountChangeArrow(p, pendingPriceChangeByPurchaseId)}
                       </div>
                     </div>
                     <div>
@@ -3051,7 +3087,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="ticket-card__perforation" aria-hidden="true" />
                 <div className="ticket-card__stub">
-                  <StampBadge dDay={p.dDay} seed={p.id} />
+                  <StampBadge dDay={p.dDay} seed={p.id} needsAttention={needsAttentionBadge(p)} />
                 </div>
               </div>
             ))}
@@ -3109,6 +3145,7 @@ export default function DashboardPage() {
                         {p.amount !== null
                           ? <PurchaseAmount amount={p.amount} originalAmount={p.originalAmount} originalCurrency={p.originalCurrency} />
                           : '—'}
+                        {renderAmountChangeArrow(p, pendingPriceChangeByPurchaseId)}
                       </div>
                     </div>
                     <div>
@@ -3149,7 +3186,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="ticket-card__perforation" aria-hidden="true" />
                 <div className="ticket-card__stub">
-                  <StampBadge dDay={p.dDay} seed={p.id} />
+                  <StampBadge dDay={p.dDay} seed={p.id} needsAttention={needsAttentionBadge(p)} />
                 </div>
               </div>
             ))}

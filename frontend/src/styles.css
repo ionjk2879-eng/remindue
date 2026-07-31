@@ -3323,6 +3323,22 @@ button.summary-board__tile:hover {
   color: var(--ink);
 }
 
+/* 확인 대기 중인 가격 변동이 있는 등록된 항목의 금액 옆 화살표 — 인상은 빨강(사선 위),
+   인하는 초록(사선 아래)으로 한눈에 방향을 알 수 있게 한다. */
+.amount-change-arrow {
+  display: inline-block;
+  margin-left: 3px;
+  font-weight: 800;
+}
+
+.amount-change-arrow--up {
+  color: var(--stamp-red);
+}
+
+.amount-change-arrow--down {
+  color: var(--safe-teal);
+}
+
 /* 종류(type) 책갈피 탭 — flex의 첫 아이템이라 데스크톱에선 왼쪽 세로 바,
    모바일 stacking(column)에선 자동으로 위쪽 가로 바가 된다. */
 .ticket-card__type-tab {
@@ -3668,6 +3684,7 @@ button.summary-board__tile:hover {
 
 .stamp-badge {
   --rot: -3deg;
+  position: relative;
   width: 82px;
   height: 82px;
   border-radius: 50%;
@@ -3681,6 +3698,30 @@ button.summary-board__tile:hover {
   box-shadow: 0 4px 10px rgba(var(--shadow-rgb), 0.18);
   animation: stampPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   user-select: none;
+}
+
+/* 유지/도착 확인 미응답 표시 — 도장 자체는 회전돼 있어도 이 배지는 항상 똑바로 보이게 반대로
+   되돌린다. */
+.stamp-badge__attention {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--stamp-red);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1;
+  border: 2px solid var(--paper);
+  box-shadow: 0 2px 5px rgba(var(--shadow-rgb), 0.3);
+  transform: rotate(calc(-1 * var(--rot)));
+  animation: stampPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 .stamp-badge__value {
