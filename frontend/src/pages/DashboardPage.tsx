@@ -2582,7 +2582,7 @@ export default function DashboardPage() {
                       가격 반영
                     </button>
                   ) : (
-                    <button type="button" className="btn btn-sm" onClick={() => pendingConfirmId === item.id ? handleCancelEdit() : handlePendingRegisterClick(item)}>
+                    <button type="button" className="btn btn-sm" onClick={() => handlePendingRegisterClick(item)}>
                       확인 후 바로 등록
                     </button>
                   )}
