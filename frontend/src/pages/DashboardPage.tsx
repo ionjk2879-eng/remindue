@@ -741,8 +741,12 @@ export default function DashboardPage() {
           : (item.fixedDayOfMonth ?? 1);
         setFixedDayOfMonth(String(deliveryDay));
         // AI가 추출한 intervalDays(일 단위)를 개월로 환산해 초기값으로 쓴다(부정확하면 수동 수정).
-        const months = item.fixedDayIntervalMonths
-          ?? (item.intervalDays ? Math.max(1, Math.round(item.intervalDays / 30)) : 1);
+        // item.fixedDayIntervalMonths는 scheduleType이 실제로 FIXED_DAY였을 때만 AI가 준 값이고,
+        // INTERVAL이었던 항목은 의미 없는 기본값 1이 그대로 채워져 있다(types/index.ts 주석 참고) —
+        // 이걸 구분 없이 신뢰하면 60일 주기 같은 항목도 무조건 1개월로 잘못 프리필된다.
+        const months = item.scheduleType === 'FIXED_DAY'
+          ? item.fixedDayIntervalMonths
+          : (item.intervalDays ? Math.max(1, Math.round(item.intervalDays / 30)) : 1);
         setFixedDayIntervalMonths(String(months));
       } else {
         const st = item.scheduleType ?? 'INTERVAL';
