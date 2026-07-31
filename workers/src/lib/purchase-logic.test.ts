@@ -202,3 +202,39 @@ describe('도착일 고정 앵커 + 결제일 역산 (arrival_offset_days, 실�
     expect(computePreviousScheduleDeadline(purchase)).toBe('2026-07-30');
   });
 });
+
+describe('INTERVAL(주·일 단위) + arrival_offset_days — 같은 1회차 previous 버그가 없는지', () => {
+  afterEach(() => vi.useRealTimers());
+
+  const weekly = (overrides: Partial<DeadlineRow> = {}) =>
+    row('RECURRING_DELIVERY', {
+      base_date: '2026-07-30',
+      expected_delivery_date: '2026-08-03',
+      schedule_type: 'INTERVAL',
+      interval_days: 28,
+      arrival_offset_days: 2,
+      ...overrides,
+    });
+
+  it('1회차가 아직 다음 일정이면(등록 직후) 직전 회차는 없다(null)', () => {
+    vi.setSystemTime(new Date('2026-07-30T03:00:00.000Z'));
+    const purchase = weekly();
+    expect(computeDeadline(purchase).deliveryRound).toBe(1);
+    expect(computePreviousScheduleDeadline(purchase)).toBeNull();
+  });
+
+  it('직전 회차가 1회차여도 null이 아니라 1회차 결제일을 정확히 돌려준다', () => {
+    vi.setSystemTime(new Date('2026-08-04T03:00:00.000Z')); // 1회차 도착(8/3) 다음날
+    const purchase = weekly();
+    expect(computeDeadline(purchase).deliveryRound).toBe(2);
+    expect(computePreviousScheduleDeadline(purchase)).toBe('2026-07-30');
+  });
+
+  it('2회차 이후 전환은 기존처럼 정상 동작한다(회귀 없음)', () => {
+    vi.setSystemTime(new Date('2026-09-01T03:00:00.000Z')); // 2회차가 지난 뒤
+    const purchase = weekly();
+    const next = computeDeadline(purchase);
+    expect(next.deliveryRound).toBeGreaterThanOrEqual(2);
+    expect(computePreviousScheduleDeadline(purchase)).not.toBeNull();
+  });
+});

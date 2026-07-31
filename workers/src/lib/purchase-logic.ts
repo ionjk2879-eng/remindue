@@ -259,17 +259,23 @@ export function computePreviousScheduleDeadline(row: DeadlineInput): string | nu
     return arrivalAnchoredCycleFor(k - 1, intervalMonths, anchor, row.arrival_offset_days).deadline;
   }
 
-  const nextDeadline = computeDeadline(row).deadline;
+  const next = computeDeadline(row);
+  const nextDeadline = next.deadline;
   let previous: string;
   if ((row.schedule_type ?? 'INTERVAL') === 'FIXED_DAY') {
     previous = addMonths(nextDeadline, -(row.fixed_day_interval_months ?? 1));
   } else if (row.arrival_offset_days !== null) {
     // INTERVAL + arrival_offset_days: nextDeadline이 결제일이므로, 도착일을 복원한 뒤
-    // 직전 회차 도착일(공휴일이면 다음 영업일로 보정) → 결제일로 역산한다.
+    // 직전 회차 도착일(공휴일이면 다음 영업일로 보정) → 결제일로 역산한다. 이 경로도 위
+    // FIXED_DAY+offset 케이스와 같은 이유로 anchor(도착일 기준) 가드를 건너뛴다 — previous가
+    // 1회차 결제일이면 도착일에서 영업일만큼 역산한 값이라 anchor보다 항상 이르다(단위 불일치).
+    // 다음 일정 자체가 1회차(deliveryRound===1)면 그 이전 회차는 실제로 없으므로 null.
+    if (next.deliveryRound === 1) return null;
     const interval = row.interval_days ?? DEFAULT_INTERVAL_DAYS;
     const nextArrival = addBusinessDays(nextDeadline, row.arrival_offset_days, isNonDeliveryDay);
     const prevArrival = addBusinessDays(addDays(nextArrival, -interval), 0, isNonDeliveryDay);
     previous = subtractBusinessDays(prevArrival, row.arrival_offset_days, isNonDeliveryDay);
+    return previous;
   } else {
     previous = addDays(nextDeadline, -(row.interval_days ?? DEFAULT_INTERVAL_DAYS));
   }
