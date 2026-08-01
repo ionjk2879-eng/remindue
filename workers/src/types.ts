@@ -101,6 +101,10 @@ export interface PurchaseRow {
   original_currency: string | null;
   /** 결제일(order_date) 기준 적용 환율(1 original_currency = N KRW). 원화 결제면 NULL. */
   exchange_rate: number | null;
+  /** "유지하기"로 회차가 갱신될 때 직전 회차(payment_history) 대비 금액이 달라졌으면 그 직전
+   *  금액. 같으면(변동 없음) NULL — recurring-fx.ts recordConfirmedPaymentCycle이 매 확인마다
+   *  갱신한다. 이메일 매칭(pending_purchases.previous_amount)과는 별개 트리거. */
+  price_change_previous_amount: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -343,6 +347,10 @@ export interface PurchaseResponse {
   originalCurrency: string | null;
   /** 결제일 기준 적용 환율(1 originalCurrency = N KRW). 원화 결제면 null. */
   exchangeRate: number | null;
+  /** "유지하기"로 회차가 갱신될 때 직전 회차 대비 금액이 달라졌으면 그 직전 금액(카드 옆 인상/인하
+   *  화살표용). 변동 없거나 아직 비교할 이전 회차가 없으면 null. 이메일로 새 pending_purchase가
+   *  매칭돼 감지되는 것과는 별개 경로 — 둘 다 대시보드에서 같은 화살표로 표시된다. */
+  priceChangePreviousAmount: number | null;
   /** 회차별 확정 금액 이력(payment_history) — 오래된 회차 순. ?scope=spend 조회에서만 채워지고,
    *  카드 목록 등 다른 조회에서는 항상 빈 배열이다(불필요한 조회/페이로드를 피하려고). */
   paymentHistory: PaymentHistoryEntry[];

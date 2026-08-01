@@ -54,10 +54,14 @@ describe('toPurchaseResponse — dDay는 항상 paymentDDay와 같고, 도착 �
   });
 
   it('결제 다음날에도 dDay는 결제일 기준 그대로다(도착 대기로 갈라지지 않음)', () => {
+    // RECURRING_DELIVERY는 실제 도착 여부를 묻지 않으므로 회차 갱신도 결제일 기준이라,
+    // 결제(7/30) 다음날엔 이미 다음 회차(9/1 결제)로 넘어가 있다 — 그래도 dDay는 여전히
+    // "도착 대기" 같은 별도 개념으로 갈라지지 않고 paymentDDay와 항상 같다는 게 검증 대상.
     vi.setSystemTime(new Date('2026-07-31T03:00:00.000Z')); // 결제(7/30) 다음날
     const res = toPurchaseResponse(row());
     expect(res.dDay).toBe(res.paymentDDay);
-    expect(res.dDay).toBe(-1);
+    expect(res.deadline).toBe('2026-09-01');
+    expect(res.dDay).toBe(32);
   });
 
   it('RECURRING_DELIVERY는 arrival_offset_days 설정 여부와 무관하게 항상 도착 예상 범위를 돌려준다', () => {

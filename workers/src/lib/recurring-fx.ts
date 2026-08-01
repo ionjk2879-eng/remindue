@@ -58,6 +58,18 @@ export async function recordConfirmedPaymentCycle(db: D1Database, row: PurchaseR
   }
 
   if (amount === null) return;
+
+  // "유지하기"로 회차가 갱신될 때마다(이메일 없이도) 직전으로 기록된 회차와 비교해 가격 변동을
+  // 감지한다 — 매달이 아니라 "그 항목의 직전 회차"라 격월/분기 등 주기가 1개월이 아니어도 맞다.
+  // cycle_date < ?로 자기 자신(사전 확인 후 재동기화 등으로 같은 회차를 다시 확인하는 경우)은
+  // 제외해 항상 진짜 직전 회차와만 비교한다.
+  const previousCycle = await db
+    .prepare(`SELECT amount FROM payment_history WHERE purchase_id = ? AND cycle_date < ? ORDER BY cycle_date DESC LIMIT 1`)
+    .bind(row.id, cycleDate)
+    .first<{ amount: number }>();
+  const priceChangePreviousAmount = previousCycle && previousCycle.amount !== amount ? previousCycle.amount : null;
+  await db.prepare(`UPDATE purchases SET price_change_previous_amount = ? WHERE id = ?`).bind(priceChangePreviousAmount, row.id).run();
+
   await db.prepare(
     `INSERT INTO payment_history (purchase_id, cycle_date, amount, original_amount, original_currency, exchange_rate)
      VALUES (?, ?, ?, ?, ?, ?)

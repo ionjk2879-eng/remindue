@@ -204,19 +204,19 @@ describe('도착일 고정 앵커 + 결제일 역산 (arrival_offset_days, 실�
     expect(computePreviousScheduleDeadline(purchase)).toBe('2026-07-30');
   });
 
-  it('결제 다음날이어도 도착 전이면 여전히 1회차를 보여준다(D-day가 앞서가지 않음)', () => {
-    // 1회차 결제(7/30) 다음날, 도착(8/3) 전 — "다음 일정"이 벌써 2회차(10/1)로 넘어가
-    // 있으면 사용자 눈엔 이제 막 시작한 1회차의 도착예정일이 반영 안 된 것처럼 보인다.
+  it('결제 다음날부터는 도착 전이어도 바로 다음 회차로 넘어간다(회차 갱신은 결제일 기준)', () => {
+    // RECURRING_DELIVERY는 실제 도착 여부를 더 이상 묻지 않으므로(arrival-confirm.ts는
+    // GENERAL 전용) 회차 갱신도 도착일이 아니라 결제일 기준이다 — 1회차 결제(7/30) 다음날엔
+    // 아직 도착(8/3) 전이어도 이미 2회차(다음 결제 9/1)를 "다음 일정"으로 보여준다.
     vi.setSystemTime(new Date('2026-07-31T03:00:00.000Z'));
     const purchase = monthly();
-    expect(computeDeadline(purchase)).toEqual({ deadline: '2026-07-30', deliveryRound: 1 });
-    expect(computeArrivalEstimate('2026-07-30', purchase.arrival_offset_days)).toBe('2026-08-01');
+    expect(computeDeadline(purchase)).toEqual({ deadline: '2026-09-01', deliveryRound: 2 });
   });
 
-  it('도착일 당일까지는 1회차, 그다음 날부터 2회차로 넘어간다', () => {
-    vi.setSystemTime(new Date('2026-08-03T03:00:00.000Z')); // 도착 당일
+  it('결제일 당일까지는 1회차, 그다음 날부터 2회차로 넘어간다', () => {
+    vi.setSystemTime(new Date('2026-07-30T03:00:00.000Z')); // 결제 당일
     expect(computeDeadline(monthly()).deliveryRound).toBe(1);
-    vi.setSystemTime(new Date('2026-08-04T03:00:00.000Z')); // 도착 다음날
+    vi.setSystemTime(new Date('2026-07-31T03:00:00.000Z')); // 결제 다음날
     expect(computeDeadline(monthly()).deliveryRound).toBe(2);
   });
 });
@@ -270,17 +270,20 @@ describe('INTERVAL(주·일 단위) + arrival_offset_days — 토요일 원시 �
       arrival_offset_days: 2,
     });
 
-  it('도착일(토) 당일까지는 1회차, 다음날(일)부터 2회차로 넘어간다', () => {
-    vi.setSystemTime(new Date('2026-08-01T03:00:00.000Z'));
+  it('결제일(목) 당일까지는 1회차, 다음날(금)부터 2회차로 넘어간다(회차 갱신은 결제일 기준)', () => {
+    // 도착일(토, 8/1)은 아직 한참 남았어도 1회차 결제일(7/30, 목) 다음날이면 바로 2회차로
+    // 넘어간다 — RECURRING_DELIVERY는 실제 도착 여부를 더 이상 묻지 않으므로(arrival-confirm.ts는
+    // GENERAL 전용) 도착 전이라는 이유로 회차를 붙들고 있을 필요가 없다.
+    vi.setSystemTime(new Date('2026-07-30T03:00:00.000Z'));
     expect(computeDeadline(weeklySaturdayAnchor())).toEqual({ deadline: '2026-07-30', deliveryRound: 1 });
-    vi.setSystemTime(new Date('2026-08-02T03:00:00.000Z'));
+    vi.setSystemTime(new Date('2026-07-31T03:00:00.000Z'));
     expect(computeDeadline(weeklySaturdayAnchor())).toEqual({ deadline: '2026-08-06', deliveryRound: 2 });
   });
 
-  it('2회차 도착일(그다음 토)까지는 유지되고, 그 다음날 다시 3회차로 넘어간다', () => {
-    vi.setSystemTime(new Date('2026-08-08T03:00:00.000Z'));
+  it('2회차 결제일(8/6)까지는 유지되고, 그 다음날 다시 3회차로 넘어간다', () => {
+    vi.setSystemTime(new Date('2026-08-06T03:00:00.000Z'));
     expect(computeDeadline(weeklySaturdayAnchor()).deliveryRound).toBe(2);
-    vi.setSystemTime(new Date('2026-08-09T03:00:00.000Z'));
-    expect(computeDeadline(weeklySaturdayAnchor()).deliveryRound).toBe(3);
+    vi.setSystemTime(new Date('2026-08-07T03:00:00.000Z'));
+    expect(computeDeadline(weeklySaturdayAnchor())).toEqual({ deadline: '2026-08-13', deliveryRound: 3 });
   });
 });

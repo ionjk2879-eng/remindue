@@ -64,6 +64,7 @@ export function toPurchaseResponse(row: PurchaseRow, paymentHistory: PaymentHist
     originalAmount: row.original_amount,
     originalCurrency: row.original_currency,
     exchangeRate: row.exchange_rate,
+    priceChangePreviousAmount: row.price_change_previous_amount,
     paymentHistory,
     createdAt: row.created_at,
   };

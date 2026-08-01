@@ -88,19 +88,18 @@ function arrivalAnchoredCycleFor(
 }
 
 /**
- * todayStr 기준으로 "현재" 회차를 찾는다. compareBy='arrivalDate'(기본)면 도착일이 today
- * 이후(포함)인 가장 가까운 회차 — 결제는 이미 끝났어도 아직 도착 전이면 그 회차를 그대로
- * 유지한다(1회차 결제 다음날처럼 도착 전 상태에서 벌써 다음 회차로 넘어가 보이던 버그 수정,
- * INTERVAL+offset 쪽 cyclesElapsed 계산은 원래부터 도착일 기준이었다 — 그것과 맞춘 것).
- * compareBy='deadline'은 "한 번만 사용" 계산에서만 쓴다 — 그건 유일한 일정으로 다음 주기
- * 경계(k=1) 자체를 원하므로 todayStr을 anchor+1일로 넘겨 결제일 기준으로 강제 스킵한다.
+ * todayStr 기준으로 "현재" 회차를 찾는다 — 결제일(deadline)이 today 이후(포함)인 가장 가까운
+ * 회차. RECURRING_DELIVERY는 실제 도착 여부를 더 이상 묻지 않으므로(arrival-confirm.ts는
+ * GENERAL 전용) 회차 갱신의 기준도 도착일이 아니라 결제일이어야 한다 — 결제가 끝나면 그
+ * 순간부터 "다음 결제"를 기다리는 게 맞고, 도착이 아직 안 왔다는 이유로 이전 회차를 붙들고
+ * 있을 이유가 없다(SUBSCRIPTION/오프셋 없는 FIXED_DAY도 원래부터 결제일 기준이라 이렇게
+ * 맞춰야 서로 다른 회차 갱신 규칙이 생기지 않는다).
  */
 function nextArrivalAnchoredCycle(
   intervalMonths: number,
   anchorDateStr: string,
   todayStr: string,
-  offsetBusinessDays: number,
-  compareBy: 'deadline' | 'arrivalDate' = 'arrivalDate'
+  offsetBusinessDays: number
 ): { deadline: string; arrivalDate: string; k: number } {
   const anchor = parseDateOnly(anchorDateStr);
   const today = parseDateOnly(todayStr);
@@ -110,7 +109,7 @@ function nextArrivalAnchoredCycle(
   // 결제일이 도착일보다 항상 앞서므로, 도착일 기준 k값보다 한 회차 앞에서부터 확인을 시작한다.
   let k = Math.max(0, Math.floor((todayTotalMonths - anchorTotalMonths) / intervalMonths) - 1);
   let cycle = arrivalAnchoredCycleFor(k, intervalMonths, anchorDateStr, offsetBusinessDays);
-  while (cycle[compareBy] < todayStr) {
+  while (cycle.deadline < todayStr) {
     k += 1;
     cycle = arrivalAnchoredCycleFor(k, intervalMonths, anchorDateStr, offsetBusinessDays);
   }
@@ -120,24 +119,30 @@ function nextArrivalAnchoredCycle(
 /**
  * INTERVAL(주·일 단위) + arrival_offset_days 전용 — todayStr 기준 "현재" 회차(0-based
  * cyclesElapsed)를 찾는다. 원시 도착일(anchor + interval*k)이 아니라 영업일 보정까지 끝난
- * 실제 도착일이 today를 지나야 다음 회차로 넘어간다 — ceil(daysSinceStart/interval) 같은
- * 닫힌 식으로는 원시 도착일이 주말/공휴일이라 실제 도착일이 뒤로 밀린 회차에서, 원시 날짜만
- * 지났을 뿐 실제 도착 전인데도 벌써 다음 회차로 표시되는 문제가 있었다(FIXED_DAY의
+ * 실제 결제일(deadline)이 today를 지나야 다음 회차로 넘어간다 — ceil(daysSinceStart/interval)
+ * 같은 닫힌 식으로는 원시 도착일이 주말/공휴일이라 실제 도착일이 뒤로 밀린 회차에서, 원시
+ * 날짜만 지났을 뿐 실제 결제 전인데도 벌써 다음 회차로 표시되는 문제가 있었다(FIXED_DAY의
  * nextArrivalAnchoredCycle과 같은 종류의 문제, 여기선 개월이 아니라 일 단위라 별도 함수).
+ * 도착일이 아니라 결제일로 게이팅하는 이유는 nextArrivalAnchoredCycle 주석 참고 —
+ * RECURRING_DELIVERY는 실제 도착 여부를 묻지 않으므로 회차 갱신은 항상 결제일 기준이다.
  */
 function nextIntervalAnchoredCycle(
   interval: number,
   anchorDateStr: string,
-  todayStr: string
-): { cyclesElapsed: number; arrivalDate: string } {
+  todayStr: string,
+  offsetBusinessDays: number
+): { cyclesElapsed: number; arrivalDate: string; deadline: string } {
   const cycleArrival = (k: number) => addBusinessDays(addDays(anchorDateStr, interval * k), 0, isNonDeliveryDay);
+  const cycleDeadline = (arrivalDate: string) => subtractBusinessDays(arrivalDate, offsetBusinessDays, isNonBusinessDay);
   let cyclesElapsed = Math.max(0, Math.floor(daysBetween(anchorDateStr, todayStr) / interval) - 1);
   let arrivalDate = cycleArrival(cyclesElapsed);
-  while (arrivalDate < todayStr) {
+  let deadline = cycleDeadline(arrivalDate);
+  while (deadline < todayStr) {
     cyclesElapsed += 1;
     arrivalDate = cycleArrival(cyclesElapsed);
+    deadline = cycleDeadline(arrivalDate);
   }
-  return { cyclesElapsed, arrivalDate };
+  return { cyclesElapsed, arrivalDate, deadline };
 }
 
 /**
@@ -182,10 +187,10 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
           // 거기서 거꾸로 역산한다(arrivalAnchoredCycleFor 참고). 그 외(오프셋 없음)는 기존처럼
           // fixedDayOfMonth 자체가 결제일이고 공휴일 보정이 없다.
           if (row.arrival_offset_days !== null) {
-            // "한 번만 사용"은 최초 주기의 끝(다음 결제일 경계)을 원하는 것이라 기존 그대로
-            // 결제일 기준으로 anchor+1일부터 찾는다 — 도착일 기준으로 바꾸면 anchor 자체가
-            // 다음 도착일보다 이르다는 이유만으로 k=0에 그대로 머물러버릴 수 있다.
-            const { deadline } = nextArrivalAnchoredCycle(intervalMonths, anchor, addDays(anchor, 1), row.arrival_offset_days, 'deadline');
+            // "한 번만 사용"은 최초 주기의 끝(다음 결제일 경계)을 원하므로 anchor+1일부터
+            // 찾는다 — anchor 그대로 넘기면 anchor 자체가 이미 다음 결제일보다 이르다는
+            // 이유만으로 k=0에 그대로 머물러버릴 수 있다.
+            const { deadline } = nextArrivalAnchoredCycle(intervalMonths, anchor, addDays(anchor, 1), row.arrival_offset_days);
             return [{ kind: 'SCHEDULE', deadline, deliveryRound: 1 }];
           }
           const fixedDay = row.fixed_day_of_month ?? 1;
@@ -224,12 +229,9 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
 
       // arrival_offset_days가 설정된 경우 FIXED_DAY와 동일하게 도착일에서 영업일 역산으로 결제일을
       // 구한다 — 주/일 단위 정기배송도 "도착 N영업일 전 = 결제" 패턴을 쓰기 때문이다. 몇 회차인지도
-      // 원시 날짜(anchor + interval*k)가 아니라 영업일 보정까지 끝난 실제 도착일 기준으로 찾는다 —
-      // ceil(daysSinceStart/interval) 같은 닫힌 식으로는 원시 도착일이 주말/공휴일이라 실제 도착일이
-      // 뒤로 밀린 회차에서, 원시 날짜만 지났을 뿐 실제 도착 전인데도 벌써 다음 회차로 넘어가버린다.
+      // 원시 날짜(anchor + interval*k)가 아니라 영업일 보정까지 끝난 실제 결제일 기준으로 찾는다.
       if (row.arrival_offset_days !== null) {
-        const { cyclesElapsed, arrivalDate } = nextIntervalAnchoredCycle(interval, anchor, todayDateOnly());
-        const deadline = subtractBusinessDays(arrivalDate, row.arrival_offset_days, isNonBusinessDay);
+        const { cyclesElapsed, deadline } = nextIntervalAnchoredCycle(interval, anchor, todayDateOnly(), row.arrival_offset_days);
         return [{ kind: 'SCHEDULE', deadline, deliveryRound: cyclesElapsed + 1 }];
       }
 
