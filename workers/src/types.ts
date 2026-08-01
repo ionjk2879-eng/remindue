@@ -164,6 +164,10 @@ export interface UserRow {
   free_email_month: string | null;
   /** 무료 플랜 이메일 추출 월별 상한 추적 — 해당 월의 처리 횟수. free_email_month가 현재 달이 아니면 만료된 값. */
   free_email_count: number;
+  /** 해외결제 원화 환산에 쓸 카드사(선택) — lib/fx-card.ts의 applyCardFee 참고. NULL이면 평균 수수료 근사치. */
+  fx_card_issuer: string | null;
+  /** 해외결제 원화 환산에 쓸 카드 브랜드(선택) — MASTER/VISA/AMEX. NULL이면 기본값(Mastercard 수수료율)으로 계산. */
+  fx_card_brand: string | null;
 }
 
 export type PendingPurchaseSource = 'email' | 'image';
@@ -283,15 +287,16 @@ export interface PurchaseResponse {
    *  null(그런 경우 baseDate가 대신 앵커로 쓰인다). */
   expectedDeliveryDate: string | null;
   lastDeliveredDate: string | null;
-  /** RECURRING_DELIVERY 전용 — 결제일로부터 보통 영업일 며칠 후 도착하는지(사용자 입력). null이면 미설정. */
+  /** RECURRING_DELIVERY 전용 — 결제일로부터 보통 영업일 며칠 후 도착하는지(사용자 입력). null이면
+   *  미설정. 스케줄 계산(결제일 역산)에만 쓰이고, 카드에 보여주는 도착 예상(arrivalRangeEstimate)엔
+   *  영향을 주지 않는다 — 정확한 하루를 맞히려는 값과 참고용 표시를 분리했다. */
   arrivalOffsetDays: number | null;
-  /** arrivalOffsetDays로 계산한 도착예정일(computeArrivalEstimate) — arrivalOffsetDays가 null이면 null. */
-  arrivalEstimate: string | null;
-  /** 이 회차 결제일은 지났지만 도착예정일은 아직 안 지난 상태(결제완료·도착대기) — true면 dDay는
-   *  결제일이 아니라 arrivalEstimate 기준이다. RECURRING_DELIVERY + arrivalOffsetDays 전용,
-   *  그 외 타입은 항상 false. */
-  awaitingArrival: boolean;
-  /** 도착 확인에서 "아직 안 받았어요"를 선택하면 다음 날로 설정되는 재질문 날짜. */
+  /** RECURRING_DELIVERY 카드에 보여주는 참고용 도착 예상 범위 — 결제일(deadline) 다음날~그다음날을
+   *  기준으로, 그 날이 일요일·공휴일이면 다음 영업일로 하루씩 민다(토요일은 배송일로 인정).
+   *  arrivalOffsetDays 설정 여부와 무관하게 항상 계산된다. 그 외 타입은 null. */
+  arrivalRangeEstimate: { from: string; to: string } | null;
+  /** 도착 확인에서 "아직 안 받았어요"를 선택하면 다음 날로 설정되는 재질문 날짜. GENERAL 전용 —
+   *  RECURRING_DELIVERY는 도착 확인 대상이 아니다. */
   arrivalCheckSnoozedUntil: string | null;
   /** 정기구독·배송 유지 확인에 답한 회차의 deadline 값 — 이 값이 deadline과 같으면 이번 회차는
    *  이미 답했다는 뜻(프론트가 "유지함" 표시에 쓰고, confirmation-nudge.ts가 중복 알림 방지에 쓴다). */
@@ -299,11 +304,10 @@ export interface PurchaseResponse {
   /** "가장 급한" 기한 — GENERAL이고 반품기한/A·S보증 둘 다 있으면 그 중 더 이른(지나지 않았다면
    *  더 가까운, 둘 다 지났다면 덜 지난) 쪽. 카드 배지·정렬·CSV/PDF export가 쓰는 단일 기한. */
   deadline: string;
-  /** 카드 배지 표시용 — awaitingArrival이면 도착예정일 기준, 아니면 결제일 기준(paymentDDay와 동일).
-   *  "지금 뭘 기다리는 중인지"를 보여주는 값이라 결제 여부를 판단하는 로직에는 쓰면 안 된다 —
-   *  그런 곳(유지하기 버튼 노출, 이번 주 결제 예정, 마감 임박 배너 등)은 항상 paymentDDay를 쓸 것. */
+  /** 카드 배지 표시용 — 지금은 항상 paymentDDay와 같다(예전엔 도착예정일 기준으로 갈라졌지만,
+   *  도착일을 정확히 안다고 주장하지 않기로 하면서 배지도 결제일 하나로 통일했다). */
   dDay: number;
-  /** 결제일(deadline) 기준 D-day — awaitingArrival 여부와 무관하게 항상 결제일까지의 일수다. */
+  /** 결제일(deadline) 기준 D-day. */
   paymentDDay: number;
   /** RECURRING_DELIVERY 전용 — 몇 회차인지(1부터 시작). 그 외 타입은 null. */
   deliveryRound: number | null;

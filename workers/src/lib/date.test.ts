@@ -43,24 +43,24 @@ describe('date helpers', () => {
   });
 });
 
-describe('addBusinessDays (실제 정기배송 도착예정일 사례 검증)', () => {
+describe('addBusinessDays (실제 정기배송 도착예정일 사례 검증 — 토요일도 배송일로 인정)', () => {
   it('matches the 2-month store schedule captures exactly, including a substitute-holiday round', () => {
-    expect(addBusinessDays('2026-07-30', 2, isNonDeliveryDay)).toBe('2026-08-03'); // 목→월
+    expect(addBusinessDays('2026-07-30', 2, isNonDeliveryDay)).toBe('2026-08-01'); // 목→토(실제 관측치)
     expect(addBusinessDays('2026-10-01', 2, isNonDeliveryDay)).toBe('2026-10-06'); // 10/5 대체공휴일 스킵
     expect(addBusinessDays('2026-12-01', 2, isNonDeliveryDay)).toBe('2026-12-03');
     expect(addBusinessDays('2027-02-01', 2, isNonDeliveryDay)).toBe('2027-02-03');
   });
 
-  it('matches the 6-week store schedule captures, including two substitute-holiday rounds', () => {
-    expect(addBusinessDays('2026-07-30', 2, isNonDeliveryDay)).toBe('2026-08-03');
-    expect(addBusinessDays('2026-09-10', 2, isNonDeliveryDay)).toBe('2026-09-14');
-    expect(addBusinessDays('2027-02-25', 2, isNonDeliveryDay)).toBe('2027-03-02'); // 3/1 삼일절 스킵
-    expect(addBusinessDays('2027-08-12', 2, isNonDeliveryDay)).toBe('2027-08-17'); // 8/15~16 스킵
+  it('matches the 6-week store schedule captures, including a substitute-holiday round', () => {
+    expect(addBusinessDays('2026-07-30', 2, isNonDeliveryDay)).toBe('2026-08-01');
+    expect(addBusinessDays('2026-09-10', 2, isNonDeliveryDay)).toBe('2026-09-12');
+    expect(addBusinessDays('2027-02-25', 2, isNonDeliveryDay)).toBe('2027-02-27');
+    expect(addBusinessDays('2027-08-12', 2, isNonDeliveryDay)).toBe('2027-08-14'); // 8/15 광복절 스킵
   });
 
   it('matches the 4-week store schedule captures (steady-state rounds, offset stays 2 business days)', () => {
-    expect(addBusinessDays('2026-08-28', 2, isNonDeliveryDay)).toBe('2026-09-01');
-    expect(addBusinessDays('2026-10-23', 2, isNonDeliveryDay)).toBe('2026-10-27');
-    expect(addBusinessDays('2026-11-20', 2, isNonDeliveryDay)).toBe('2026-11-24');
+    expect(addBusinessDays('2026-08-28', 2, isNonDeliveryDay)).toBe('2026-08-31');
+    expect(addBusinessDays('2026-10-23', 2, isNonDeliveryDay)).toBe('2026-10-26');
+    expect(addBusinessDays('2026-11-20', 2, isNonDeliveryDay)).toBe('2026-11-23');
   });
 });

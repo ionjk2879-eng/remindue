@@ -16,7 +16,7 @@
 // logging a click/cron tick.
 
 import { addBusinessDays, addDays, addMonths, daysBetween, formatDateOnly, nextFixedDayEveryNMonths, parseDateOnly, subtractBusinessDays, todayDateOnly } from './date';
-import { isNonDeliveryDay } from './kr-holidays';
+import { isNonBusinessDay, isNonDeliveryDay } from './kr-holidays';
 import { isRecurringType, usesArrivalDate, type PurchaseRow, type PurchaseType } from '../types';
 
 export const DEFAULT_WARRANTY_MONTHS = 12;
@@ -83,7 +83,7 @@ function arrivalAnchoredCycleFor(
   const clampedDay = Math.min(anchor.day, daysInTargetMonth);
   const rawArrival = formatDateOnly(targetYear, targetMonth, clampedDay);
   const arrivalDate = addBusinessDays(rawArrival, 0, isNonDeliveryDay);
-  const deadline = subtractBusinessDays(arrivalDate, offsetBusinessDays, isNonDeliveryDay);
+  const deadline = subtractBusinessDays(arrivalDate, offsetBusinessDays, isNonBusinessDay);
   return { deadline, arrivalDate };
 }
 
@@ -229,7 +229,7 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
       // 뒤로 밀린 회차에서, 원시 날짜만 지났을 뿐 실제 도착 전인데도 벌써 다음 회차로 넘어가버린다.
       if (row.arrival_offset_days !== null) {
         const { cyclesElapsed, arrivalDate } = nextIntervalAnchoredCycle(interval, anchor, todayDateOnly());
-        const deadline = subtractBusinessDays(arrivalDate, row.arrival_offset_days, isNonDeliveryDay);
+        const deadline = subtractBusinessDays(arrivalDate, row.arrival_offset_days, isNonBusinessDay);
         return [{ kind: 'SCHEDULE', deadline, deliveryRound: cyclesElapsed + 1 }];
       }
 
@@ -273,6 +273,27 @@ export function computeArrivalEstimate(deadline: string, offsetDays: number | nu
 }
 
 /**
+ * RECURRING_DELIVERY 카드에 참고용으로 보여주는 도착 예상 범위 — 설정(arrival_offset_days)
+ * 여부와 무관하게 결제일(deadline)만으로 항상 계산한다. "결제일 다음날~그다음날" 달력일
+ * 그대로이고, 그 날짜가 일요일·공휴일이면(토요일은 배송일이라 그대로 둠) 다음 날로 하루씩
+ * 민다 — 정확한 하루를 맞히려는 게 아니라 "이날 아니면 이날" 정도의 참고치라, N영업일을 세는
+ * computeArrivalEstimate와 달리 각 끝점을 독립적으로만 보정한다. 목요일 결제 → 금~토,
+ * 금요일 결제 → 토~월(실제 결제는 항상 월~금이라 토요일 결제 자체는 실무상 발생하지 않는다 —
+ * 이 로직은 그 가정에 의존하지 않지만, 실측 결제일 데이터 전부가 그 가정과 일치했다).
+ */
+export function estimateArrivalRange(deadline: string): { from: string; to: string } {
+  const nextDeliveryDay = (dateStr: string): string => {
+    let current = dateStr;
+    while (isNonDeliveryDay(current)) current = addDays(current, 1);
+    return current;
+  };
+  return {
+    from: nextDeliveryDay(addDays(deadline, 1)),
+    to: nextDeliveryDay(addDays(deadline, 2)),
+  };
+}
+
+/**
  * 정기배송·구독의 바로 직전 회차 날짜. computeDeadline()은 늘 오늘 이후 회차를 반환하므로,
  * 다음 날 미확인 알림처럼 이미 지난 회차를 판별할 때 이 값을 별도로 계산한다.
  */
@@ -307,7 +328,7 @@ export function computePreviousScheduleDeadline(row: DeadlineInput): string | nu
     const interval = row.interval_days ?? DEFAULT_INTERVAL_DAYS;
     const nextArrival = addBusinessDays(nextDeadline, row.arrival_offset_days, isNonDeliveryDay);
     const prevArrival = addBusinessDays(addDays(nextArrival, -interval), 0, isNonDeliveryDay);
-    previous = subtractBusinessDays(prevArrival, row.arrival_offset_days, isNonDeliveryDay);
+    previous = subtractBusinessDays(prevArrival, row.arrival_offset_days, isNonBusinessDay);
     return previous;
   } else {
     previous = addDays(nextDeadline, -(row.interval_days ?? DEFAULT_INTERVAL_DAYS));

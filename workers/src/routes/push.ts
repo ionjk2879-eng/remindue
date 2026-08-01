@@ -31,34 +31,10 @@ function validateSubscriptionBody(body: Partial<PushSubscriptionRequestBody>): P
   return { endpoint: body.endpoint, keys: { p256dh: body.keys.p256dh, auth: body.keys.auth } };
 }
 
+/** 도착 확인은 GENERAL 전용이다 — RECURRING_DELIVERY/SUBSCRIPTION은 도착 여부를 추적하지 않는다. */
 async function recordArrival(db: D1Database, purchase: PurchaseRow, daysAgo: number): Promise<void> {
-  if (purchase.type === 'SUBSCRIPTION') throw new BadRequestError('정기구독 항목은 도착 확인 대상이 아닙니다');
+  if (purchase.type !== 'GENERAL') throw new BadRequestError('일반구매 항목만 도착 확인 대상입니다');
   const arrivalDate = resolveArrivalDate(daysAgo);
-  // RECURRING_DELIVERY에 결제일과 별도의 도착예정일(arrival_offset_days)이 설정돼 있으면, 확인된
-  // 실제 도착일을 결제 사이클 앵커(expected_delivery_date)에 반영하지 않는다 — 반영하면 다음 회차
-  // 결제일 계산이 "결제 주기"가 아니라 "도착 주기"를 따라가게 되어, 확인할 때마다 오프셋만큼씩
-  // 결제일이 뒤로 밀리는 누적 드리프트가 생긴다(결제일은 공휴일과도 무관하게 그대로 굴러가야 함).
-  // 이 경우는 last_delivered_date만 기록해 수령 이력만 남긴다.
-  //
-  // 딱 하나 예외: 2회차 확인 시점엔 앵커를 이 확인된 실제 도착일로 한 번 재보정한다. 1회차 앵커는
-  // (이메일 추출/직접 입력 등) 신뢰도가 낮을 수 있는데(예: 벤더 메일 자체가 공휴일로 밀린 날짜를
-  // "예상 도착일"로 안내했을 경우), 시스템이 계산한 2회차 예상 도착일과 실제 확인 결과를 대조해보면
-  // "이번만 하루 밀린 것"과 "애초에 앵커가 하루 잘못 잡혔던 것"을 구분할 수 있는 첫 기회다. 3회차부터는
-  // 다시 얼려서(기존 동작) 이후의 개별적인 지연이 영구 드리프트로 누적되지 않게 한다.
-  if (purchase.type === 'RECURRING_DELIVERY' && purchase.arrival_offset_days !== null) {
-    const { deliveryRound } = computeDeadline(purchase);
-    if (deliveryRound === 2) {
-      await db.prepare(
-        `UPDATE purchases SET expected_delivery_date = ?, last_delivered_date = ?, arrival_check_snoozed_until = NULL,
-         updated_at = datetime('now') WHERE id = ?`
-      ).bind(arrivalDate, arrivalDate, purchase.id).run();
-      return;
-    }
-    await db.prepare(
-      `UPDATE purchases SET last_delivered_date = ?, arrival_check_snoozed_until = NULL, updated_at = datetime('now') WHERE id = ?`
-    ).bind(arrivalDate, purchase.id).run();
-    return;
-  }
   await db.prepare(
     `UPDATE purchases SET expected_delivery_date = ?, last_delivered_date = ?, arrival_check_snoozed_until = NULL,
      updated_at = datetime('now') WHERE id = ?`
@@ -155,15 +131,12 @@ push.post('/test', async (c) => {
       if (dDay >= 0 && dDay <= 7) deliveries.push({ itemName: purchase.item_name, date: purchase.expected_delivery_date });
       continue;
     }
+    // RECURRING_DELIVERY도 SUBSCRIPTION과 동일하게 결제 예정으로 다룬다 — 도착일을 더 이상
+    // 추적하지 않는다(usesArrivalDate는 스케줄 앵커 용도로만 남고, 알림 표시는 결제일 기준).
     const { deadline } = computeDeadline(purchase);
     const dDay = computeDDay(deadline);
     if (dDay < 0 || dDay > 7) continue;
-    if (purchase.type === 'RECURRING_DELIVERY') {
-      deliveries.push({ itemName: purchase.is_one_time === 1 ? `${purchase.item_name} (유지 안 함)` : purchase.item_name, date: deadline });
-    }
-    if (purchase.type === 'SUBSCRIPTION') {
-      payments.push({ itemName: purchase.is_one_time === 1 ? `${purchase.item_name} (유지 안 함)` : purchase.item_name, date: deadline });
-    }
+    payments.push({ itemName: purchase.is_one_time === 1 ? `${purchase.item_name} (유지 안 함)` : purchase.item_name, date: deadline });
   }
   const render = (label: string, items: Array<{ itemName: string; date: string }>) => [
     `${label} ${items.length}건`,
@@ -312,9 +285,7 @@ push.post('/snooze-arrival', async (c) => {
  * 인증은 요구하지 않는다(토큰 소유 자체가 권한이라는 같은 원칙, 알림을 탭한 직후엔 세션이 아직
  * 안 살아있을 수도 있어서).
  *
- * 실제 저장 동작은 recordArrival 참고 — 결제일과 도착예정일이 분리된(arrival_offset_days 설정된)
- * RECURRING_DELIVERY는 결제 사이클 앵커(expected_delivery_date)를 건드리지 않고 수령 이력만 남긴다
- * (단, 2회차 확인 시점만 예외로 한 번 재보정한다).
+ * 실제 저장 동작은 recordArrival 참고 — GENERAL 전용이다.
  */
 push.post('/confirm-arrival', async (c) => {
   const body = await c.req.json<{ token?: string; daysAgo?: number }>().catch(() => ({}) as { token?: string; daysAgo?: number });
@@ -332,9 +303,6 @@ push.post('/confirm-arrival', async (c) => {
 
   const purchase = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(purchaseId).first<PurchaseRow>();
   if (!purchase) throw new BadRequestError(`항목을 찾을 수 없습니다: ${purchaseId}`);
-  if (purchase.type === 'SUBSCRIPTION') {
-    throw new BadRequestError('정기구독 항목은 도착 확인 대상이 아닙니다');
-  }
 
   await recordArrival(c.env.DB, purchase, body.daysAgo);
 
@@ -353,7 +321,7 @@ push.post('/arrival-batch/:action', async (c) => {
   if (!batch || batch.kind !== 'ARRIVAL') throw new BadRequestError('유효하지 않거나 이미 처리된 알림이에요');
   const placeholders = batch.purchaseIds.map(() => '?').join(',');
   const { results } = await c.env.DB.prepare(
-    `SELECT * FROM purchases WHERE user_id = ? AND id IN (${placeholders}) AND type IN ('GENERAL', 'RECURRING_DELIVERY')`
+    `SELECT * FROM purchases WHERE user_id = ? AND id IN (${placeholders}) AND type = 'GENERAL'`
   ).bind(batch.userId, ...batch.purchaseIds).all<PurchaseRow>();
 
   const received = action === 'all-received'
@@ -430,7 +398,6 @@ push.post('/arrival-check/:id/confirm', async (c) => {
     .bind(purchaseId, user.id)
     .first<PurchaseRow>();
   if (!purchase) throw new BadRequestError('항목을 찾을 수 없습니다');
-  if (purchase.type === 'SUBSCRIPTION') throw new BadRequestError('정기구독 항목은 도착 확인 대상이 아닙니다');
 
   await recordArrival(c.env.DB, purchase, body.daysAgo);
 

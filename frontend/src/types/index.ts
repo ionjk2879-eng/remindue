@@ -27,24 +27,23 @@ export interface Purchase {
   isOneTime: boolean;
   /** RECURRING_DELIVERY 전용 스케줄 앵커("최초 도착(예정)일") — 없으면(null) baseDate가 대신 앵커로 쓰인다. */
   expectedDeliveryDate: string | null;
-  /** RECURRING_DELIVERY 전용: 결제일로부터 보통 영업일 며칠 후 도착하는지. 미입력이면 null(도착예정 표시 안 함). */
+  /** RECURRING_DELIVERY 전용: 결제일로부터 보통 영업일 며칠 후 도착하는지(스케줄 계산 전용 —
+   *  카드 표시엔 안 쓰인다). 미입력이면 null. */
   arrivalOffsetDays: number | null;
-  /** arrivalOffsetDays가 있을 때 서버가 계산한 도착예정일(결제일 + 영업일 N일, 주말·공휴일 제외). 그 외 null. */
-  arrivalEstimate: string | null;
-  /** 결제일은 지났지만 도착예정일은 아직 안 지난 상태(결제완료·도착대기) — true면 dDay는 결제일이
-   *  아니라 arrivalEstimate 기준이다. */
-  awaitingArrival: boolean;
+  /** RECURRING_DELIVERY 카드에 보여주는 참고용 도착 예상 범위 — 결제일 다음날~그다음날 기준
+   *  (토요일은 배송일로 인정, 일요일·공휴일이면 하루씩 밈). arrivalOffsetDays 설정 여부와
+   *  무관하게 항상 채워진다. 그 외 타입은 null. */
+  arrivalRangeEstimate: { from: string; to: string } | null;
   lastDeliveredDate: string | null;
+  /** GENERAL 외에는 항상 null — 도착 확인은 GENERAL 전용이다. */
   arrivalCheckSnoozedUntil: string | null;
   /** 정기구독·배송 유지 확인에 답한 회차의 deadline 값 — deadline과 같으면 이번 회차는 이미 답한 것. */
   renewalDecisionFor: string | null;
   /** "가장 급한" 기한 — GENERAL이고 반품기한/A·S보증 둘 다 있으면 더 급한 쪽. */
   deadline: string;
-  /** 카드 배지 표시용 — awaitingArrival이면 도착예정일 기준, 아니면 결제일 기준(paymentDDay와 동일).
-   *  결제 여부를 판단하는 로직(유지하기 버튼, 이번 주 결제 예정, 마감 임박 등)에는 쓰지 말 것 —
-   *  그런 곳은 항상 paymentDDay를 쓴다. */
+  /** 카드 배지 표시용 — 지금은 항상 paymentDDay와 같다. */
   dDay: number;
-  /** 결제일(deadline) 기준 D-day — awaitingArrival 여부와 무관하게 항상 결제일까지의 일수다. */
+  /** 결제일(deadline) 기준 D-day. */
   paymentDDay: number;
   deliveryRound: number | null;
   archivedAt: string | null;

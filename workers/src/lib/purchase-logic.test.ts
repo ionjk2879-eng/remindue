@@ -144,19 +144,21 @@ describe('도착일 고정 앵커 + 결제일 역산 (arrival_offset_days, 실�
   it('1달 주기 12회차 전부 결제일/도착일이 실측치와 정확히 일치한다', () => {
     // 오늘을 각 회차의 실제 결제일 그날로 설정 — computeDeadline은 항상 "오늘 이후(포함)
     // 가장 가까운" 회차를 반환하므로, 결제일 당일이 정확히 그 회차로 나와야 한다.
+    // 도착예정일은 토요일도 배송일로 인정한다(isNonDeliveryDay) — 결제일 역산은 여전히
+    // 월~금만 영업일로 세므로(isNonBusinessDay) 결제일/회차 값 자체는 바뀌지 않는다.
     const cases: Array<[string, string, number]> = [
-      ['2026-07-30', '2026-08-03', 1],
+      ['2026-07-30', '2026-08-01', 1],
       ['2026-09-01', '2026-09-03', 2],
       ['2026-10-01', '2026-10-06', 3],
-      ['2026-10-30', '2026-11-03', 4],
+      ['2026-10-30', '2026-11-02', 4],
       ['2026-12-01', '2026-12-03', 5],
-      ['2026-12-30', '2027-01-04', 6],
+      ['2026-12-30', '2027-01-02', 6],
       ['2027-02-01', '2027-02-03', 7],
-      ['2027-02-26', '2027-03-03', 8],
-      ['2027-04-01', '2027-04-05', 9],
-      ['2027-04-29', '2027-05-03', 10], // 2027-05-03: 노동절 대체공휴일이지만 실제 택배는 정상 도착
+      ['2027-02-26', '2027-03-02', 8],
+      ['2027-04-01', '2027-04-03', 9],
+      ['2027-04-29', '2027-05-01', 10],
       ['2027-06-01', '2027-06-03', 11],
-      ['2027-07-01', '2027-07-05', 12],
+      ['2027-07-01', '2027-07-03', 12],
     ];
     for (const [deadlineDay, expectedArrival, expectedRound] of cases) {
       vi.setSystemTime(new Date(`${deadlineDay}T03:00:00.000Z`));
@@ -169,7 +171,7 @@ describe('도착일 고정 앵커 + 결제일 역산 (arrival_offset_days, 실�
 
   it('2달 주기 4회차는 1달 주기의 홀수 회차(1·3·5·7번째)와 도착일이 그대로 겹친다', () => {
     const cases: Array<[string, string, number]> = [
-      ['2026-07-30', '2026-08-03', 1],
+      ['2026-07-30', '2026-08-01', 1],
       ['2026-10-01', '2026-10-06', 2],
       ['2026-12-01', '2026-12-03', 3],
       ['2027-02-01', '2027-02-03', 4],
@@ -208,7 +210,7 @@ describe('도착일 고정 앵커 + 결제일 역산 (arrival_offset_days, 실�
     vi.setSystemTime(new Date('2026-07-31T03:00:00.000Z'));
     const purchase = monthly();
     expect(computeDeadline(purchase)).toEqual({ deadline: '2026-07-30', deliveryRound: 1 });
-    expect(computeArrivalEstimate('2026-07-30', purchase.arrival_offset_days)).toBe('2026-08-03');
+    expect(computeArrivalEstimate('2026-07-30', purchase.arrival_offset_days)).toBe('2026-08-01');
   });
 
   it('도착일 당일까지는 1회차, 그다음 날부터 2회차로 넘어간다', () => {
@@ -255,10 +257,10 @@ describe('INTERVAL(주·일 단위) + arrival_offset_days — 같은 1회차 pre
   });
 });
 
-describe('INTERVAL(주·일 단위) + arrival_offset_days — 원시 도착일이 주말이라 밀리는 회차의 경계', () => {
+describe('INTERVAL(주·일 단위) + arrival_offset_days — 토요일 원시 도착일은 보정 없이 그대로 유효하다', () => {
   afterEach(() => vi.useRealTimers());
 
-  // anchor(2026-08-01)가 토요일 — 원시 도착일은 토요일, 실제(영업일 보정) 도착일은 다음 월요일(8/3).
+  // anchor(2026-08-01)가 토요일 — 이제 토요일도 배송일이라 월요일로 밀리지 않고 그대로 도착일로 쓰인다.
   const weeklySaturdayAnchor = () =>
     row('RECURRING_DELIVERY', {
       base_date: '2026-08-01',
@@ -268,17 +270,17 @@ describe('INTERVAL(주·일 단위) + arrival_offset_days — 원시 도착일�
       arrival_offset_days: 2,
     });
 
-  it('원시 도착일(토)과 그 다음날(일)에도 실제 도착 전이라 여전히 1회차', () => {
+  it('도착일(토) 당일까지는 1회차, 다음날(일)부터 2회차로 넘어간다', () => {
     vi.setSystemTime(new Date('2026-08-01T03:00:00.000Z'));
-    expect(computeDeadline(weeklySaturdayAnchor()).deliveryRound).toBe(1);
+    expect(computeDeadline(weeklySaturdayAnchor())).toEqual({ deadline: '2026-07-30', deliveryRound: 1 });
     vi.setSystemTime(new Date('2026-08-02T03:00:00.000Z'));
-    expect(computeDeadline(weeklySaturdayAnchor()).deliveryRound).toBe(1);
+    expect(computeDeadline(weeklySaturdayAnchor())).toEqual({ deadline: '2026-08-06', deliveryRound: 2 });
   });
 
-  it('실제(영업일 보정된) 도착일 당일(월)까지는 1회차, 다음날(화)부터 2회차', () => {
-    vi.setSystemTime(new Date('2026-08-03T03:00:00.000Z'));
-    expect(computeDeadline(weeklySaturdayAnchor()).deliveryRound).toBe(1);
-    vi.setSystemTime(new Date('2026-08-04T03:00:00.000Z'));
+  it('2회차 도착일(그다음 토)까지는 유지되고, 그 다음날 다시 3회차로 넘어간다', () => {
+    vi.setSystemTime(new Date('2026-08-08T03:00:00.000Z'));
     expect(computeDeadline(weeklySaturdayAnchor()).deliveryRound).toBe(2);
+    vi.setSystemTime(new Date('2026-08-09T03:00:00.000Z'));
+    expect(computeDeadline(weeklySaturdayAnchor()).deliveryRound).toBe(3);
   });
 });

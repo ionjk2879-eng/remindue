@@ -46,6 +46,7 @@ import WeeklySummaryBanner from '../components/dashboard/WeeklySummaryBanner';
 import {
   currentCalendarWeekRange,
   daysSinceBaseDate,
+  estimateArrivalRange,
   formatIntervalDaysLabel,
   formatKoreanMonthDay,
   formatShortDate,
@@ -223,10 +224,9 @@ function renderGeneralDeadlineLines(p: Purchase) {
 }
 
 /**
- * RECURRING_DELIVERY/SUBSCRIPTION 카드의 "다음 일정" 줄 — awaitingArrival(결제완료·도착대기)
- * 이면 이미 끝난 결제일은 "결제완료"로, 아직 안 지난 도착예정일을 다음 이벤트로 보여준다.
- * 아니면 기존처럼 결제(예정)일이 다음 이벤트다. 배지(dDay)도 이 상태에서 도착일 기준으로
- * 바뀌어 있으므로(mapper.ts) 여기서 보여주는 "다음 일정"과 배지 카운트다운이 서로 맞는다.
+ * RECURRING_DELIVERY/SUBSCRIPTION 카드의 "다음 일정" 줄 — 결제(예정)일이 항상 기준이다.
+ * RECURRING_DELIVERY는 그 옆에 참고용 도착 예상 범위(arrivalRangeEstimate)를 추가로 보여준다
+ * (정확한 하루를 맞히는 값이 아니라 "이날 아니면 이날" 정도의 근사치 — mapper.ts 참고).
  */
 function renderRecurringScheduleLine(p: Purchase) {
   const scheduleDesc =
@@ -237,24 +237,15 @@ function renderRecurringScheduleLine(p: Purchase) {
     <p className="ticket-card__deadline">
       다음 일정: <span className="mono">{p.deliveryRound}회차</span>
       {scheduleDesc && ` · ${scheduleDesc}`}
-      {p.awaitingArrival ? (
+      {' ('}
+      <span className="mono">{formatShortDate(p.deadline)}</span>
+      {')'}
+      {p.arrivalRangeEstimate !== null && (
         <>
-          {' · 결제완료 '}
-          <span className="mono">{formatShortDate(p.deadline)}</span>
-          {' · 도착예정 '}
-          <span className="mono">{formatShortDate(p.arrivalEstimate!)}</span>
-        </>
-      ) : (
-        <>
-          {' ('}
-          <span className="mono">{formatShortDate(p.deadline)}</span>
-          {')'}
-          {p.arrivalEstimate !== null && (
-            <>
-              {' · 도착예정 '}
-              <span className="mono">{formatShortDate(p.arrivalEstimate)}</span>
-            </>
-          )}
+          {' · 도착 예상 '}
+          <span className="mono">
+            {formatShortDate(p.arrivalRangeEstimate.from)}~{formatShortDate(p.arrivalRangeEstimate.to)}
+          </span>
         </>
       )}
       {p.isOneTime && ' · 한 번만 사용'}
@@ -1181,23 +1172,13 @@ export default function DashboardPage() {
     .filter((p) => isRecurringType(p.type) && p.discontinuedAt === null && p.paymentDDay >= 0 && p.paymentDDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.paymentDDay - b.paymentDDay);
   /**
-   * 배송 예정에는 정기배송뿐 아니라 도착 예정일이 있는 일반 구매도 포함한다.
-   * GENERAL의 deadline은 반품/A·S 기한이라 실제 도착일과 다르므로 expectedDeliveryDate를 따로 본다.
+   * "배송 예정"은 실제 도착일을 추적하는 GENERAL 전용이다 — RECURRING_DELIVERY는 더 이상 도착일을
+   * 추적하지 않고(카드엔 결제일 기준 참고용 범위만 표시) 결제일만 관리하므로, weeklyRecurring
+   * (결제 예정)에서 SUBSCRIPTION과 함께 다뤄진다.
    */
   const weeklyDeliveries = purchases
-    .filter((p) =>
-      p.discontinuedAt === null && (p.type === 'RECURRING_DELIVERY'
-        ? p.dDay >= 0 && p.dDay <= URGENT_WINDOW_DAYS
-        : p.type === 'GENERAL' && p.expectedDeliveryDate !== null && isWithinUpcomingDays(p.expectedDeliveryDate, URGENT_WINDOW_DAYS))
-    )
-    .sort((a, b) => {
-      const aDate = a.type === 'GENERAL' ? a.expectedDeliveryDate! : a.arrivalEstimate ?? a.deadline;
-      const bDate = b.type === 'GENERAL' ? b.expectedDeliveryDate! : b.arrivalEstimate ?? b.deadline;
-      return aDate.localeCompare(bDate);
-    });
-  // "한 번만 사용"도 이번 이용 기간의 예정에는 포함한다. 다음 갱신이 없다는 점은 목록에서 표시한다.
-  // 정기배송은 도착 예정과 결제 예정 둘 다에 해당하니(배송=결제 주기) weeklyDeliveries와 겹쳐도
-  // 여기 포함한다 — "수령함"/"유지함"이 서로 다른 질문이라 각자 독립적으로 표시돼야 한다.
+    .filter((p) => p.discontinuedAt === null && p.type === 'GENERAL' && p.expectedDeliveryDate !== null && isWithinUpcomingDays(p.expectedDeliveryDate, URGENT_WINDOW_DAYS))
+    .sort((a, b) => a.expectedDeliveryDate!.localeCompare(b.expectedDeliveryDate!));
   const weeklySubscriptions = weeklyRecurring;
   const today = todayDateOnly();
   const calendarWeek = currentCalendarWeekRange(today);
@@ -1234,7 +1215,7 @@ export default function DashboardPage() {
   const weeklyDeliveryEntries: WeeklyEntry[] = [
     ...weeklyDeliveries.map((purchase) => ({ purchase, completed: completedThisWeek(purchase), completedAt: purchase.lastDeliveredDate })),
     ...purchases
-      .filter((purchase) => (purchase.type === 'GENERAL' || purchase.type === 'RECURRING_DELIVERY') && completedThisWeek(purchase) && !weeklyDeliveries.some((item) => item.id === purchase.id))
+      .filter((purchase) => purchase.type === 'GENERAL' && completedThisWeek(purchase) && !weeklyDeliveries.some((item) => item.id === purchase.id))
       .map((purchase) => ({ purchase, completed: true, completedAt: purchase.lastDeliveredDate })),
   ];
   const weeklySubscriptionEntries: WeeklyEntry[] = [
@@ -1262,24 +1243,22 @@ export default function DashboardPage() {
         completedAt: discontinuedScheduledThisWeek(purchase) ? previousSubscriptionSchedule(purchase) : purchase.discontinuedAt!.slice(0, 10),
       })),
   ];
-  /** 푸시를 놓쳐도 대시보드에서 답할 수 있는 오늘의 도착 확인 항목. */
+  /** 푸시를 놓쳐도 대시보드에서 답할 수 있는 오늘의 도착 확인 항목 — GENERAL 전용(도착 확인은
+   *  더 이상 RECURRING_DELIVERY에 적용되지 않는다). */
   const arrivalChecks = purchases.filter((p) => {
-    if (p.type === 'SUBSCRIPTION') return false;
+    if (p.type !== 'GENERAL') return false;
     if (p.arrivalCheckSnoozedUntil !== null) return true;
-    return p.type === 'GENERAL' ? p.lastDeliveredDate === null && p.expectedDeliveryDate === today : p.isOneTime ? p.lastDeliveredDate === null && p.expectedDeliveryDate === today : p.dDay === 0;
+    return p.lastDeliveredDate === null && p.expectedDeliveryDate === today;
   });
   const arrivalSnoozedCount = arrivalChecks.filter((p) => p.arrivalCheckSnoozedUntil !== null).length;
-  const arrivalCheckIds = new Set(arrivalChecks.map((p) => p.id));
   /**
-   * 카드의 D-day 도장에 느낌표를 얹을지 — "유지하시겠어요?" 또는 "오늘 받으셨나요?" 질문에
-   * 아직 응답하지 않은 정기배송·구독만 대상이다. 일반구매의 반품기한/A·S보증은 이미 대시보드
-   * 다른 곳(7일 이내 마감 등)에 따로 노출되고 있어서 여기서는 대상에서 뺀다.
+   * 카드의 D-day 도장에 느낌표를 얹을지 — "유지하시겠어요?" 질문에 아직 응답하지 않은
+   * 정기배송·구독만 대상이다. 일반구매의 반품기한/A·S보증은 이미 대시보드 다른 곳(7일 이내
+   * 마감 등)에 따로 노출되고 있어서 여기서는 대상에서 뺀다.
    */
   const needsAttentionBadge = (p: Purchase) => {
     if (p.type === 'GENERAL') return false;
-    const needsRenewalResponse = !p.isOneTime && p.discontinuedAt === null && missedRoundsFor(p) >= 1;
-    const needsArrivalResponse = p.type === 'RECURRING_DELIVERY' && arrivalCheckIds.has(p.id);
-    return needsRenewalResponse || needsArrivalResponse;
+    return !p.isOneTime && p.discontinuedAt === null && missedRoundsFor(p) >= 1;
   };
 
   /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
@@ -2717,6 +2696,18 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* 위 "예상 도착일"은 스케줄 계산용 앵커일 뿐이고(자동등록 메일에 적힌 값을 그대로 씀),
+            실제 도착은 결제일 기준 참고용 범위로 따로 보여준다 — 둘을 같은 값으로 오해하지
+            않도록 라벨과 문구를 분리했다. */}
+        {type === 'RECURRING_DELIVERY' && (expectedDeliveryDate || baseDate) && (() => {
+          const range = estimateArrivalRange(expectedDeliveryDate || baseDate);
+          return (
+            <p className="register-form__hint">
+              📦 실제로는 {formatKoreanMonthDay(range.from)}~{formatKoreanMonthDay(range.to)} 사이에 도착할 가능성이 높아요(참고용)
+            </p>
+          );
+        })()}
+
         {/* 금액 + 카테고리 — 모든 종류에 공통인 일반 필드. */}
         <div className="register-form__row register-form__row--payment">
           <div className="field field--amount">
@@ -3059,14 +3050,9 @@ export default function DashboardPage() {
                         기한 알림 끄기
                       </button>
                     )}
-                    {isRecurringType(p.type) && !p.isOneTime && p.paymentDDay <= 0 &&
-                      (isFullyConfirmed(p) ? (
-                        <span className="confirm-badge">✓ 확인완료</span>
-                      ) : (
-                        <button className="btn-text" onClick={() => handleMarkDelivered(p.id)}>
-                          유지하기
-                        </button>
-                      ))}
+                    {isRecurringType(p.type) && !p.isOneTime && p.paymentDDay <= 0 && isFullyConfirmed(p) && (
+                      <span className="confirm-badge">✓ 확인완료</span>
+                    )}
                     <button className="btn-text" onClick={() => handleEditClick(p)}>
                       수정
                     </button>

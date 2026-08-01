@@ -9,12 +9,26 @@
 import { KR_HOLIDAY_DATES } from './kr-holidays-data';
 
 /**
- * 배송이 이뤄지지 않는 날인지 — 토요일·일요일이거나 대한민국 공휴일이면 true.
- * 실제 정기배송 사례(회차별 상세정보 캡처)를 역산한 결과, "결제일 + N영업일 = 도착예정일"
- * 규칙에서 토요일도 영업일에서 제외해야 정확히 들어맞았다(택배가 토요일에도 배송되는 경우가
- * 있지만, 이 계산은 그런 예외를 다 맞추려는 게 아니라 합리적인 근사치를 내는 게 목적).
+ * 택배가 배송되지 않는 날인지 — 일요일이거나 대한민국 공휴일이면 true. 토요일은 포함하지
+ * 않는다: 실제 사례(2026-07-30 목요일 주문 → 실제 2026-08-01 토요일 도착)로 확인된 대로
+ * 택배는 토요일에도 정상적으로 움직인다. 도착예정일 계산(addBusinessDays)에서만 쓴다 —
+ * 결제일 역산(subtractBusinessDays)은 카드/스토어 처리 기준이라 토요일도 쉬므로
+ * isNonBusinessDay를 따로 쓴다.
  */
 export function isNonDeliveryDay(dateStr: string): boolean {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay(); // 0=일, 6=토
+  if (dayOfWeek === 0) return true;
+  return KR_HOLIDAY_DATES.has(dateStr);
+}
+
+/**
+ * 결제(카드/스토어 처리)가 이뤄지지 않는 날인지 — 토요일·일요일이거나 대한민국 공휴일이면
+ * true. 실제 정기배송 실측 데이터(19회차) 전부에서 결제일이 토·일에 걸린 사례가 하나도
+ * 없었다 — 도착예정일에서 이 기준으로 영업일만큼 거꾸로 세면(subtractBusinessDays) 결제일과
+ * 정확히 일치했다. 도착일 계산(addBusinessDays)에는 쓰지 않는다 — 그쪽은 isNonDeliveryDay 참고.
+ */
+export function isNonBusinessDay(dateStr: string): boolean {
   const [year, month, day] = dateStr.split('-').map(Number);
   const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay(); // 0=일, 6=토
   if (dayOfWeek === 0 || dayOfWeek === 6) return true;

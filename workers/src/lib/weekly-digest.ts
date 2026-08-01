@@ -7,7 +7,7 @@
  * Archived, discarded, discontinued, and already-received items are excluded by the query
  * and date selection below.
  */
-import { computeArrivalEstimate, computeDDay, computeDeadline } from './purchase-logic';
+import { computeDDay, computeDeadline } from './purchase-logic';
 import { buildWeeklyDigestEmailHtml, sendDigestEmail, type WeeklyItem } from './email';
 import { sendPush } from './push';
 import { makeFcmSender } from './fcm';
@@ -98,19 +98,10 @@ export async function runWeeklyDigest(env: Env): Promise<WeeklyDigestRunResult> 
       continue;
     }
 
-    const { deadline } = computeDeadline(row);
-
-    if (row.type === 'RECURRING_DELIVERY') {
-      // "도착 예정" 섹션이라 결제일이 아니라 도착예정일(arrival_offset_days가 있으면 그 추정일,
-      // 없으면 결제일 그대로) 기준으로 D-day를 잡는다 — 결제일 기준으로 하면, 결제는 이미
-      // 끝났지만 아직 도착 전인(회차 판정 로직상 항상 있을 수 있는) 항목이 "이번 주 도착 예정"에서
-      // 조용히 빠지게 된다(dDay가 음수라 필터에 안 걸림).
-      const arrivalDate = computeArrivalEstimate(deadline, row.arrival_offset_days) ?? deadline;
-      const dDay = computeDDay(arrivalDate);
-      if (dDay < 0 || dDay > UPCOMING_WINDOW_DAYS) continue;
-      const itemName = row.is_one_time === 1 ? `${row.item_name} (유지 안 함)` : row.item_name;
-      bucketFor(row).deliveries.push({ itemName, dDay, deadline: arrivalDate });
-    } else if (row.type === 'SUBSCRIPTION') {
+    // RECURRING_DELIVERY도 SUBSCRIPTION과 동일하게 결제 예정으로 다룬다 — 도착일은 더 이상
+    // 추적하지 않는다(카드에는 결제일 기준 참고용 범위만 보여준다, mapper.ts의 arrivalRangeEstimate).
+    if (row.type === 'RECURRING_DELIVERY' || row.type === 'SUBSCRIPTION') {
+      const { deadline } = computeDeadline(row);
       const dDay = computeDDay(deadline);
       if (dDay < 0 || dDay > UPCOMING_WINDOW_DAYS) continue;
       const itemName = row.is_one_time === 1 ? `${row.item_name} (유지 안 함)` : row.item_name;

@@ -15,15 +15,13 @@ export default function WeeklySummaryBanner({ deliveries, subscriptions }: {
           </span>
           <ul>
             {deliveries.map((purchase) => {
-              const arrivalDate =
-                purchase.type === 'GENERAL' ? purchase.expectedDeliveryDate! : purchase.arrivalEstimate ?? purchase.deadline;
+              const arrivalDate = purchase.expectedDeliveryDate!;
               return (
                 <li key={purchase.id}>
                   {purchase.itemName} — <span className="mono">{formatShortDate(arrivalDate)}</span>
                   {purchase.lastDeliveredDate === arrivalDate && (
                     <span className="weekly-summary-banner__complete">수령함</span>
                   )}
-                  {purchase.isOneTime && <span className="weekly-summary-banner__complete">유지 안 함</span>}
                 </li>
               );
             })}

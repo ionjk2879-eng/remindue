@@ -52,8 +52,18 @@ export function shiftDateOnly(dateStr: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
-/** workers/src/lib/kr-holidays.ts와 동일 — 토·일 또는 공휴일이면 true. */
+/** workers/src/lib/kr-holidays.ts의 isNonDeliveryDay와 동일 — 일요일 또는 공휴일이면 true.
+ *  토요일은 포함하지 않는다(택배는 토요일에도 정상 배송). 도착일 계산(addBusinessDays)에만 쓴다. */
 function isNonDeliveryDay(dateStr: string): boolean {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  if (dayOfWeek === 0) return true;
+  return KR_HOLIDAY_DATES.has(dateStr);
+}
+
+/** workers/src/lib/kr-holidays.ts의 isNonBusinessDay와 동일 — 토·일 또는 공휴일이면 true.
+ *  결제일 역산(subtractBusinessDays)에만 쓴다(카드/스토어 처리 기준이라 토요일도 쉼). */
+function isNonBusinessDay(dateStr: string): boolean {
   const [year, month, day] = dateStr.split('-').map(Number);
   const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
   if (dayOfWeek === 0 || dayOfWeek === 6) return true;
@@ -76,14 +86,32 @@ function addBusinessDays(dateStr: string, offsetDays: number): string {
   return current;
 }
 
+/**
+ * workers/src/lib/purchase-logic.ts의 estimateArrivalRange와 동일 — 등록 폼에서 "예상 도착일"
+ * 입력값을 기준으로 실제 도착 가능성이 높은 범위를 미리 보여주는 데 쓴다(저장된 항목의 카드는
+ * 서버가 계산해 내려주는 arrivalRangeEstimate를 그대로 쓰고, 이 함수는 저장 전 폼 미리보기 전용).
+ * 다음날~그다음날 달력일 그대로이고, 일요일·공휴일이면(토요일은 배송일로 인정) 하루씩 민다.
+ */
+export function estimateArrivalRange(referenceDate: string): { from: string; to: string } {
+  const nextDeliveryDay = (dateStr: string): string => {
+    let current = dateStr;
+    while (isNonDeliveryDay(current)) current = shiftDateOnly(current, 1);
+    return current;
+  };
+  return {
+    from: nextDeliveryDay(shiftDateOnly(referenceDate, 1)),
+    to: nextDeliveryDay(shiftDateOnly(referenceDate, 2)),
+  };
+}
+
 function subtractBusinessDays(dateStr: string, offsetDays: number): string {
   let current = dateStr;
   let remaining = offsetDays;
   while (remaining > 0) {
     current = shiftDateOnly(current, -1);
-    if (!isNonDeliveryDay(current)) remaining -= 1;
+    if (!isNonBusinessDay(current)) remaining -= 1;
   }
-  while (isNonDeliveryDay(current)) {
+  while (isNonBusinessDay(current)) {
     current = shiftDateOnly(current, -1);
   }
   return current;

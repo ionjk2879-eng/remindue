@@ -33,12 +33,11 @@ export default function ArrivalCheckSection({
         {purchases.map((purchase) => {
           const isSubmitting = submittingId === purchase.id;
           const daysAgo = daysAgoById[purchase.id] ?? 0;
-          const scheduledDate = purchase.type === 'GENERAL' ? purchase.expectedDeliveryDate : purchase.deadline;
           return (
             <li key={purchase.id}>
               <div>
-                <strong>{purchase.itemName} · {purchase.type === 'RECURRING_DELIVERY' ? '정기배송' : '일반배송'}</strong>
-                <span>예상 도착일 · <span className="mono">{scheduledDate}</span></span>
+                <strong>{purchase.itemName} · 일반구매</strong>
+                <span>예상 도착일 · <span className="mono">{purchase.expectedDeliveryDate}</span></span>
               </div>
               <div className="arrival-check-section__actions">
                 <select
