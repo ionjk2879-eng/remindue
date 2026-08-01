@@ -200,6 +200,16 @@ export function occurrencesInMonth(purchase: Purchase, year: number, month: numb
 }
 
 /**
+ * 특정 회차(cycleDate)에 실제로 확정된 금액 — payment_history에 그 날짜 기록이 있으면 그걸 쓰고,
+ * 없으면(이력 도입 이전 데이터, 아직 확인 안 된 미래 회차 등) 항목의 현재 amount로 폴백한다.
+ * 이 조회는 GET /purchases?scope=spend로 받아온 purchase(paymentHistory 포함)에만 의미가 있다.
+ */
+export function occurrenceAmount(purchase: Purchase, cycleDate: string): number | null {
+  const historyEntry = purchase.paymentHistory.find((entry) => entry.cycleDate === cycleDate);
+  return historyEntry?.amount ?? purchase.amount;
+}
+
+/**
  * 티켓 카드 정보 그리드의 "결제일" 표시용 — purchase.deadline은 항상 "다음" 회차라서 이번 달
  * 결제가 이미 지났으면 다음 달 날짜가 나온다("다음 일정" 줄과 중복되고 헷갈림). 이번 달에
  * 해당하는 결제일이 있으면 그걸(여러 번이면 마지막) 보여주고, 이번 달엔 주기가 안 걸리면
@@ -215,7 +225,9 @@ export function totalSpendInMonth(purchases: Purchase[], year: number, month: nu
   for (const purchase of purchases) {
     if (purchase.amount === null) continue;
     if (isRecurringType(purchase.type)) {
-      total += occurrencesInMonth(purchase, year, month) * purchase.amount;
+      for (const date of occurrenceDatesInMonth(purchase, year, month)) {
+        total += occurrenceAmount(purchase, date) ?? 0;
+      }
     } else {
       const [baseYear, baseMonth] = purchase.baseDate.split('-').map(Number);
       if (baseYear === year && baseMonth === month) total += purchase.amount;

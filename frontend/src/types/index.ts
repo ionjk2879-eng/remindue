@@ -75,6 +75,9 @@ export interface Purchase {
   originalCurrency: string | null;
   /** 결제일 기준 적용 환율(1 originalCurrency = N KRW). 원화 결제면 null. */
   exchangeRate: number | null;
+  /** 회차별 확정 금액 이력 — 오래된 회차 순. GET /purchases?scope=spend 조회에서만 채워지고,
+   *  그 외(카드 목록 등) 조회에서는 항상 빈 배열이다. */
+  paymentHistory: { cycleDate: string; amount: number }[];
   createdAt: string;
 }
 

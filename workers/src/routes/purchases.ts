@@ -3,7 +3,7 @@
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
-import { refreshRecurringFxOnConfirmation } from '../lib/recurring-fx';
+import { getPaymentHistoryByPurchaseIds, recordConfirmedPaymentCycle } from '../lib/recurring-fx';
 import { computeDDay, computeDeadline, FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
 import { sanitizeBrandDomain, sanitizeCategoryTags, sanitizeCurrency, sanitizeOriginalAmount } from '../lib/pending-purchase-intake';
 import { buildCsv, buildPdf } from '../lib/export';
@@ -129,7 +129,14 @@ purchases.get('/', async (c) => {
 
   const { results } = await c.env.DB.prepare(`SELECT * FROM purchases WHERE ${where}`).bind(user.id).all<PurchaseRow>();
 
-  const responses = results.map(toPurchaseResponse).sort((a, b) => a.dDay - b.dDay);
+  // 지출 집계(scope=spend)만 월별 실제 결제 이력을 함께 내려준다 — 카드 목록 등 다른 조회는
+  // 이 값이 필요 없어 불필요한 조회를 피한다.
+  const historyByPurchaseId =
+    scope === 'spend' ? await getPaymentHistoryByPurchaseIds(c.env.DB, results.map((row) => row.id)) : new Map();
+
+  const responses = results
+    .map((row) => toPurchaseResponse(row, historyByPurchaseId.get(row.id) ?? []))
+    .sort((a, b) => a.dDay - b.dDay);
   return c.json(responses);
 });
 
@@ -321,7 +328,7 @@ purchases.post('/:id/mark-delivered', async (c) => {
   )
     .bind(today, renewalDecisionFor, id)
     .run();
-  await refreshRecurringFxOnConfirmation(c.env.DB, existing);
+  await recordConfirmedPaymentCycle(c.env.DB, existing);
 
   const updated = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<PurchaseRow>();
   return c.json(toPurchaseResponse(updated!));
@@ -361,7 +368,7 @@ purchases.post('/confirm-all', async (c) => {
       ).bind(today, confirmedRoundsAfterConfirmAll(row), computeDeadline(row).deadline, row.id)
     )
   );
-  await Promise.all(owned.map((row) => refreshRecurringFxOnConfirmation(c.env.DB, row)));
+  await Promise.all(owned.map((row) => recordConfirmedPaymentCycle(c.env.DB, row)));
 
   const { results } = await c.env.DB.prepare(
     `SELECT * FROM purchases WHERE id IN (${owned.map(() => '?').join(',')})`
@@ -369,7 +376,7 @@ purchases.post('/confirm-all', async (c) => {
     .bind(...owned.map((row) => row.id))
     .all<PurchaseRow>();
 
-  return c.json(results.map(toPurchaseResponse));
+  return c.json(results.map((row) => toPurchaseResponse(row)));
 });
 
 /**

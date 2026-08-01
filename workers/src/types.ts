@@ -105,6 +105,23 @@ export interface PurchaseRow {
   updated_at: string;
 }
 
+// D1 row shape (from migrations/0049_add_payment_history.sql)
+export interface PaymentHistoryRow {
+  id: number;
+  purchase_id: number;
+  cycle_date: string;
+  amount: number;
+  original_amount: number | null;
+  original_currency: string | null;
+  exchange_rate: number | null;
+  created_at: string;
+}
+
+export interface PaymentHistoryEntry {
+  cycleDate: string;
+  amount: number;
+}
+
 export interface UserRow {
   id: number;
   email: string;
@@ -322,6 +339,9 @@ export interface PurchaseResponse {
   originalCurrency: string | null;
   /** 결제일 기준 적용 환율(1 originalCurrency = N KRW). 원화 결제면 null. */
   exchangeRate: number | null;
+  /** 회차별 확정 금액 이력(payment_history) — 오래된 회차 순. ?scope=spend 조회에서만 채워지고,
+   *  카드 목록 등 다른 조회에서는 항상 빈 배열이다(불필요한 조회/페이로드를 피하려고). */
+  paymentHistory: PaymentHistoryEntry[];
   createdAt: string;
 }
 

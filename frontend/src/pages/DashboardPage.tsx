@@ -53,6 +53,7 @@ import {
   isWithinRecentDays,
   isWithinUpcomingDays,
   occurrenceDatesInMonth,
+  occurrenceAmount,
   currentCycleDeadline,
   occurrencesInMonth,
   previousFixedScheduleDate,
@@ -1309,7 +1310,7 @@ export default function DashboardPage() {
           itemName: p.itemName,
           type: p.type,
           date,
-          amount: p.amount!,
+          amount: occurrenceAmount(p, date) ?? p.amount!,
         }));
       }
       const [baseYear, baseMonth] = p.baseDate.split('-').map(Number);

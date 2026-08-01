@@ -26,6 +26,7 @@ import { sendPush } from './push';
 import { makeFcmSender } from './fcm';
 import { createActionBatchToken } from './action-tokens';
 import { effectiveNotificationDays } from './notification-prefs';
+import { recordConfirmedPaymentCycle } from './recurring-fx';
 import type { Env, NativePushTokenRow, PurchaseRow, PushSubscriptionRow } from '../types';
 
 /** 유지 여부는 비용이 발생하기 전날에 먼저 묻고, 미응답이면 당일 한 번만 재알림한다. */
@@ -139,6 +140,7 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
   const fcmSend = makeFcmSender(env.FIREBASE_SERVICE_ACCOUNT);
   const bucketsByUserId = new Map<number, UserNudgeBucket>();
   const sameDayItemsByUserId = new Map<number, SameDayConfirmItem[]>();
+  const paymentHistoryPromises: Promise<void>[] = [];
   let emailsSent = 0;
   let pushSent = 0;
   let pushSubscriptionsPruned = 0;
@@ -146,6 +148,14 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
   for (const row of results) {
     const { deadline, deliveryRound } = computeDeadline(row);
     const dDay = computeDDay(deadline);
+
+    // 실제 결제일에는 확인 여부와 무관하게 이번 회차를 결제 이력(payment_history)에 남긴다 —
+    // 사전 알림(D-3 등)에서 이미 "유지하기"를 눌러 renewal_decision_for가 채워진 회차라도, 그
+    // 시점엔 아직 결제 전이라 외화 항목은 근사 환율로 저장됐을 수 있다. 실제 결제일에 한 번 더
+    // 실행해 그날 환율(원화 항목은 현재 금액 그대로)로 이력을 확정한다.
+    if (dDay === 0) {
+      paymentHistoryPromises.push(recordConfirmedPaymentCycle(env.DB, row));
+    }
 
     const missedRounds = missedRoundsFor(deliveryRound, row.delivery_confirm_count, dDay);
     // 무료는 당일 한 번만 안내한다. 프리미엄은 전날에 먼저 묻고, 미응답일 때만 당일 재알림한다.
@@ -237,6 +247,8 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
       }
     }
   }
+
+  await Promise.all(paymentHistoryPromises);
 
   return { usersNotified: bucketsByUserId.size, emailsSent, pushSent, pushSubscriptionsPruned };
 }

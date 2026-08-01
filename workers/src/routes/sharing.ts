@@ -164,7 +164,7 @@ sharing.get('/:id/purchases', async (c) => {
     .bind(invite.owner_user_id)
     .all<PurchaseRow>();
 
-  const responses = results.map(toPurchaseResponse).sort((a, b) => a.dDay - b.dDay);
+  const responses = results.map((row) => toPurchaseResponse(row)).sort((a, b) => a.dDay - b.dDay);
   return c.json(responses);
 });
 

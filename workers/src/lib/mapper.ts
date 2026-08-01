@@ -1,5 +1,5 @@
 import { computeArrivalEstimate, computeDDay, computeDeadline, computeDeadlines } from './purchase-logic';
-import type { PendingPurchaseResponse, PendingPurchaseRow, PurchaseResponse, PurchaseRow } from '../types';
+import type { PaymentHistoryEntry, PendingPurchaseResponse, PendingPurchaseRow, PurchaseResponse, PurchaseRow } from '../types';
 
 function parseCategoryTags(value: string | null, primary: PurchaseRow['category']): PurchaseResponse['categoryTags'] {
   try {
@@ -11,7 +11,7 @@ function parseCategoryTags(value: string | null, primary: PurchaseRow['category'
   return primary ? [primary] : [];
 }
 
-export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
+export function toPurchaseResponse(row: PurchaseRow, paymentHistory: PaymentHistoryEntry[] = []): PurchaseResponse {
   const { deadline, deliveryRound } = computeDeadline(row);
   const arrivalEstimate = computeArrivalEstimate(deadline, row.arrival_offset_days);
   const paymentDDay = computeDDay(deadline);
@@ -71,6 +71,7 @@ export function toPurchaseResponse(row: PurchaseRow): PurchaseResponse {
     originalAmount: row.original_amount,
     originalCurrency: row.original_currency,
     exchangeRate: row.exchange_rate,
+    paymentHistory,
     createdAt: row.created_at,
   };
 }
