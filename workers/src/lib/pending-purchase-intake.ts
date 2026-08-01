@@ -5,7 +5,7 @@
 import { DEFAULT_RETURN_DEADLINE_DAYS, DEFAULT_INTERVAL_DAYS, DEFAULT_WARRANTY_MONTHS } from './purchase-logic';
 import { businessDaysBetween } from './date';
 import { isNonDeliveryDay } from './kr-holidays';
-import { applyCardFee, type FxCardBrand, type FxCardIssuer } from './fx-card';
+import { applyCardFee, estimateTtSellingRate, type FxCardBrand, type FxCardIssuer } from './fx-card';
 import { fetchEximRate } from './eximbank';
 import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES, type PurchaseCategory, type PurchaseType } from '../types';
 import type { ExtractedOrder } from './order-extraction';
@@ -139,22 +139,46 @@ export async function convertToKrw(
   try {
     let baseRate: number | null = null;
     let realTtSellingRate: number | null = null;
+    let usdTtSellingRate: number | null = null;
 
     if (eximApiKey) {
-      const eximRate = await fetchEximRate(currency, orderDate, eximApiKey);
+      const [eximRate, usdEximRate] = await Promise.all([
+        fetchEximRate(currency, orderDate, eximApiKey),
+        currency === 'USD' ? Promise.resolve(null) : fetchEximRate('USD', orderDate, eximApiKey),
+      ]);
       if (eximRate) {
         baseRate = eximRate.dealBasR;
         realTtSellingRate = eximRate.tts;
+        usdTtSellingRate = currency === 'USD' ? eximRate.tts : usdEximRate?.tts ?? null;
       }
     }
 
     if (baseRate === null) {
       const hasValidDate = orderDate !== null && /^\d{4}-\d{2}-\d{2}$/.test(orderDate);
       baseRate = (hasValidDate ? await fetchKrwRate(currency, orderDate!) : null) ?? (await fetchKrwRate(currency));
+      if (currency === 'USD') {
+        usdTtSellingRate = baseRate !== null ? estimateTtSellingRate(baseRate) : null;
+      } else {
+        const usdBaseRate = (hasValidDate ? await fetchKrwRate('USD', orderDate!) : null) ?? (await fetchKrwRate('USD'));
+        usdTtSellingRate = usdBaseRate !== null ? estimateTtSellingRate(usdBaseRate) : null;
+      }
     }
     if (baseRate === null) return null;
+    if (cardIssuer === 'TOSS' && currency !== 'USD' && usdTtSellingRate === null) {
+      const hasValidDate = orderDate !== null && /^\d{4}-\d{2}-\d{2}$/.test(orderDate);
+      const usdBaseRate = (hasValidDate ? await fetchKrwRate('USD', orderDate!) : null) ?? (await fetchKrwRate('USD'));
+      if (usdBaseRate === null) return null;
+      usdTtSellingRate = estimateTtSellingRate(usdBaseRate);
+    }
 
-    const amountKrw = applyCardFee(originalAmount, baseRate, cardIssuer, cardBrand, realTtSellingRate);
+    const amountKrw = applyCardFee(
+      originalAmount,
+      baseRate,
+      cardIssuer,
+      cardBrand,
+      realTtSellingRate,
+      usdTtSellingRate
+    );
     return { amountKrw, rate: amountKrw / originalAmount };
   } catch {
     return null;

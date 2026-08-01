@@ -73,6 +73,7 @@ import {
 } from '../components/dashboard/dashboardUtils';
 
 const PURCHASES_PAGE_SIZE = 5;
+const FOREIGN_CURRENCIES = ['USD', 'EUR', 'JPY', 'GBP', 'CAD', 'AUD'] as const;
 
 /** 원화 입력값은 화면에서 천 단위로 구분하고, 저장할 때는 쉼표를 제외한 숫자를 사용한다. */
 function formatAmountInput(value: string): string {
@@ -2911,8 +2912,9 @@ export default function DashboardPage() {
               id="amount"
               type="text"
               inputMode="numeric"
-              placeholder="선택 입력"
+              placeholder={originalCurrency ? '저장 시 자동 계산' : '선택 입력'}
               value={amount}
+              disabled={originalCurrency !== null}
               onChange={(e) => setAmount(formatAmountInput(e.target.value))}
             />
           </div>
@@ -2927,6 +2929,51 @@ export default function DashboardPage() {
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="register-form__row register-form__row--payment">
+          <div className="field field--narrow">
+            <label htmlFor="paymentCurrency">결제 통화</label>
+            <select
+              id="paymentCurrency"
+              value={originalCurrency ?? 'KRW'}
+              onChange={(e) => {
+                const currency = e.target.value === 'KRW' ? null : e.target.value;
+                setOriginalCurrency(currency);
+                setOriginalAmount(null);
+                setExchangeRate(null);
+                if (currency) setAmount('');
+              }}
+            >
+              <option value="KRW">KRW (원화)</option>
+              {FOREIGN_CURRENCIES.map((currency) => (
+                <option key={currency} value={currency}>{currency}</option>
+              ))}
+            </select>
+          </div>
+
+          {originalCurrency && (
+            <div className="field field--amount">
+              <label htmlFor="originalAmount">외화 결제 금액</label>
+              <input
+                id="originalAmount"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="any"
+                required
+                placeholder={`예: ${originalCurrency === 'JPY' ? '1200' : '9.99'}`}
+                value={originalAmount ?? ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setOriginalAmount(value === '' ? null : Number(value));
+                  setExchangeRate(null);
+                  setAmount('');
+                }}
+              />
+              <p className="register-form__hint">결제일 기준 환율과 설정한 카드 수수료로 원화 금액을 계산해요.</p>
+            </div>
+          )}
         </div>
 
         {/* 종류별 전용 필드 — GENERAL은 반품기한·A/S, 정기배송/구독은 스케줄 방식·주기. 둘 다

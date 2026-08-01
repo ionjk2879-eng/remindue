@@ -25,7 +25,7 @@ const STANDARD_ISSUER_FEE_RATE = 0.002;
 /** 카드 미설정("기타") 시 폴백 — 매매기준율 대비 평균적으로 붙는 마진 근사치. */
 const DEFAULT_MARKUP_RATE = 0.025;
 
-function estimateTtSellingRate(baseRate: number): number {
+export function estimateTtSellingRate(baseRate: number): number {
   return baseRate * (1 + TT_SELLING_SPREAD);
 }
 
@@ -41,7 +41,8 @@ export function applyCardFee(
   baseRate: number,
   issuer: FxCardIssuer | null,
   brand: FxCardBrand | null,
-  realTtSellingRate: number | null = null
+  realTtSellingRate: number | null = null,
+  usdTtSellingRate: number | null = null
 ): number {
   if (issuer === null) {
     return Math.round(originalAmount * baseRate * (1 + DEFAULT_MARKUP_RATE));
@@ -57,9 +58,12 @@ export function applyCardFee(
   const brandFeeRate = brand !== null ? BRAND_FEE_RATE[brand] : DEFAULT_BRAND_FEE_RATE;
 
   if (issuer === 'TOSS') {
-    // 토스뱅크 카드 — 브랜드 수수료에 더해 고정 0.5(외화 단위) 수수료가 별도로 붙는다.
-    const totalForeign = originalAmount * (1 + brandFeeRate) + 0.5;
-    return Math.round(totalForeign * ttSellingRate);
+    // Mastercard 수수료는 승인 통화의 tts로 계산한다. 토스뱅크의 고정 해외서비스 수수료는
+    // 원거래 통화와 무관하게 US$0.50이므로, 비USD 결제에서는 같은 결제일의 USD tts로 별도 환산한다.
+    const baseKrw = originalAmount * ttSellingRate;
+    const brandFeeKrw = baseKrw * brandFeeRate;
+    const fixedTossFeeKrw = 0.5 * (usdTtSellingRate ?? ttSellingRate);
+    return Math.round(baseKrw + brandFeeKrw + fixedTossFeeKrw);
   }
 
   // 카카오페이/네이버페이(하나카드)/신한카드/현대카드 — 표준 공식(브랜드 수수료 + 카드사 평균 수수료).

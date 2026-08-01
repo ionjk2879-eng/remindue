@@ -47,4 +47,16 @@ describe('applyCardFee', () => {
     expect(master).toBeLessThan(visa);
     expect(visa).toBeLessThan(amex);
   });
+
+  it('reproduces the known USD Toss Mastercard charge', () => {
+    expect(applyCardFee(5.5, 1457, 'TOSS', 'MASTER', 1457, 1457)).toBe(8_822);
+  });
+
+  it('converts the Toss fixed fee with USD tts for a JPY purchase', () => {
+    const jpyTtsPerYen = 9.4;
+    const usdTts = 1457;
+    const expected = Math.round(1500 * jpyTtsPerYen * 1.01 + 0.5 * usdTts);
+
+    expect(applyCardFee(1500, 9.3, 'TOSS', 'MASTER', jpyTtsPerYen, usdTts)).toBe(expected);
+  });
 });

@@ -5,7 +5,14 @@ import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
 import { getPaymentHistoryByPurchaseIds, recordConfirmedPaymentCycle } from '../lib/recurring-fx';
 import { computeDDay, computeDeadline, FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
-import { sanitizeBrandDomain, sanitizeCategoryTags, sanitizeCurrency, sanitizeOriginalAmount } from '../lib/pending-purchase-intake';
+import {
+  convertToKrw,
+  sanitizeBrandDomain,
+  sanitizeCategoryTags,
+  sanitizeCurrency,
+  sanitizeOriginalAmount,
+} from '../lib/pending-purchase-intake';
+import type { FxCardBrand, FxCardIssuer } from '../lib/fx-card';
 import { buildCsv, buildPdf } from '../lib/export';
 import { BadRequestError, ForbiddenError, PaymentRequiredError } from '../lib/errors';
 import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES } from '../types';
@@ -110,6 +117,34 @@ function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRe
 }
 
 /**
+ * 직접 등록/수정한 외화 결제도 이메일 자동 등록과 같은 방식으로 환산한다.
+ * baseDate는 사용자가 입력한 실제 결제일이므로, 서비스 브랜드와 관계없이 그 날짜의 환율을 쓴다.
+ * 클라이언트가 보낸 amount/exchangeRate는 신뢰하지 않고 서버 계산값으로 덮어쓴다.
+ */
+async function applyPaymentDateExchangeRate(
+  body: PurchaseRequestBody,
+  user: UserRow,
+  eximApiKey?: string
+): Promise<PurchaseRequestBody> {
+  if (!body.originalCurrency || typeof body.originalAmount !== 'number') return body;
+  const originalAmount = body.originalAmount;
+
+  const converted = await convertToKrw(
+    body.originalCurrency,
+    originalAmount,
+    body.baseDate,
+    user.fx_card_issuer as FxCardIssuer | null,
+    user.fx_card_brand as FxCardBrand | null,
+    eximApiKey
+  );
+  if (!converted) {
+    throw new BadRequestError('결제일 기준 환율을 조회하지 못했습니다. 날짜와 통화를 확인해 주세요.');
+  }
+
+  return { ...body, amount: converted.amountKrw, exchangeRate: converted.rate };
+}
+
+/**
  * 기한이 임박한 순서(D-day 오름차순)로 반환한다. 기본은 활성 항목만(archived_at IS NULL AND
  * discarded_at IS NULL) — 보관함(?archived=true)은 별도 조회다. discard된("삭제") 항목은 둘
  * 중 어느 쪽에도 안 잡힌다 — 목록에서는 완전히 빠지되 지출 통계에는 남아야 하므로, 그 용도는
@@ -180,7 +215,8 @@ purchases.get('/export', async (c) => {
 
 purchases.post('/', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
-  const body = validatePurchaseRequest(await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({})));
+  const validated = validatePurchaseRequest(await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({})));
+  const body = await applyPaymentDateExchangeRate(validated, user, c.env.KOREA_EXIM_API_KEY);
 
   if (user.is_premium !== 1) {
     const { count } = (await c.env.DB.prepare('SELECT COUNT(*) AS count FROM purchases WHERE user_id = ?')
@@ -240,7 +276,8 @@ purchases.put('/:id', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   const id = Number(c.req.param('id'));
   await getOwnedPurchase(c.env.DB, user.id, id);
-  const body = validatePurchaseRequest(await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({})));
+  const validated = validatePurchaseRequest(await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({})));
+  const body = await applyPaymentDateExchangeRate(validated, user, c.env.KOREA_EXIM_API_KEY);
 
   await c.env.DB.prepare(
     `UPDATE purchases
