@@ -592,4 +592,11 @@ export interface Env {
    * 없으면 FCM 발송을 건너뛴다(로컬 개발 등).
    */
   FIREBASE_SERVICE_ACCOUNT?: string;
+  /**
+   * 한국수출입은행 Open API 인증키(lib/eximbank.ts) — 해외결제 카드 수수료 계산(fx-card.ts)에
+   * 쓸 실제 매매기준율/전신환매도율 조회용. 공공데이터포털(data.go.kr) 또는 수출입은행
+   * 사이트에서 무료 발급. 로컬은 .dev.vars, 배포본은 `wrangler secret put KOREA_EXIM_API_KEY`로
+   * 관리. 없으면 Frankfurter + 고정 스프레드 근사치로 폴백한다.
+   */
+  KOREA_EXIM_API_KEY?: string;
 }

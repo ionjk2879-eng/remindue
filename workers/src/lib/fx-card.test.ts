@@ -32,6 +32,13 @@ describe('applyCardFee', () => {
     expect(shinhan).toBeGreaterThan(100_000);
   });
 
+  it('실제 전신환매도율(realTtSellingRate)이 주어지면 그 값을 그대로 쓰고 스프레드 근사는 무시한다', () => {
+    // 2026-07-31 실측(한국수출입은행 API): 매매기준율 1441.1, 전신환매도율 1455.51.
+    const amount = applyCardFee(5.5, 1441.1, 'TOSS', 'MASTER', 1455.51);
+    // totalForeign = 5.5*1.01 + 0.5 = 6.055, 6.055 * 1455.51 = 8811.9...
+    expect(amount).toBe(Math.round(6.055 * 1455.51));
+  });
+
   it('브랜드별 수수료율 차이가 결과에 반영된다(Amex > Visa > Master)', () => {
     const baseRate = 1000;
     const master = applyCardFee(1000, baseRate, 'SHINHAN', 'MASTER');

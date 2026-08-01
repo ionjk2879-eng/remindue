@@ -233,7 +233,7 @@ push.post('/confirm-action', async (c) => {
   )
     .bind(today, purchaseId)
     .run();
-  await recordConfirmedPaymentCycle(c.env.DB, purchase);
+  await recordConfirmedPaymentCycle(c.env.DB, purchase, c.env.KOREA_EXIM_API_KEY);
 
   return c.body(null, 204);
 });
@@ -374,7 +374,7 @@ push.post('/recurring-batch/:action', async (c) => {
         `UPDATE purchases SET last_delivered_date = ?, delivery_confirm_count = delivery_confirm_count + 1,
          renewal_decision_for = ?, stop_after_current_at = NULL, discontinued_at = NULL, updated_at = datetime('now') WHERE id = ? AND user_id = ?`
       ).bind(today, decisionFor, id, batch.userId).run();
-      await recordConfirmedPaymentCycle(c.env.DB, purchase);
+      await recordConfirmedPaymentCycle(c.env.DB, purchase, c.env.KOREA_EXIM_API_KEY);
     } else {
       await c.env.DB.prepare(`UPDATE purchases SET renewal_decision_for = ?, stop_after_current_at = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?`)
         .bind(decisionFor, decisionFor, id, batch.userId).run();

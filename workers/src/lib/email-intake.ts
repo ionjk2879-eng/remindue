@@ -89,7 +89,8 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
     extracted,
     user.is_premium === 1,
     user.fx_card_issuer as FxCardIssuer | null,
-    user.fx_card_brand as FxCardBrand | null
+    user.fx_card_brand as FxCardBrand | null,
+    env.KOREA_EXIM_API_KEY
   );
 
   logger.info('email.intake.pending_created', { recipient: maskEmail(user.email), hasItemName: Boolean(extracted.itemName) });

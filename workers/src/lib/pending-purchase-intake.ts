@@ -6,6 +6,7 @@ import { DEFAULT_RETURN_DEADLINE_DAYS, DEFAULT_INTERVAL_DAYS, DEFAULT_WARRANTY_M
 import { businessDaysBetween } from './date';
 import { isNonDeliveryDay } from './kr-holidays';
 import { applyCardFee, type FxCardBrand, type FxCardIssuer } from './fx-card';
+import { fetchEximRate } from './eximbank';
 import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES, type PurchaseCategory, type PurchaseType } from '../types';
 import type { ExtractedOrder } from './order-extraction';
 
@@ -109,9 +110,17 @@ async function fetchKrwRate(currency: string, dateStr?: string): Promise<number 
 }
 
 /**
- * Frankfurter(ECB 공시환율 기반, 무료·API 키 불필요)로 결제일 기준 원화 환산 금액을 구한다.
- * "7달러=7원"처럼 잘못 저장하는 걸 막는 게 핵심이라, 네트워크 실패·미지원 통화 등 어떤 이유로든
- * 실패하면 null을 돌려주고 호출부가 amount=null(미확인)로 안전하게 폴백한다.
+ * 결제일 기준 원화 환산 금액을 구한다. "7달러=7원"처럼 잘못 저장하는 걸 막는 게 핵심이라,
+ * 네트워크 실패·미지원 통화 등 어떤 이유로든 실패하면 null을 돌려주고 호출부가 amount=null
+ * (미확인)로 안전하게 폴백한다.
+ *
+ * 환율 소스는 두 단계로 시도한다:
+ * 1) 한국수출입은행 API(eximApiKey 있을 때) — 실제 시중은행 매매기준율/전신환매도율을 그대로
+ *    쓴다. 카드사 수수료 공식(applyCardFee)에 필요한 전신환매도율(tts)까지 실측치로 확보되므로
+ *    가장 정확하다.
+ * 2) Frankfurter(ECB 공시환율, 무료·키 불필요) — 1)이 실패하거나(주말·공휴일이 이어져 조회
+ *    범위를 넘어감, 통화 미지원 등) eximApiKey가 없을 때 폴백. 이땐 전신환매도율을 고정
+ *    스프레드로 근사한다(applyCardFee 참고).
  *
  * cardIssuer/cardBrand(사용자 설정, 선택)를 넘기면 매매기준율 그대로가 아니라 카드사·브랜드별
  * 수수료 공식(applyCardFee)으로 실제 청구액에 더 가깝게 계산한다 — 실측(토스뱅크 마스터카드,
@@ -124,13 +133,28 @@ export async function convertToKrw(
   originalAmount: number,
   orderDate: string | null,
   cardIssuer: FxCardIssuer | null = null,
-  cardBrand: FxCardBrand | null = null
+  cardBrand: FxCardBrand | null = null,
+  eximApiKey?: string
 ): Promise<{ amountKrw: number; rate: number } | null> {
   try {
-    const hasValidDate = orderDate !== null && /^\d{4}-\d{2}-\d{2}$/.test(orderDate);
-    const baseRate = (hasValidDate ? await fetchKrwRate(currency, orderDate!) : null) ?? (await fetchKrwRate(currency));
+    let baseRate: number | null = null;
+    let realTtSellingRate: number | null = null;
+
+    if (eximApiKey) {
+      const eximRate = await fetchEximRate(currency, orderDate, eximApiKey);
+      if (eximRate) {
+        baseRate = eximRate.dealBasR;
+        realTtSellingRate = eximRate.tts;
+      }
+    }
+
+    if (baseRate === null) {
+      const hasValidDate = orderDate !== null && /^\d{4}-\d{2}-\d{2}$/.test(orderDate);
+      baseRate = (hasValidDate ? await fetchKrwRate(currency, orderDate!) : null) ?? (await fetchKrwRate(currency));
+    }
     if (baseRate === null) return null;
-    const amountKrw = applyCardFee(originalAmount, baseRate, cardIssuer, cardBrand);
+
+    const amountKrw = applyCardFee(originalAmount, baseRate, cardIssuer, cardBrand, realTtSellingRate);
     return { amountKrw, rate: amountKrw / originalAmount };
   } catch {
     return null;
@@ -164,7 +188,8 @@ export interface PendingPurchaseFields {
 export async function buildPendingPurchaseFields(
   extracted: ExtractedOrder,
   cardIssuer: FxCardIssuer | null = null,
-  cardBrand: FxCardBrand | null = null
+  cardBrand: FxCardBrand | null = null,
+  eximApiKey?: string
 ): Promise<PendingPurchaseFields> {
   const type = sanitizeEstimatedType(extracted.estimatedType);
 
@@ -255,7 +280,7 @@ export async function buildPendingPurchaseFields(
   let amount = sanitizeAmount(extracted.amount);
   let exchangeRate: number | null = null;
   if (originalCurrency && originalAmount !== null) {
-    const converted = await convertToKrw(originalCurrency, originalAmount, extracted.orderDate, cardIssuer, cardBrand);
+    const converted = await convertToKrw(originalCurrency, originalAmount, extracted.orderDate, cardIssuer, cardBrand, eximApiKey);
     amount = converted?.amountKrw ?? null;
     exchangeRate = converted?.rate ?? null;
   }
@@ -313,9 +338,10 @@ export async function insertPendingPurchase(
   extracted: ExtractedOrder,
   isPremium: boolean,
   cardIssuer: FxCardIssuer | null = null,
-  cardBrand: FxCardBrand | null = null
+  cardBrand: FxCardBrand | null = null,
+  eximApiKey?: string
 ): Promise<number> {
-  const fields = await buildPendingPurchaseFields(extracted, cardIssuer, cardBrand);
+  const fields = await buildPendingPurchaseFields(extracted, cardIssuer, cardBrand, eximApiKey);
 
   // 가격 인상 감지(프리미엄 전용): 같은 이름의 활성 정기배송/구독이 이미 있고, 이번에 추출한
   // 금액이 그때와 다르면 matched_purchase_id/previous_amount를 채운다 — 신규 항목이거나 금액이

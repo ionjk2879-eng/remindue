@@ -27,7 +27,7 @@ function confirmedScheduleDate(row: PurchaseRow): string {
  *    cycle_date)를 여러 번 확인해도(사전 확인 후 실제 결제일에 재동기화 등) upsert로 갱신될
  *    뿐 중복 행이 쌓이지 않는다.
  */
-export async function recordConfirmedPaymentCycle(db: D1Database, row: PurchaseRow): Promise<void> {
+export async function recordConfirmedPaymentCycle(db: D1Database, row: PurchaseRow, eximApiKey?: string): Promise<void> {
   const cycleDate = confirmedScheduleDate(row);
   let amount = row.amount;
   let exchangeRate = row.exchange_rate;
@@ -41,7 +41,8 @@ export async function recordConfirmedPaymentCycle(db: D1Database, row: PurchaseR
       row.original_amount,
       cycleDate,
       (user?.fx_card_issuer as FxCardIssuer | null) ?? null,
-      (user?.fx_card_brand as FxCardBrand | null) ?? null
+      (user?.fx_card_brand as FxCardBrand | null) ?? null,
+      eximApiKey
     );
     if (converted) {
       amount = converted.amountKrw;

@@ -328,7 +328,7 @@ purchases.post('/:id/mark-delivered', async (c) => {
   )
     .bind(today, renewalDecisionFor, id)
     .run();
-  await recordConfirmedPaymentCycle(c.env.DB, existing);
+  await recordConfirmedPaymentCycle(c.env.DB, existing, c.env.KOREA_EXIM_API_KEY);
 
   const updated = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<PurchaseRow>();
   return c.json(toPurchaseResponse(updated!));
@@ -368,7 +368,7 @@ purchases.post('/confirm-all', async (c) => {
       ).bind(today, confirmedRoundsAfterConfirmAll(row), computeDeadline(row).deadline, row.id)
     )
   );
-  await Promise.all(owned.map((row) => recordConfirmedPaymentCycle(c.env.DB, row)));
+  await Promise.all(owned.map((row) => recordConfirmedPaymentCycle(c.env.DB, row, c.env.KOREA_EXIM_API_KEY)));
 
   const { results } = await c.env.DB.prepare(
     `SELECT * FROM purchases WHERE id IN (${owned.map(() => '?').join(',')})`

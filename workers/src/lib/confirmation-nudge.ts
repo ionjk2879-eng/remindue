@@ -154,7 +154,7 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
     // 시점엔 아직 결제 전이라 외화 항목은 근사 환율로 저장됐을 수 있다. 실제 결제일에 한 번 더
     // 실행해 그날 환율(원화 항목은 현재 금액 그대로)로 이력을 확정한다.
     if (dDay === 0) {
-      paymentHistoryPromises.push(recordConfirmedPaymentCycle(env.DB, row));
+      paymentHistoryPromises.push(recordConfirmedPaymentCycle(env.DB, row, env.KOREA_EXIM_API_KEY));
     }
 
     const missedRounds = missedRoundsFor(deliveryRound, row.delivery_confirm_count, dDay);
