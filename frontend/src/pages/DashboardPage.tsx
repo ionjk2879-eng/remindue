@@ -22,7 +22,14 @@ import {
   type AiBriefSections,
 } from '../api/purchases';
 import { applyPriceChange, fetchPendingPurchases, confirmPendingPurchase, ignorePendingPurchase } from '../api/pendingPurchases';
-import { completeOnboarding as apiCompleteOnboarding, fetchNotificationDays, regenerateForwardingAddress } from '../api/settings';
+import {
+  completeOnboarding as apiCompleteOnboarding,
+  fetchFxCardSettings,
+  fetchNotificationDays,
+  regenerateForwardingAddress,
+  type FxCardBrand,
+  type FxCardIssuer,
+} from '../api/settings';
 import { fetchReceivedInvites, fetchSharedPurchases } from '../api/sharing';
 import {
   isRecurringType,
@@ -47,6 +54,8 @@ import {
   currentCalendarWeekRange,
   daysSinceBaseDate,
   estimateArrivalRange,
+  estimatePreviewDeadline,
+  estimateTravelCardAmount,
   formatIntervalDaysLabel,
   formatKoreanMonthDay,
   formatShortDate,
@@ -106,6 +115,15 @@ interface AiBriefData extends AiBriefSections {
    * 같은 점수가 나온다(모델 호출 없이 재현 가능).
    */
   healthScore: number;
+  /** healthScore가 100에서 실제로 깎인 항목들 — "왜 이 점수인지" 클릭 없이 바로 보여주기 위한
+   *  breakdown. delta는 항상 음수(감점)이고, 감점이 하나도 없으면 빈 배열. */
+  healthBreakdown: { label: string; delta: number }[];
+  /**
+   * "AI 추천 절약 액션" — 가격 변동/결제 임박 미확인/카드 최적화 신호를 하나의 우선순위
+   * 리스트로 합친 것. 전부 결정론적 계산값이라(모델이 지어내는 게 아니라) 정확한 금액·날짜를
+   * 그대로 보여줄 수 있다.
+   */
+  actionItems: { kind: 'PRICE_CHANGE' | 'UPCOMING_PAYMENT' | 'CARD_SAVINGS'; itemName: string; detail: string; isIncrease?: boolean }[];
 }
 
 const TYPE_LABEL: Record<PurchaseType, string> = {
@@ -229,6 +247,15 @@ function renderGeneralDeadlineLines(p: Purchase) {
  * (정확한 하루를 맞히는 값이 아니라 "이날 아니면 이날" 정도의 근사치 — mapper.ts 참고).
  */
 function renderRecurringScheduleLine(p: Purchase) {
+  // "유지 안 함"이거나 애초에 한 번만 쓰기로 한 항목은 다음 회차 자체가 없다 — 회차/결제일을
+  // 계속 보여주면 아직 진행 중인 것처럼 보이니, 그 사실을 그대로 알려준다.
+  if (p.discontinuedAt !== null || p.isOneTime) {
+    return (
+      <p className="ticket-card__deadline">
+        다음 일정: <span className="ticket-card__deadline-discontinued">유지 안 함</span>
+      </p>
+    );
+  }
   const scheduleDesc =
     p.scheduleType === 'FIXED_DAY' && p.fixedDayOfMonth !== null
       ? `${p.fixedDayIntervalMonths > 1 ? `${p.fixedDayIntervalMonths}달마다` : '매월'} ${p.fixedDayOfMonth}일`
@@ -248,7 +275,6 @@ function renderRecurringScheduleLine(p: Purchase) {
           </span>
         </>
       )}
-      {p.isOneTime && ' · 한 번만 사용'}
     </p>
   );
 }
@@ -261,11 +287,14 @@ function primaryDeadlineLabel(p: Purchase): string {
   return '반품기한';
 }
 
-/** 금액 옆 인상/인하 화살표 — 확인 대기 중인 가격 변동이 매칭돼 있을 때만 보여준다. */
+/** 금액 옆 인상/인하 화살표 — 확인 대기 중인 이메일 매칭 가격 변동이거나, "유지하기"로 회차가
+ *  갱신되며 직전 회차 대비 금액이 달라진 경우(priceChangePreviousAmount) 보여준다. */
 function renderAmountChangeArrow(p: Purchase, pendingPriceChangeByPurchaseId: Map<number, PendingPurchase>) {
   const pending = pendingPriceChangeByPurchaseId.get(p.id);
-  if (!pending) return null;
-  const isIncrease = pending.amount! > pending.previousAmount!;
+  const previousAmount = pending ? pending.previousAmount! : p.priceChangePreviousAmount;
+  const currentAmount = pending ? pending.amount! : p.amount;
+  if (previousAmount === null || currentAmount === null) return null;
+  const isIncrease = currentAmount > previousAmount;
   return (
     <span
       className={`amount-change-arrow amount-change-arrow--${isIncrease ? 'up' : 'down'}`}
@@ -380,6 +409,9 @@ export default function DashboardPage() {
   const [aiBrief, setAiBrief] = useState<AiBriefData | null>(null);
   const [aiBriefTextLoading, setAiBriefTextLoading] = useState(false);
   const aiSummaryInFlightRef = useRef(false);
+  /** AI 소비 매니저의 "카드 최적화 제안"용 — 해외결제 항목이 트래블 카드였다면 얼마였을지
+   *  추정하려면 사용자가 설정(해외결제 환율 계산 기준)에서 고른 현재 카드사/브랜드가 필요하다. */
+  const [fxCardSettings, setFxCardSettings] = useState<{ fxCardIssuer: FxCardIssuer | null; fxCardBrand: FxCardBrand | null } | null>(null);
   const [brand, setBrand] = useState('');
   const [brandDomain, setBrandDomain] = useState<string | null>(null);
   const [originalAmount, setOriginalAmount] = useState<number | null>(null);
@@ -501,6 +533,9 @@ export default function DashboardPage() {
     fetchNotificationDays()
       .then((data) => setDeadlineNotificationsEnabled(data.notificationDays.length > 0))
       .catch(() => setDeadlineNotificationsEnabled(true));
+    fetchFxCardSettings()
+      .then(setFxCardSettings)
+      .catch(() => setFxCardSettings(null));
   }, []);
 
   // 메일 자동화 주소로 들어온 항목은 서버에서 비동기로 만들어진다. 대시보드를 이미 열어 둔
@@ -578,16 +613,112 @@ export default function DashboardPage() {
     const priceChangeItems = priceUpItems.map((p) => p.itemName);
     const unusedServiceItems = unusedItems.map((p) => p.itemName);
 
+    /**
+     * priceUpItems는 이름과 달리 인상/인하를 둘 다 포함한다(priceChangePurchaseIds가 방향을
+     * 안 가려서). 건강도 점수·"AI 추천 절약 액션"은 방향이 중요해서(가격이 내렸는데 감점되면
+     * 안 됨) 여기서 한 번에 방향까지 계산해두고 아래에서 재사용한다.
+     */
+    const priceChangeDetails = priceUpItems
+      .map((p) => {
+        const pending = pendingPriceChangeByPurchaseId.get(p.id);
+        const previousAmount = pending ? pending.previousAmount! : p.priceChangePreviousAmount;
+        const currentAmount = pending ? pending.amount! : p.amount;
+        if (previousAmount === null || currentAmount === null || previousAmount === currentAmount) return null;
+        return { purchase: p, previousAmount, currentAmount, isIncrease: currentAmount > previousAmount };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+    const priceIncreaseCount = priceChangeDetails.filter((item) => item.isIncrease).length;
+
     // "AI 소비 건강도" — 실제로는 AI가 아니라 위 신호들을 규칙 기반으로 점수화한 결정론적 지수.
-    // 100점에서 시작해 가격 인상·미사용 의심·급격한 지출 증가·과다구독일 때 깎는다.
+    // 100점에서 시작해 가격 인상·미사용 의심·급격한 지출 증가·과다구독일 때 깎는다. 가격이
+    // 내린 건 좋은 신호라 감점 대상이 아니다 — priceIncreaseCount(인상만)로만 깎는다.
     let healthScore = 100;
-    healthScore -= Math.min(priceUpItems.length * 15, 30);
-    healthScore -= Math.min(unusedItems.length * 15, 30);
-    if (trendPct !== null && trendPct >= 50) healthScore -= 20;
-    else if (trendPct !== null && trendPct >= 20) healthScore -= 10;
-    if (totalRecurring >= 15) healthScore -= 10;
-    else if (totalRecurring >= 10) healthScore -= 5;
+    const healthBreakdown: { label: string; delta: number }[] = [];
+    const priceUpDeduction = Math.min(priceIncreaseCount * 15, 30);
+    if (priceUpDeduction > 0) {
+      healthScore -= priceUpDeduction;
+      healthBreakdown.push({ label: `가격 인상 감지 ${priceIncreaseCount}건`, delta: -priceUpDeduction });
+    }
+    const unusedDeduction = Math.min(unusedItems.length * 15, 30);
+    if (unusedDeduction > 0) {
+      healthScore -= unusedDeduction;
+      healthBreakdown.push({ label: `이용 상태 미확인 ${unusedItems.length}건`, delta: -unusedDeduction });
+    }
+    if (trendPct !== null && trendPct >= 50) {
+      healthScore -= 20;
+      healthBreakdown.push({ label: `지출 급증 (전월 대비 +${trendPct}%)`, delta: -20 });
+    } else if (trendPct !== null && trendPct >= 20) {
+      healthScore -= 10;
+      healthBreakdown.push({ label: `지출 증가 (전월 대비 +${trendPct}%)`, delta: -10 });
+    }
+    if (totalRecurring >= 15) {
+      healthScore -= 10;
+      healthBreakdown.push({ label: `구독 과다 (${totalRecurring}개)`, delta: -10 });
+    } else if (totalRecurring >= 10) {
+      healthScore -= 5;
+      healthBreakdown.push({ label: `구독 다수 (${totalRecurring}개)`, delta: -5 });
+    }
     healthScore = Math.max(0, Math.min(100, healthScore));
+
+    /**
+     * "AI 추천 절약 액션" — 가격 변동/결제 임박 미확인/카드 최적화를 하나의 우선순위 리스트로
+     * 합친다. 셋 다 결정론적 계산값(모델이 지어내는 문장이 아님)이라 금액·날짜를 그대로 보여준다.
+     */
+    const priceChangeActionItems = priceChangeDetails.map(({ purchase, previousAmount, currentAmount, isIncrease }) => {
+      const delta = currentAmount - previousAmount;
+      return {
+        kind: 'PRICE_CHANGE' as const,
+        itemName: purchase.itemName,
+        isIncrease,
+        detail: `${previousAmount.toLocaleString('ko-KR')}원 → ${currentAmount.toLocaleString('ko-KR')}원 (${isIncrease ? '인상' : '인하'} ${isIncrease ? '+' : ''}${delta.toLocaleString('ko-KR')}원)`,
+      };
+    });
+
+    // "최근 이용 빈도"는 이 앱에 없는 데이터라(결제/등록 기록만 있음), 대신 있는 데이터인
+    // "유지 확인을 아직 안 함"으로 표현한다 — 실제로 안 쓰는지는 모르니 단정하지 않는다.
+    const upcomingUnconfirmedActionItems = purchases
+      .filter(
+        (p) =>
+          isRecurringType(p.type) && !p.isOneTime && p.discontinuedAt === null &&
+          p.paymentDDay >= 0 && p.paymentDDay <= URGENT_WINDOW_DAYS &&
+          p.renewalDecisionFor !== p.deadline
+      )
+      .sort((a, b) => a.paymentDDay - b.paymentDDay)
+      .slice(0, 3)
+      .map((p) => ({
+        kind: 'UPCOMING_PAYMENT' as const,
+        itemName: p.itemName,
+        detail: `${p.paymentDDay === 0 ? '오늘' : p.paymentDDay === 1 ? '내일' : `${p.paymentDDay}일 후`} 결제 예정 — 아직 유지 확인 전이에요.`,
+      }));
+
+    // 사용자가 설정에서 카드를 고른 경우에만 계산한다 — 안 골랐으면 평균 마진 근사치라 "이 카드로
+    // 바꾸세요"라고 자신 있게 말하기엔 정확도가 떨어진다.
+    const cardSavingsActionItems = fxCardSettings?.fxCardIssuer
+      ? purchases
+          .filter(
+            (p) =>
+              isRecurringType(p.type) && !p.isOneTime && p.discontinuedAt === null &&
+              p.originalCurrency !== null && p.originalAmount !== null && p.amount !== null
+          )
+          .map((p) => {
+            const travelAmount = estimateTravelCardAmount(p.amount!, p.originalAmount!, fxCardSettings.fxCardIssuer, fxCardSettings.fxCardBrand);
+            if (travelAmount === null) return null;
+            const savings = Math.round(p.amount! - travelAmount);
+            if (savings <= 0) return null;
+            const monthlySavings = Math.round(monthlyEquivalent(p) * (savings / p.amount!));
+            return { itemName: p.itemName, monthlySavings };
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null)
+          .sort((a, b) => b.monthlySavings - a.monthlySavings)
+          .slice(0, 3)
+          .map((item) => ({
+            kind: 'CARD_SAVINGS' as const,
+            itemName: item.itemName,
+            detail: `트래블 카드로 바꾸면 월 약 ${item.monthlySavings.toLocaleString('ko-KR')}원 절약 가능해요.`,
+          }))
+      : [];
+
+    const actionItems = [...priceChangeActionItems, ...upcomingUnconfirmedActionItems, ...cardSavingsActionItems].slice(0, 6);
 
     // Show card with metrics immediately, text sections loading
     setAiBrief({
@@ -604,6 +735,8 @@ export default function DashboardPage() {
       unusedServiceItems,
       savingsEstimate,
       healthScore,
+      healthBreakdown,
+      actionItems,
       trendPct,
       reviewCount,
       goodNews: null,
@@ -631,7 +764,7 @@ export default function DashboardPage() {
       if (reviewCount > 0) {
         const perItem = totalRecurring > 0 ? Math.round(moSpend / totalRecurring) : 0;
         const savingEst = perItem * reviewCount * 12;
-        attention = `최근 수령 확인이 없는 구독이 ${reviewCount}개 있습니다. 해지하면 연간 약 ${fmtWon(savingEst)}원 절약 가능.`;
+        attention = `최근 유지 확인이 없는 구독이 ${reviewCount}개 있습니다. 해지하면 연간 약 ${fmtWon(savingEst)}원 절약 가능.`;
       } else if (trendPct !== null && trendPct >= 20) {
         attention = `이번 달 지출이 전월 대비 ${trendPct}% 늘었습니다. 새로 추가된 구독을 확인해보세요.`;
       } else if (totalRecurring >= 10) {
@@ -1172,13 +1305,24 @@ export default function DashboardPage() {
     .filter((p) => isRecurringType(p.type) && p.discontinuedAt === null && p.paymentDDay >= 0 && p.paymentDDay <= URGENT_WINDOW_DAYS)
     .sort((a, b) => a.paymentDDay - b.paymentDDay);
   /**
-   * "배송 예정"은 실제 도착일을 추적하는 GENERAL 전용이다 — RECURRING_DELIVERY는 더 이상 도착일을
-   * 추적하지 않고(카드엔 결제일 기준 참고용 범위만 표시) 결제일만 관리하므로, weeklyRecurring
-   * (결제 예정)에서 SUBSCRIPTION과 함께 다뤄진다.
+   * "배송 예정" — GENERAL은 실제 도착일(expectedDeliveryDate)을 추적해 정확한 날짜로 보여준다.
+   * RECURRING_DELIVERY는 정확한 도착일을 알 방법이 없으므로(스토어가 준 값도 실측 아님) 결제일
+   * 기준 참고용 범위(arrivalRangeEstimate)가 이번 주에 걸치면 그 범위를 그대로 보여준다 —
+   * "언제 받으셨어요?" 확인은 여전히 GENERAL 전용(arrival-confirm.ts)이고, RECURRING_DELIVERY는
+   * 실제 수령 여부를 묻지 않은 채 추정 범위만 표시한다(WeeklySummaryBanner.tsx).
    */
   const weeklyDeliveries = purchases
-    .filter((p) => p.discontinuedAt === null && p.type === 'GENERAL' && p.expectedDeliveryDate !== null && isWithinUpcomingDays(p.expectedDeliveryDate, URGENT_WINDOW_DAYS))
-    .sort((a, b) => a.expectedDeliveryDate!.localeCompare(b.expectedDeliveryDate!));
+    .filter((p) => {
+      if (p.discontinuedAt !== null) return false;
+      if (p.type === 'GENERAL') return p.expectedDeliveryDate !== null && isWithinUpcomingDays(p.expectedDeliveryDate, URGENT_WINDOW_DAYS);
+      if (p.type === 'RECURRING_DELIVERY') return p.arrivalRangeEstimate !== null && isWithinUpcomingDays(p.arrivalRangeEstimate.from, URGENT_WINDOW_DAYS);
+      return false;
+    })
+    .sort((a, b) => {
+      const aDate = a.type === 'RECURRING_DELIVERY' ? a.arrivalRangeEstimate!.from : a.expectedDeliveryDate!;
+      const bDate = b.type === 'RECURRING_DELIVERY' ? b.arrivalRangeEstimate!.from : b.expectedDeliveryDate!;
+      return aDate.localeCompare(bDate);
+    });
   const weeklySubscriptions = weeklyRecurring;
   const today = todayDateOnly();
   const calendarWeek = currentCalendarWeekRange(today);
@@ -1445,9 +1589,6 @@ export default function DashboardPage() {
 
   const selectedCategoryItems = selectedSpendCategory !== null ? computeCategoryItems(selectedSpendCategory) : null;
 
-  /** 확인 대기 중인 "가격 변동 감지" 건수 — pending-purchase-intake.ts가 matched_purchase_id를 채운 것만. */
-  const priceChangeCount = pendingItems.filter((item) => item.matchedPurchaseId !== null).length;
-
   /**
    * "AI 절약 제안"/절약 후보 — 사용자가 "유지 안 함"으로 명시했거나(discontinuedAt), 연속
    * MISSED_ROUNDS_REVIEW_THRESHOLD(3)회차 이상 "유지하기"를 안 누른 정기배송/구독. 실제 사용
@@ -1482,20 +1623,24 @@ export default function DashboardPage() {
   );
 
   /**
-   * "가격 인상" 타일 상세용 구독/정기배송 3분류. 우선순위는 확인 대기 중인 가격 인상 >
-   * 절약 제안(미사용 의심) > 정상 — 둘 다 해당돼도 하나의 상태로만 표시한다.
+   * "가격 인상" 타일 상세용 구독/정기배송 3분류. 우선순위는 가격 변동 감지(이메일 매칭 또는
+   * "유지하기" 회차 갱신) > 절약 제안(미사용 의심) > 정상 — 둘 다 해당돼도 하나의 상태로만 표시한다.
    * "사용 안 함"은 reviewCandidates(AI 절약 제안)와 완전히 같은 기준을 재사용한 것일 뿐,
    * 실사용 데이터를 보는 게 아니라서 참고용이다 — 더 정교한 사용빈도 감지 로직은 아직 없음.
    */
-  const priceChangePurchaseIds = new Set(
-    pendingItems.filter((item) => item.matchedPurchaseId !== null).map((item) => item.matchedPurchaseId!)
-  );
-  /** 등록된 항목 카드의 금액 옆 인상/인하 화살표용 — 매칭된 확인 대기 항목에서 방향을 가져온다. */
+  /** 등록된 항목 카드의 금액 옆 인상/인하 화살표용 — 매칭된 확인 대기(이메일) 항목에서 방향을 가져온다.
+   *  이메일 매칭이 없는 항목은 renderAmountChangeArrow가 p.priceChangePreviousAmount로 직접 판단한다. */
   const pendingPriceChangeByPurchaseId = new Map(
     pendingItems
       .filter((item) => item.matchedPurchaseId !== null && item.previousAmount !== null && item.amount !== null)
       .map((item) => [item.matchedPurchaseId!, item])
   );
+  const priceChangePurchaseIds = new Set([
+    ...pendingPriceChangeByPurchaseId.keys(),
+    ...purchases.filter((p) => p.priceChangePreviousAmount !== null && p.amount !== null && p.priceChangePreviousAmount !== p.amount).map((p) => p.id),
+  ]);
+  /** "가격 변동 감지" 타일 건수 — 이메일 매칭 + "유지하기" 회차 갱신 감지를 합친 고유 항목 수. */
+  const priceChangeCount = priceChangePurchaseIds.size;
   const reviewCandidateIds = new Set(reviewCandidates.map((item) => item.id));
   const recurringPurchases = purchases.filter((p) => isRecurringType(p.type));
   const priceUpItems = recurringPurchases.filter((p) => priceChangePurchaseIds.has(p.id));
@@ -2033,7 +2178,20 @@ export default function DashboardPage() {
                         {p.itemName}
                       </p>
                       <p className="spending-detail__save-item-reason">
-                        확인 대기 목록에서 변동 금액을 확인해보세요.
+                        {p.priceChangePreviousAmount !== null && p.amount !== null && p.priceChangePreviousAmount !== p.amount ? (() => {
+                          const isIncrease = p.amount! > p.priceChangePreviousAmount!;
+                          const dir = isIncrease ? 'up' : 'down';
+                          return (
+                            <>
+                              <span className="mono">{p.priceChangePreviousAmount!.toLocaleString('ko-KR')}원</span>{' '}
+                              <span className={`price-change-arrow price-change-arrow--${dir}`}>→</span>{' '}
+                              <span className={`mono price-change-current price-change-current--${dir}`}>{p.amount!.toLocaleString('ko-KR')}원</span>{' '}
+                              <span className={`price-change-label price-change-label--${dir}`}>({isIncrease ? '인상' : '인하'})</span>
+                            </>
+                          );
+                        })() : (
+                          '확인 대기 목록에서 변동 금액을 확인해보세요.'
+                        )}
                       </p>
                     </div>
                   </li>
@@ -2244,6 +2402,16 @@ export default function DashboardPage() {
                 <span className="ai-brief__health-label">소비 건강도</span>
                 <strong className="ai-brief__health-score">{aiBrief.healthScore}점</strong>
               </div>
+              {aiBrief.healthBreakdown.length > 0 && (
+                <ul className="ai-brief__health-breakdown">
+                  {aiBrief.healthBreakdown.map((factor) => (
+                    <li key={factor.label}>
+                      <span>⚠️ {factor.label}</span>
+                      <span className="ai-brief__health-breakdown-delta">{factor.delta}점</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="ai-brief__metrics">
                 <div className="ai-brief__metric">
                   <span className="ai-brief__metric-label">💰 이번 달 예상</span>
@@ -2323,6 +2491,26 @@ export default function DashboardPage() {
                   </p>
                 )}
               </div>
+              {aiBrief.actionItems.length > 0 && (
+                <div className="ai-brief__actions">
+                  <span className="ai-brief__section-label">⚡ AI 추천 절약 액션</span>
+                  <ul className="ai-brief__action-list">
+                    {aiBrief.actionItems.map((item, i) => (
+                      <li
+                        key={`${item.kind}-${item.itemName}-${i}`}
+                        className={`ai-brief__action-item ai-brief__action-item--${item.kind.toLowerCase().replace(/_/g, '-')}${item.kind === 'PRICE_CHANGE' && !item.isIncrease ? ' ai-brief__action-item--price-decrease' : ''}`}
+                      >
+                        <span className="ai-brief__action-icon" aria-hidden="true">
+                          {item.kind === 'PRICE_CHANGE' ? (item.isIncrease ? '⚠' : '👍') : item.kind === 'UPCOMING_PAYMENT' ? '🔔' : '💳'}
+                        </span>
+                        <span className="ai-brief__action-text">
+                          <strong>{item.itemName}</strong> — {item.detail}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {aiBriefTextLoading ? (
                 <div className="ai-brief__text-loading">AI 분석 중...</div>
               ) : (
@@ -2503,12 +2691,13 @@ export default function DashboardPage() {
                   {isPriceChange && (() => {
                     const delta = item.amount! - item.previousAmount!;
                     const isIncrease = delta > 0;
+                    const dir = isIncrease ? 'up' : 'down';
                     return (
-                    <p className="pending-card__price-change">
-                      {isIncrease ? '⚠ 가격 인상 감지' : '⬇ 가격 인하 감지'} — <span className="mono">{item.previousAmount!.toLocaleString('ko-KR')}원</span>
-                      {' → '}
-                      <span className="mono">{item.amount!.toLocaleString('ko-KR')}원</span>{' '}
-                      <span className="pending-card__price-change-delta">
+                    <p className={`pending-card__price-change price-change-label--${dir}`}>
+                      {isIncrease ? '⚠ 가격 인상 감지' : '⬇ 가격 인하 감지'} — <span className="mono">{item.previousAmount!.toLocaleString('ko-KR')}원</span>{' '}
+                      <span className={`price-change-arrow price-change-arrow--${dir}`}>→</span>{' '}
+                      <span className={`mono price-change-current price-change-current--${dir}`}>{item.amount!.toLocaleString('ko-KR')}원</span>{' '}
+                      <span className={`pending-card__price-change-delta price-change-label--${dir}`}>
                         ({isIncrease ? '+' : ''}{delta.toLocaleString('ko-KR')}원)
                       </span>
                       <FxHint
@@ -2692,21 +2881,24 @@ export default function DashboardPage() {
                 value={expectedDeliveryDate}
                 onChange={(e) => setExpectedDeliveryDate(e.target.value)}
               />
+              {/* 위 "예상 도착일"은 스케줄 계산용 앵커일 뿐이고(자동등록 메일/스토어가 안내한 값을
+                  그대로 씀, 실제로 그날 온다고 보장 안 됨), 실제 도착은 그 앵커에서 역산한 결제일
+                  기준 참고용 범위로 따로 보여준다 — 둘을 같은 값으로 오해하지 않도록 라벨과 문구를
+                  분리했다. 필드 바로 아래 둬서 어느 입력에 대한 안내인지 위치로도 분명하게 한다. */}
+              {type === 'RECURRING_DELIVERY' && (expectedDeliveryDate || baseDate) && (() => {
+                const anchorDate = expectedDeliveryDate || baseDate;
+                const offsetNum = arrivalOffsetDays.trim() !== '' ? Number(arrivalOffsetDays) : null;
+                const deadline = estimatePreviewDeadline(anchorDate, offsetNum);
+                const range = estimateArrivalRange(deadline);
+                return (
+                  <p className="register-form__hint">
+                    📦 실제로는 {formatKoreanMonthDay(range.from)}~{formatKoreanMonthDay(range.to)} 사이에 도착할 가능성이 높아요(참고용)
+                  </p>
+                );
+              })()}
             </div>
           )}
         </div>
-
-        {/* 위 "예상 도착일"은 스케줄 계산용 앵커일 뿐이고(자동등록 메일에 적힌 값을 그대로 씀),
-            실제 도착은 결제일 기준 참고용 범위로 따로 보여준다 — 둘을 같은 값으로 오해하지
-            않도록 라벨과 문구를 분리했다. */}
-        {type === 'RECURRING_DELIVERY' && (expectedDeliveryDate || baseDate) && (() => {
-          const range = estimateArrivalRange(expectedDeliveryDate || baseDate);
-          return (
-            <p className="register-form__hint">
-              📦 실제로는 {formatKoreanMonthDay(range.from)}~{formatKoreanMonthDay(range.to)} 사이에 도착할 가능성이 높아요(참고용)
-            </p>
-          );
-        })()}
 
         {/* 금액 + 카테고리 — 모든 종류에 공통인 일반 필드. */}
         <div className="register-form__row register-form__row--payment">

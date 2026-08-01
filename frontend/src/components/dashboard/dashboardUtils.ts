@@ -1,4 +1,5 @@
 import { isRecurringType, type Purchase } from '../../types';
+import type { FxCardBrand, FxCardIssuer } from '../../api/settings';
 import { KR_HOLIDAY_DATES } from './kr-holidays-data';
 
 export function formatShortDate(dateStr: string): string {
@@ -31,6 +32,15 @@ export function formatKoreanMonthDay(dateStr: string): string {
 
 export function todayDateOnly(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
+}
+
+const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** "이번 주 도착/결제 예정" 배너 상단에 오늘 날짜를 보여주기 위한 포맷 — "8월 1일 (토)". */
+export function formatKoreanDateWithWeekday(dateStr: string): string {
+  const [, month, day] = dateStr.split('-').map(Number);
+  const weekday = new Date(`${dateStr}T00:00:00+09:00`).getDay();
+  return `${month}월 ${day}일 (${WEEKDAY_LABELS[weekday]})`;
 }
 
 export function isWithinUpcomingDays(dateStr: string, days: number): boolean {
@@ -73,7 +83,7 @@ function isNonBusinessDay(dateStr: string): boolean {
 /** workers/src/lib/date.ts의 addBusinessDays/subtractBusinessDays와 동일 — 정기배송 결제일/
  *  도착예정일 계산(도착일이 고정 앵커, 결제일은 영업일만큼 거꾸로 역산)에 프론트에서도 같은
  *  값을 내려면 이 두 함수가 필요하다(프론트/백엔드가 별도 패키지라 공유 불가, 기존 중복 패턴). */
-function addBusinessDays(dateStr: string, offsetDays: number): string {
+export function addBusinessDays(dateStr: string, offsetDays: number): string {
   let current = dateStr;
   let remaining = offsetDays;
   while (remaining > 0) {
@@ -104,7 +114,7 @@ export function estimateArrivalRange(referenceDate: string): { from: string; to:
   };
 }
 
-function subtractBusinessDays(dateStr: string, offsetDays: number): string {
+export function subtractBusinessDays(dateStr: string, offsetDays: number): string {
   let current = dateStr;
   let remaining = offsetDays;
   while (remaining > 0) {
@@ -115,6 +125,20 @@ function subtractBusinessDays(dateStr: string, offsetDays: number): string {
     current = shiftDateOnly(current, -1);
   }
   return current;
+}
+
+/**
+ * 등록/수정 폼 미리보기 전용 — "예상 도착일"(도착 앵커) + "도착까지 영업일"로 실제 결제일(deadline)을
+ * 역산한다. purchase-logic.ts arrivalAnchoredCycleFor의 1회차 계산과 동일한 공식(앵커를 배송
+ * 가능일로 한 번 밀고, 그 지점에서 영업일만큼 거꾸로 뺀다) — 저장된 카드의 "도착 예상"이 결제일
+ * 기준으로 계산되는데 폼 미리보기만 예상 도착일을 그대로 썼던 게 원래 버그였다(둘이 서로 다른
+ * 값을 보여줌). 오프셋을 안 정했으면(null) 기존 occurrenceDatesInMonth 무오프셋 분기와 동일하게
+ * 앵커 자체가 곧 결제일이다.
+ */
+export function estimatePreviewDeadline(anchorDate: string, arrivalOffsetDays: number | null): string {
+  if (arrivalOffsetDays === null) return anchorDate;
+  const arrivalDate = addBusinessDays(anchorDate, 0);
+  return subtractBusinessDays(arrivalDate, arrivalOffsetDays);
 }
 
 export function previousFixedScheduleDate(dateStr: string, fixedDay: number, intervalMonths = 1): string {
@@ -262,4 +286,37 @@ export function totalSpendInMonth(purchases: Purchase[], year: number, month: nu
     }
   }
   return Math.round(total);
+}
+
+// workers/src/lib/fx-card.ts의 applyCardFee와 동일한 카드사별 수수료율 — AI 소비 매니저의
+// "트래블 카드로 바꾸면 얼마 절약" 제안을 프론트에서 바로 계산하려고 값만 복제했다(공유 패키지가
+// 없어 기존에도 이런 중복 패턴을 쓴다 — 파일 상단 addBusinessDays/subtractBusinessDays 참고).
+const BRAND_FEE_RATE: Record<FxCardBrand, number> = { MASTER: 0.01, VISA: 0.011, AMEX: 0.014 };
+const DEFAULT_BRAND_FEE_RATE = BRAND_FEE_RATE.MASTER;
+const STANDARD_ISSUER_FEE_RATE = 0.002;
+const DEFAULT_MARKUP_RATE = 0.025;
+const TT_SELLING_SPREAD = 0.014;
+
+/**
+ * 해외결제 항목이 지금 카드 대신 트래블 카드(환전수수료 0%)였다면 얼마였을지 추정한다.
+ * 실제 그날의 환율(baseRate)을 몰라도 계산할 수 있다 — 카드사별 수수료가 원금과 무관한
+ * 고정 비율이라, currentAmount(이미 그 환율이 반영된 청구액) 하나만으로 비율을 역산할 수
+ * 있기 때문이다(applyCardFee의 각 공식을 currentAmount에 대해 정리한 것). 이미 트래블
+ * 카드를 쓰고 있으면(더 아낄 방법이 없음) null.
+ */
+export function estimateTravelCardAmount(
+  currentAmount: number,
+  originalAmount: number,
+  issuer: FxCardIssuer | null,
+  brand: FxCardBrand | null
+): number | null {
+  if (issuer === 'TRAVEL') return null;
+  const brandFeeRate = brand !== null ? BRAND_FEE_RATE[brand] : DEFAULT_BRAND_FEE_RATE;
+  if (issuer === null) {
+    return currentAmount / (1 + DEFAULT_MARKUP_RATE);
+  }
+  if (issuer === 'TOSS') {
+    return (currentAmount * originalAmount) / ((originalAmount * (1 + brandFeeRate) + 0.5) * (1 + TT_SELLING_SPREAD));
+  }
+  return currentAmount / ((1 + brandFeeRate) * (1 + STANDARD_ISSUER_FEE_RATE) * (1 + TT_SELLING_SPREAD));
 }

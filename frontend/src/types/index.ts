@@ -74,6 +74,10 @@ export interface Purchase {
   originalCurrency: string | null;
   /** 결제일 기준 적용 환율(1 originalCurrency = N KRW). 원화 결제면 null. */
   exchangeRate: number | null;
+  /** "유지하기"로 회차가 갱신될 때 직전 회차 대비 금액이 달라졌으면 그 직전 금액. 변동 없거나
+   *  아직 비교할 이전 회차가 없으면 null. 이메일 매칭 감지(PendingPurchase.previousAmount)와는
+   *  별개 경로 — 카드 옆 인상/인하 화살표는 둘 중 하나라도 있으면 뜬다. */
+  priceChangePreviousAmount: number | null;
   /** 회차별 확정 금액 이력 — 오래된 회차 순. GET /purchases?scope=spend 조회에서만 채워지고,
    *  그 외(카드 목록 등) 조회에서는 항상 빈 배열이다. */
   paymentHistory: { cycleDate: string; amount: number }[];
