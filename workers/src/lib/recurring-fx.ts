@@ -1,3 +1,4 @@
+import type { FxCardBrand, FxCardIssuer } from './fx-card';
 import type { PaymentHistoryEntry, PurchaseRow } from '../types';
 import { computeDDay, computeDeadline, computePreviousScheduleDeadline } from './purchase-logic';
 import { convertToKrw } from './pending-purchase-intake';
@@ -32,7 +33,16 @@ export async function recordConfirmedPaymentCycle(db: D1Database, row: PurchaseR
   let exchangeRate = row.exchange_rate;
 
   if (row.original_currency && row.original_amount !== null) {
-    const converted = await convertToKrw(row.original_currency, row.original_amount, cycleDate);
+    const user = await db.prepare('SELECT fx_card_issuer, fx_card_brand FROM users WHERE id = ?')
+      .bind(row.user_id)
+      .first<{ fx_card_issuer: string | null; fx_card_brand: string | null }>();
+    const converted = await convertToKrw(
+      row.original_currency,
+      row.original_amount,
+      cycleDate,
+      (user?.fx_card_issuer as FxCardIssuer | null) ?? null,
+      (user?.fx_card_brand as FxCardBrand | null) ?? null
+    );
     if (converted) {
       amount = converted.amountKrw;
       exchangeRate = converted.rate;

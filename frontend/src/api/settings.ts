@@ -42,3 +42,21 @@ export async function completeOnboarding() {
   const { data } = await apiClient.post<{ hasSeenOnboarding: boolean }>('/settings/onboarding-complete');
   return data;
 }
+
+export type FxCardIssuer = 'TOSS' | 'KAKAOPAY' | 'NAVERPAY_HANA' | 'TRAVEL' | 'SHINHAN' | 'HYUNDAI';
+export type FxCardBrand = 'MASTER' | 'VISA' | 'AMEX';
+
+export interface FxCardSettingsResponse {
+  fxCardIssuer: FxCardIssuer | null;
+  fxCardBrand: FxCardBrand | null;
+}
+
+export async function fetchFxCardSettings() {
+  const { data } = await apiClient.get<FxCardSettingsResponse>('/settings/fx-card');
+  return data;
+}
+
+export async function updateFxCardSettings(fxCardIssuer: FxCardIssuer | null, fxCardBrand: FxCardBrand | null) {
+  const { data } = await apiClient.put<FxCardSettingsResponse>('/settings/fx-card', { fxCardIssuer, fxCardBrand });
+  return data;
+}

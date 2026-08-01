@@ -10,6 +10,7 @@
 import PostalMime from 'postal-mime';
 import { extractOrderConfirmation } from './email-extract';
 import { insertPendingPurchase } from './pending-purchase-intake';
+import type { FxCardBrand, FxCardIssuer } from './fx-card';
 import type { Env, UserRow } from '../types';
 import { logger, maskEmail } from './logger';
 
@@ -81,7 +82,15 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
     return;
   }
 
-  await insertPendingPurchase(env.DB, user.id, 'email', extracted, user.is_premium === 1);
+  await insertPendingPurchase(
+    env.DB,
+    user.id,
+    'email',
+    extracted,
+    user.is_premium === 1,
+    user.fx_card_issuer as FxCardIssuer | null,
+    user.fx_card_brand as FxCardBrand | null
+  );
 
   logger.info('email.intake.pending_created', { recipient: maskEmail(user.email), hasItemName: Boolean(extracted.itemName) });
 }

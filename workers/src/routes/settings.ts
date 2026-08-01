@@ -12,6 +12,7 @@ import {
   InvalidNotificationDaysError,
 } from '../lib/notification-prefs';
 import { generateForwardingToken } from './auth';
+import { FX_CARD_BRANDS, FX_CARD_ISSUERS, type FxCardBrand, type FxCardIssuer } from '../lib/fx-card';
 import type { Env, UserRow } from '../types';
 
 const settings = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
@@ -102,6 +103,38 @@ settings.post('/onboarding-complete', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   await c.env.DB.prepare('UPDATE users SET has_seen_onboarding = 1 WHERE id = ?').bind(user.id).run();
   return c.json({ hasSeenOnboarding: true });
+});
+
+/**
+ * 해외결제 카드 설정(선택, 무료 포함 전원 사용 가능) — lib/fx-card.ts의 applyCardFee가 이 값으로
+ * 카드사·브랜드별 수수료 공식을 적용한다. 미설정(둘 다 null)이면 평균 수수료 근사치로 계산한다.
+ */
+settings.get('/fx-card', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  return c.json({
+    fxCardIssuer: user.fx_card_issuer,
+    fxCardBrand: user.fx_card_brand,
+  });
+});
+
+settings.put('/fx-card', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const body = await c.req.json<{ fxCardIssuer?: unknown; fxCardBrand?: unknown }>().catch(() => ({}) as { fxCardIssuer?: unknown; fxCardBrand?: unknown });
+
+  const fxCardIssuer = body.fxCardIssuer === null || body.fxCardIssuer === undefined ? null : body.fxCardIssuer;
+  const fxCardBrand = body.fxCardBrand === null || body.fxCardBrand === undefined ? null : body.fxCardBrand;
+  if (fxCardIssuer !== null && !FX_CARD_ISSUERS.includes(fxCardIssuer as FxCardIssuer)) {
+    throw new BadRequestError('fxCardIssuer 값이 올바르지 않습니다');
+  }
+  if (fxCardBrand !== null && !FX_CARD_BRANDS.includes(fxCardBrand as FxCardBrand)) {
+    throw new BadRequestError('fxCardBrand 값이 올바르지 않습니다');
+  }
+
+  await c.env.DB.prepare('UPDATE users SET fx_card_issuer = ?, fx_card_brand = ? WHERE id = ?')
+    .bind(fxCardIssuer, fxCardBrand, user.id)
+    .run();
+
+  return c.json({ fxCardIssuer, fxCardBrand });
 });
 
 settings.put('/nickname', async (c) => {

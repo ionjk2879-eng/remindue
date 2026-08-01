@@ -6,6 +6,10 @@ import {
   updateNotificationDays,
   updateRenewalNotificationDays,
   updateNickname as apiUpdateNickname,
+  fetchFxCardSettings,
+  updateFxCardSettings,
+  type FxCardIssuer,
+  type FxCardBrand,
 } from '../api/settings';
 import { acceptInvite, fetchReceivedInvites, fetchSentInvites, inviteMember, revokeShare } from '../api/sharing';
 import { deleteAccount } from '../api/auth';
@@ -21,6 +25,19 @@ import { registerNativePushToken } from '../api/push';
 /** 백엔드 lib/notification-prefs.ts의 NOTIFICATION_DAY_OPTIONS와 같은 목록 — 설정 화면 체크박스 후보. */
 const NOTIFICATION_DAY_OPTIONS = [10, 7, 5, 3, 2, 1, 0];
 const FREE_PLAN_FIXED_DAYS = [7, 3, 0];
+
+/** 백엔드 lib/fx-card.ts의 FX_CARD_ISSUERS와 같은 목록 — 설정 화면 드롭다운 후보. */
+const FX_CARD_ISSUER_LABELS: Record<FxCardIssuer, string> = {
+  TOSS: '토스뱅크',
+  KAKAOPAY: '카카오페이',
+  NAVERPAY_HANA: '네이버페이/하나카드',
+  TRAVEL: '트래블월렛/트래블로그/신한 SOL트래블',
+  SHINHAN: '신한카드',
+  HYUNDAI: '현대카드',
+};
+const FX_CARD_ISSUER_OPTIONS = Object.keys(FX_CARD_ISSUER_LABELS) as FxCardIssuer[];
+const FX_CARD_BRAND_LABELS: Record<FxCardBrand, string> = { MASTER: 'Mastercard', VISA: 'VISA', AMEX: 'American Express' };
+const FX_CARD_BRAND_OPTIONS = Object.keys(FX_CARD_BRAND_LABELS) as FxCardBrand[];
 
 function formatDayLabel(day: number): string {
   return day === 0 ? '당일' : `${day}일 전`;
@@ -41,6 +58,12 @@ export default function SettingsPage() {
   const [renewalSelectedDays, setRenewalSelectedDays] = useState<number[] | null>(null);
   const [savingRenewalDays, setSavingRenewalDays] = useState(false);
   const [renewalDaysMessage, setRenewalDaysMessage] = useState<string | null>(null);
+
+  const [fxCardIssuer, setFxCardIssuer] = useState<FxCardIssuer | ''>('');
+  const [fxCardBrand, setFxCardBrand] = useState<FxCardBrand | ''>('');
+  const [fxCardLoaded, setFxCardLoaded] = useState(false);
+  const [savingFxCard, setSavingFxCard] = useState(false);
+  const [fxCardMessage, setFxCardMessage] = useState<string | null>(null);
   const [sendingTestPush, setSendingTestPush] = useState<PushTestKind | null>(null);
   const [testPushMessage, setTestPushMessage] = useState<string | null>(null);
   const [nativePushStatus, setNativePushStatus] = useState<NativePushPermissionStatus>('unsupported');
@@ -64,6 +87,13 @@ export default function SettingsPage() {
     setRenewalSelectedDays(data.renewalNotificationDays);
   };
 
+  const loadFxCard = async () => {
+    const data = await fetchFxCardSettings();
+    setFxCardIssuer(data.fxCardIssuer ?? '');
+    setFxCardBrand(data.fxCardBrand ?? '');
+    setFxCardLoaded(true);
+  };
+
   const loadSharing = async () => {
     const [sent, received] = await Promise.all([fetchSentInvites(), fetchReceivedInvites()]);
     setSentInvites(sent);
@@ -76,6 +106,7 @@ export default function SettingsPage() {
   // refreshPremium()으로 context를 갱신한다.
   useEffect(() => {
     loadNotificationDays();
+    loadFxCard();
     loadSharing();
     if (isNative) {
       getNativePushPermissionStatus().then(setNativePushStatus);
@@ -159,6 +190,22 @@ export default function SettingsPage() {
       setRenewalDaysMessage(message ?? '저장하지 못했어요.');
     } finally {
       setSavingRenewalDays(false);
+    }
+  };
+
+  const handleSaveFxCard = async () => {
+    setFxCardMessage(null);
+    setSavingFxCard(true);
+    try {
+      const result = await updateFxCardSettings(fxCardIssuer || null, fxCardBrand || null);
+      setFxCardIssuer(result.fxCardIssuer ?? '');
+      setFxCardBrand(result.fxCardBrand ?? '');
+      setFxCardMessage('저장했어요.');
+    } catch (err) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setFxCardMessage(message ?? '저장하지 못했어요.');
+    } finally {
+      setSavingFxCard(false);
     }
   };
 
@@ -372,6 +419,55 @@ export default function SettingsPage() {
             <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />예정일 당일</label>
             <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미응답 시 D+7 절약 검토</label>
           </div>
+        )}
+      </section>
+
+      <section className="settings-section">
+        <h2>해외결제 환율 계산 기준</h2>
+        <p className="settings-section__hint">
+          해외결제 항목의 원화 환산은 기본적으로 매매기준율에 평균 수수료(약 2.5%)를 얹은 근사치예요.
+          실제 결제에 쓰는 카드사·브랜드를 골라두면 브랜드 수수료·카드사 수수료를 반영한 공식으로
+          계산해서 실제 청구액에 더 가까워져요 — 트래블월렛 등 환전수수료 0원 카드도 선택할 수 있어요.
+        </p>
+        {!fxCardLoaded ? (
+          <div className="skeleton-block"><Skeleton width="60%" /></div>
+        ) : (
+          <>
+            <div className="register-form__row">
+              <div className="field field--narrow">
+                <label htmlFor="fxCardIssuer">카드사</label>
+                <select
+                  id="fxCardIssuer"
+                  value={fxCardIssuer}
+                  onChange={(e) => setFxCardIssuer(e.target.value as FxCardIssuer | '')}
+                >
+                  <option value="">선택 안 함(평균 수수료 추정)</option>
+                  {FX_CARD_ISSUER_OPTIONS.map((issuer) => (
+                    <option key={issuer} value={issuer}>{FX_CARD_ISSUER_LABELS[issuer]}</option>
+                  ))}
+                </select>
+              </div>
+              {fxCardIssuer !== '' && fxCardIssuer !== 'TRAVEL' && (
+                <div className="field field--narrow">
+                  <label htmlFor="fxCardBrand">브랜드</label>
+                  <select
+                    id="fxCardBrand"
+                    value={fxCardBrand}
+                    onChange={(e) => setFxCardBrand(e.target.value as FxCardBrand | '')}
+                  >
+                    <option value="">선택 안 함(Mastercard 기준)</option>
+                    {FX_CARD_BRAND_OPTIONS.map((brand) => (
+                      <option key={brand} value={brand}>{FX_CARD_BRAND_LABELS[brand]}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            <button className="btn btn-sm" onClick={handleSaveFxCard} disabled={savingFxCard}>
+              {savingFxCard ? '저장 중...' : '저장'}
+            </button>
+            {fxCardMessage && <p className="settings-section__message">{fxCardMessage}</p>}
+          </>
         )}
       </section>
 

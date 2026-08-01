@@ -5,6 +5,7 @@
 import { DEFAULT_RETURN_DEADLINE_DAYS, DEFAULT_INTERVAL_DAYS, DEFAULT_WARRANTY_MONTHS } from './purchase-logic';
 import { businessDaysBetween } from './date';
 import { isNonDeliveryDay } from './kr-holidays';
+import { applyCardFee, type FxCardBrand, type FxCardIssuer } from './fx-card';
 import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES, type PurchaseCategory, type PurchaseType } from '../types';
 import type { ExtractedOrder } from './order-extraction';
 
@@ -109,19 +110,28 @@ async function fetchKrwRate(currency: string, dateStr?: string): Promise<number 
 
 /**
  * Frankfurter(ECB 공시환율 기반, 무료·API 키 불필요)로 결제일 기준 원화 환산 금액을 구한다.
- * "7달러=7원"처럼 잘못 저장하는 걸 막기 위한 핵심 로직 — 네트워크 실패·미지원 통화 등 어떤
- * 이유로든 실패하면 null을 돌려주고, 호출부가 amount=null(미확인)로 안전하게 폴백한다.
+ * "7달러=7원"처럼 잘못 저장하는 걸 막는 게 핵심이라, 네트워크 실패·미지원 통화 등 어떤 이유로든
+ * 실패하면 null을 돌려주고 호출부가 amount=null(미확인)로 안전하게 폴백한다.
+ *
+ * cardIssuer/cardBrand(사용자 설정, 선택)를 넘기면 매매기준율 그대로가 아니라 카드사·브랜드별
+ * 수수료 공식(applyCardFee)으로 실제 청구액에 더 가깝게 계산한다 — 실측(토스뱅크 마스터카드,
+ * $5.50 -> 실제 8,822원)으로 역산 검증됨(lib/fx-card.ts 참고). 미설정이면 평균 수수료 근사치를
+ * 쓴다. rate는 이 결과와 일관되도록(amount = round(originalAmount * rate)) 역산한 "적용 환율"이라
+ * 매매기준율 그 자체와는 다를 수 있다 — 사용자에게 "원금 대비 실제 적용된 환율"로 보여주기 위함.
  */
 export async function convertToKrw(
   currency: string,
   originalAmount: number,
-  orderDate: string | null
+  orderDate: string | null,
+  cardIssuer: FxCardIssuer | null = null,
+  cardBrand: FxCardBrand | null = null
 ): Promise<{ amountKrw: number; rate: number } | null> {
   try {
     const hasValidDate = orderDate !== null && /^\d{4}-\d{2}-\d{2}$/.test(orderDate);
-    const rate = (hasValidDate ? await fetchKrwRate(currency, orderDate!) : null) ?? (await fetchKrwRate(currency));
-    if (rate === null) return null;
-    return { amountKrw: Math.round(originalAmount * rate), rate };
+    const baseRate = (hasValidDate ? await fetchKrwRate(currency, orderDate!) : null) ?? (await fetchKrwRate(currency));
+    if (baseRate === null) return null;
+    const amountKrw = applyCardFee(originalAmount, baseRate, cardIssuer, cardBrand);
+    return { amountKrw, rate: amountKrw / originalAmount };
   } catch {
     return null;
   }
@@ -150,8 +160,12 @@ export interface PendingPurchaseFields {
 
 /** ExtractedOrder(AI 원시 응답)를 pending_purchases에 저장할 안전한 필드로 변환한다.
  *  외화 결제(currency non-null)면 Frankfurter로 결제일 기준 환율을 조회하는 네트워크 호출이
- *  섞여 있어 async다. */
-export async function buildPendingPurchaseFields(extracted: ExtractedOrder): Promise<PendingPurchaseFields> {
+ *  섞여 있어 async다. cardIssuer/cardBrand는 convertToKrw 참고. */
+export async function buildPendingPurchaseFields(
+  extracted: ExtractedOrder,
+  cardIssuer: FxCardIssuer | null = null,
+  cardBrand: FxCardBrand | null = null
+): Promise<PendingPurchaseFields> {
   const type = sanitizeEstimatedType(extracted.estimatedType);
 
   // 반품기한이 원본에 구체적으로 명시되지 않았으면 전자상거래법 최소 기준(7일)으로 채우고
@@ -241,7 +255,7 @@ export async function buildPendingPurchaseFields(extracted: ExtractedOrder): Pro
   let amount = sanitizeAmount(extracted.amount);
   let exchangeRate: number | null = null;
   if (originalCurrency && originalAmount !== null) {
-    const converted = await convertToKrw(originalCurrency, originalAmount, extracted.orderDate);
+    const converted = await convertToKrw(originalCurrency, originalAmount, extracted.orderDate, cardIssuer, cardBrand);
     amount = converted?.amountKrw ?? null;
     exchangeRate = converted?.rate ?? null;
   }
@@ -297,9 +311,11 @@ export async function insertPendingPurchase(
   userId: number,
   source: 'email' | 'image',
   extracted: ExtractedOrder,
-  isPremium: boolean
+  isPremium: boolean,
+  cardIssuer: FxCardIssuer | null = null,
+  cardBrand: FxCardBrand | null = null
 ): Promise<number> {
-  const fields = await buildPendingPurchaseFields(extracted);
+  const fields = await buildPendingPurchaseFields(extracted, cardIssuer, cardBrand);
 
   // 가격 인상 감지(프리미엄 전용): 같은 이름의 활성 정기배송/구독이 이미 있고, 이번에 추출한
   // 금액이 그때와 다르면 matched_purchase_id/previous_amount를 채운다 — 신규 항목이거나 금액이
