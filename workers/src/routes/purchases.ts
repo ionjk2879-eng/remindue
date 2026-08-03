@@ -12,9 +12,10 @@ import {
   sanitizeCurrency,
   sanitizeOriginalAmount,
 } from '../lib/pending-purchase-intake';
-import type { FxCardBrand, FxCardIssuer } from '../lib/fx-card';
+import { estimateTravelCardAmount, type FxCardBrand, type FxCardIssuer } from '../lib/fx-card';
 import { buildCsv, buildPdf } from '../lib/export';
 import { BadRequestError, ForbiddenError, PaymentRequiredError } from '../lib/errors';
+import { recordFxCalculationAudit, type FxCalculationEvidence } from '../lib/fx-audit';
 import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES } from '../types';
 import type { Env, PurchaseRequestBody, PurchaseRow, UserRow } from '../types';
 
@@ -125,8 +126,8 @@ async function applyPaymentDateExchangeRate(
   body: PurchaseRequestBody,
   user: UserRow,
   eximApiKey?: string
-): Promise<PurchaseRequestBody> {
-  if (!body.originalCurrency || typeof body.originalAmount !== 'number') return body;
+): Promise<{ body: PurchaseRequestBody; evidence: FxCalculationEvidence | null }> {
+  if (!body.originalCurrency || typeof body.originalAmount !== 'number') return { body, evidence: null };
   const originalAmount = body.originalAmount;
 
   const converted = await convertToKrw(
@@ -141,7 +142,7 @@ async function applyPaymentDateExchangeRate(
     throw new BadRequestError('결제일 기준 환율을 조회하지 못했습니다. 날짜와 통화를 확인해 주세요.');
   }
 
-  return { ...body, amount: converted.amountKrw, exchangeRate: converted.rate };
+  return { body: { ...body, amount: converted.amountKrw, exchangeRate: converted.rate }, evidence: converted };
 }
 
 /**
@@ -170,7 +171,19 @@ purchases.get('/', async (c) => {
     scope === 'spend' ? await getPaymentHistoryByPurchaseIds(c.env.DB, results.map((row) => row.id)) : new Map();
 
   const responses = results
-    .map((row) => toPurchaseResponse(row, historyByPurchaseId.get(row.id) ?? []))
+    .map((row) => {
+      const response = toPurchaseResponse(row, historyByPurchaseId.get(row.id) ?? []);
+      if (row.amount === null || row.original_amount === null) return response;
+      return {
+        ...response,
+        travelCardAmount: estimateTravelCardAmount(
+          row.amount,
+          row.original_amount,
+          user.fx_card_issuer as FxCardIssuer | null,
+          user.fx_card_brand as FxCardBrand | null,
+        ),
+      };
+    })
     .sort((a, b) => a.dDay - b.dDay);
   return c.json(responses);
 });
@@ -216,7 +229,7 @@ purchases.get('/export', async (c) => {
 purchases.post('/', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   const validated = validatePurchaseRequest(await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({})));
-  const body = await applyPaymentDateExchangeRate(validated, user, c.env.KOREA_EXIM_API_KEY);
+  const { body, evidence } = await applyPaymentDateExchangeRate(validated, user, c.env.KOREA_EXIM_API_KEY);
 
   if (user.is_premium !== 1) {
     const { count } = (await c.env.DB.prepare('SELECT COUNT(*) AS count FROM purchases WHERE user_id = ?')
@@ -269,15 +282,23 @@ purchases.post('/', async (c) => {
     .bind(insert.meta.last_row_id)
     .first<PurchaseRow>();
 
+  if (evidence && typeof body.originalAmount === 'number' && body.originalCurrency) {
+    await recordFxCalculationAudit(c.env.DB, {
+      purchaseId: Number(insert.meta.last_row_id), calculationDate: body.baseDate,
+      originalAmount: body.originalAmount, originalCurrency: body.originalCurrency,
+      previousAmount: null, evidence,
+    });
+  }
+
   return c.json(toPurchaseResponse(created!));
 });
 
 purchases.put('/:id', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   const id = Number(c.req.param('id'));
-  await getOwnedPurchase(c.env.DB, user.id, id);
+  const existing = await getOwnedPurchase(c.env.DB, user.id, id);
   const validated = validatePurchaseRequest(await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({})));
-  const body = await applyPaymentDateExchangeRate(validated, user, c.env.KOREA_EXIM_API_KEY);
+  const { body, evidence } = await applyPaymentDateExchangeRate(validated, user, c.env.KOREA_EXIM_API_KEY);
 
   await c.env.DB.prepare(
     `UPDATE purchases
@@ -315,6 +336,14 @@ purchases.put('/:id', async (c) => {
       id
     )
     .run();
+
+  if (evidence && typeof body.originalAmount === 'number' && body.originalCurrency) {
+    await recordFxCalculationAudit(c.env.DB, {
+      purchaseId: id, calculationDate: body.baseDate,
+      originalAmount: body.originalAmount, originalCurrency: body.originalCurrency,
+      previousAmount: existing.amount, evidence,
+    });
+  }
 
   const updated = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<PurchaseRow>();
   return c.json(toPurchaseResponse(updated!));

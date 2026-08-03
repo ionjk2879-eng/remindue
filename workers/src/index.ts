@@ -12,6 +12,8 @@ import feedbackRoutes from './routes/feedback';
 import devRoutes from './routes/dev';
 import aiSummaryRoutes from './routes/ai-summary';
 import appUpdateRoutes from './routes/app-update';
+import configRoutes from './routes/config';
+import fxRecalculationRoutes from './routes/fx-recalculation';
 import { HttpError } from './lib/errors';
 import { runDailyDigest } from './lib/digest';
 import { runWeeklyDigest } from './lib/weekly-digest';
@@ -87,6 +89,8 @@ app.route('/api/feedback', feedbackRoutes);
 app.route('/api/dev', devRoutes);
 app.route('/api/ai', aiSummaryRoutes);
 app.route('/api/app-update', appUpdateRoutes);
+app.route('/api/config', configRoutes);
+app.route('/api/fx-recalculation', fxRecalculationRoutes);
 
 // GlobalExceptionHandler.java와 동일한 매핑: {message}, 상태코드는 에러 종류에 따라 결정
 //

@@ -8,6 +8,7 @@ import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { BadRequestError, ConflictError } from '../lib/errors';
 import { assertNotLocked, clearAttempts, clientIp, recordAttempt } from '../lib/rate-limit';
 import type { AuthResponse, Env, UserRow } from '../types';
+import { FREE_NOTIFICATION_DAYS } from '../../../shared/domain-policy';
 
 const ACCESS_TOKEN_EXPIRATION_SECONDS = 60 * 60; // 1시간 — application.yml의 access-token-expiration-ms와 동일
 const REFRESH_TOKEN_EXPIRATION_SECONDS = 60 * 60 * 24 * 30;
@@ -152,9 +153,18 @@ auth.post('/signup', async (c) => {
   for (let attempt = 0; attempt < 5 && !inserted; attempt++) {
     try {
       await c.env.DB.prepare(
-        'INSERT INTO users (email, password_hash, nickname, forwarding_token, is_premium) VALUES (?, ?, ?, ?, 0)'
+        `INSERT INTO users
+          (email, password_hash, nickname, forwarding_token, is_premium, notification_days, renewal_notification_days)
+         VALUES (?, ?, ?, ?, 0, ?, ?)`
       )
-        .bind(email, passwordHash, nickname, generateForwardingToken())
+        .bind(
+          email,
+          passwordHash,
+          nickname,
+          generateForwardingToken(),
+          FREE_NOTIFICATION_DAYS.join(','),
+          FREE_NOTIFICATION_DAYS.join(','),
+        )
         .run();
       inserted = true;
     } catch (err) {

@@ -40,6 +40,7 @@ import {
   type ScheduleType,
   type SharedAccess,
 } from '../types';
+import { FREE_PLAN_MAX_PURCHASES, isPastItem } from '../../../shared/domain-policy';
 import { useAuth } from '../context/AuthContext';
 import StampBadge from '../components/StampBadge';
 import PremiumBadge from '../components/PremiumBadge';
@@ -55,7 +56,6 @@ import {
   daysSinceBaseDate,
   estimateArrivalRange,
   estimatePreviewDeadline,
-  estimateTravelCardAmount,
   formatIntervalDaysLabel,
   formatKoreanMonthDay,
   formatShortDate,
@@ -209,9 +209,6 @@ const URGENT_WINDOW_DAYS = 7;
  */
 const MISSED_ROUNDS_REVIEW_THRESHOLD = 3;
 
-/** 무료 플랜(isPremium=false) 최대 등록 개수 — 백엔드 purchase-logic.ts의 FREE_PLAN_MAX_PURCHASES와 값을 맞춘다. */
-const FREE_PLAN_MAX_PURCHASES = 5;
-
 /**
  * 정기구독·배송이고 오늘 이미 "유지하기"를 눌렀는지. (예전에는 계산상 회차 수와
  * delivery_confirm_count를 비교해서 "놓친 배송"까지 판단했지만, 실제 배송 지연 등으로 오탐이
@@ -355,12 +352,6 @@ function missedRoundsFor(p: Purchase): number {
  * 않으므로(자동으로 다음 회차로 넘어감), dDay만으로는 "갱신 안 됨"을 못 잡아낸다 —
  * discontinuedAt("유지 안 함")이 유일하게 믿을 수 있는 신호다.
  */
-function isOverdue(p: Purchase): boolean {
-  // 한 번만 사용한 정기 항목은 완료 뒤에도 목록에 남기는 선택이다. 과거 일정이라는 이유만으로
-  // "지난 항목"으로 보내면 이 옵션의 목적과 어긋난다.
-  return (!isRecurringType(p.type) && p.dDay < 0) || (isRecurringType(p.type) && !p.isOneTime && p.discontinuedAt !== null);
-}
-
 export default function DashboardPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   /** 월별/연간 지출 집계 전용(활성+보관+삭제 전부 포함) — 카드로 렌더링하지 않는다. */
@@ -702,7 +693,7 @@ export default function DashboardPage() {
               p.originalCurrency !== null && p.originalAmount !== null && p.amount !== null
           )
           .map((p) => {
-            const travelAmount = estimateTravelCardAmount(p.amount!, p.originalAmount!, fxCardSettings.fxCardIssuer, fxCardSettings.fxCardBrand);
+            const travelAmount = p.travelCardAmount;
             if (travelAmount === null) return null;
             const savings = Math.round(p.amount! - travelAmount);
             if (savings <= 0) return null;
@@ -1653,8 +1644,8 @@ export default function DashboardPage() {
   );
 
   /** "내 목록"(전체)은 지난 항목을 제외한다 — 지난 항목은 별도 탭(OVERDUE)에 모아둔다. */
-  const overdueItems = purchases.filter(isOverdue);
-  const nonOverduePurchases = purchases.filter((p) => !isOverdue(p));
+  const overdueItems = purchases.filter(isPastItem);
+  const nonOverduePurchases = purchases.filter((p) => !isPastItem(p));
 
   /** 실제로 존재하는 카테고리만 드롭다운 옵션으로 노출한다(빈 옵션 방지) — 종류를 "전체"로 두면
    *  전체 항목 기준, 특정 종류를 골랐으면 그 종류 안에서만 존재하는 카테고리로 좁힌다. */

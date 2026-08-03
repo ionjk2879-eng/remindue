@@ -1,4 +1,9 @@
-export type PurchaseType = 'GENERAL' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION';
+import {
+  isRecurringType as isSharedRecurringType,
+  type SharedPurchaseType,
+} from '../../../shared/domain-policy';
+
+export type PurchaseType = SharedPurchaseType;
 export type ScheduleType = 'INTERVAL' | 'FIXED_DAY';
 /** 서비스 카테고리 — 모든 구매 유형에 적용된다(GENERAL 포함). */
 export type PurchaseCategory = 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'HAIR_BODY' | 'SKINCARE' | 'PET' | 'ELECTRONICS' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER';
@@ -6,7 +11,7 @@ export type PurchaseCategory = 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' 
 /** RECURRING_DELIVERY(실물 정기배송)와 SUBSCRIPTION(디지털 정기구독)은 라벨/색상만 다르고
  *  스케줄(다음 일정, 회차, 확인 버튼 등)은 완전히 동일하게 동작한다. */
 export function isRecurringType(type: PurchaseType): boolean {
-  return type === 'RECURRING_DELIVERY' || type === 'SUBSCRIPTION';
+  return isSharedRecurringType(type);
 }
 
 export interface Purchase {
@@ -74,6 +79,8 @@ export interface Purchase {
   originalCurrency: string | null;
   /** 결제일 기준 적용 환율(1 originalCurrency = N KRW). 원화 결제면 null. */
   exchangeRate: number | null;
+  /** 서버가 계산한 트래블 카드 사용 시 예상 원화 금액. */
+  travelCardAmount: number | null;
   /** "유지하기"로 회차가 갱신될 때 직전 회차 대비 금액이 달라졌으면 그 직전 금액. 변동 없거나
    *  아직 비교할 이전 회차가 없으면 null. 이메일 매칭 감지(PendingPurchase.previousAmount)와는
    *  별개 경로 — 카드 옆 인상/인하 화살표는 둘 중 하나라도 있으면 뜬다. */

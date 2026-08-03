@@ -98,15 +98,16 @@ export function sanitizeOriginalAmount(currency: string | null, amount: number |
  * 실패하던 원인). 미래 날짜처럼 그 날짜에 데이터가 없는 경우도 200과 함께 빈 배열이 와서, 이때도
  * 최신 환율로 다시 시도한다.
  */
-async function fetchKrwRate(currency: string, dateStr?: string): Promise<number | null> {
+async function fetchKrwRate(currency: string, dateStr?: string): Promise<{ rate: number; rateDate: string } | null> {
   const url = dateStr
     ? `https://api.frankfurter.dev/v2/rates?date=${dateStr}&base=${currency}&quotes=KRW`
     : `https://api.frankfurter.dev/v2/rates?base=${currency}&quotes=KRW`;
   const res = await fetch(url);
   if (!res.ok) return null;
-  const data = await res.json<Array<{ rate?: number }>>();
+  const data = await res.json<Array<{ rate?: number; date?: string }>>();
   const rate = data[0]?.rate;
-  return typeof rate === 'number' && Number.isFinite(rate) && rate > 0 ? rate : null;
+  if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) return null;
+  return { rate, rateDate: data[0]?.date ?? dateStr ?? new Date().toISOString().slice(0, 10) };
 }
 
 /**
@@ -135,11 +136,24 @@ export async function convertToKrw(
   cardIssuer: FxCardIssuer | null = null,
   cardBrand: FxCardBrand | null = null,
   eximApiKey?: string
-): Promise<{ amountKrw: number; rate: number } | null> {
+): Promise<{
+  amountKrw: number;
+  rate: number;
+  rateSource: 'EXIMBANK' | 'FRANKFURTER';
+  rateDate: string;
+  cardIssuer: FxCardIssuer | null;
+  cardBrand: FxCardBrand | null;
+  formulaVersion: 'fx-v2';
+  usedFallback: boolean;
+  baseRate: number;
+  ttSellingRate: number | null;
+} | null> {
   try {
     let baseRate: number | null = null;
     let realTtSellingRate: number | null = null;
     let usdTtSellingRate: number | null = null;
+    let rateSource: 'EXIMBANK' | 'FRANKFURTER' = 'FRANKFURTER';
+    let rateDate = new Date().toISOString().slice(0, 10);
 
     if (eximApiKey) {
       const [eximRate, usdEximRate] = await Promise.all([
@@ -149,26 +163,31 @@ export async function convertToKrw(
       if (eximRate) {
         baseRate = eximRate.dealBasR;
         realTtSellingRate = eximRate.tts;
+        rateSource = 'EXIMBANK';
+        rateDate = eximRate.rateDate;
         usdTtSellingRate = currency === 'USD' ? eximRate.tts : usdEximRate?.tts ?? null;
       }
     }
 
     if (baseRate === null) {
       const hasValidDate = orderDate !== null && /^\d{4}-\d{2}-\d{2}$/.test(orderDate);
-      baseRate = (hasValidDate ? await fetchKrwRate(currency, orderDate!) : null) ?? (await fetchKrwRate(currency));
+      const historicalRate = hasValidDate ? await fetchKrwRate(currency, orderDate!) : null;
+      const selectedRate = historicalRate ?? (await fetchKrwRate(currency));
+      baseRate = selectedRate?.rate ?? null;
+      rateDate = selectedRate?.rateDate ?? rateDate;
       if (currency === 'USD') {
         usdTtSellingRate = baseRate !== null ? estimateTtSellingRate(baseRate) : null;
       } else {
-        const usdBaseRate = (hasValidDate ? await fetchKrwRate('USD', orderDate!) : null) ?? (await fetchKrwRate('USD'));
-        usdTtSellingRate = usdBaseRate !== null ? estimateTtSellingRate(usdBaseRate) : null;
+        const usdRate = (hasValidDate ? await fetchKrwRate('USD', orderDate!) : null) ?? (await fetchKrwRate('USD'));
+        usdTtSellingRate = usdRate !== null ? estimateTtSellingRate(usdRate.rate) : null;
       }
     }
     if (baseRate === null) return null;
     if (cardIssuer === 'TOSS' && currency !== 'USD' && usdTtSellingRate === null) {
       const hasValidDate = orderDate !== null && /^\d{4}-\d{2}-\d{2}$/.test(orderDate);
-      const usdBaseRate = (hasValidDate ? await fetchKrwRate('USD', orderDate!) : null) ?? (await fetchKrwRate('USD'));
-      if (usdBaseRate === null) return null;
-      usdTtSellingRate = estimateTtSellingRate(usdBaseRate);
+      const usdRate = (hasValidDate ? await fetchKrwRate('USD', orderDate!) : null) ?? (await fetchKrwRate('USD'));
+      if (usdRate === null) return null;
+      usdTtSellingRate = estimateTtSellingRate(usdRate.rate);
     }
 
     const amountKrw = applyCardFee(
@@ -179,7 +198,18 @@ export async function convertToKrw(
       realTtSellingRate,
       usdTtSellingRate
     );
-    return { amountKrw, rate: amountKrw / originalAmount };
+    return {
+      amountKrw,
+      rate: amountKrw / originalAmount,
+      rateSource,
+      rateDate,
+      cardIssuer,
+      cardBrand,
+      formulaVersion: 'fx-v2',
+      usedFallback: rateSource !== 'EXIMBANK',
+      baseRate,
+      ttSellingRate: realTtSellingRate,
+    };
   } catch {
     return null;
   }

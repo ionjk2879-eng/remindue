@@ -70,3 +70,26 @@ export function applyCardFee(
   const totalForeign = originalAmount * (1 + brandFeeRate) * (1 + STANDARD_ISSUER_FEE_RATE);
   return Math.round(totalForeign * ttSellingRate);
 }
+
+/**
+ * 이미 확정된 원화 청구액에서 같은 결제를 수수료 없는 트래블 카드로 결제했을 금액을 역산한다.
+ * UI가 카드사 수수료 공식을 복제하지 않도록 이 계산은 서버에서만 수행한다.
+ */
+export function estimateTravelCardAmount(
+  currentAmount: number,
+  originalAmount: number,
+  issuer: FxCardIssuer | null,
+  brand: FxCardBrand | null,
+): number | null {
+  if (issuer === null || issuer === 'TRAVEL') return null;
+  const brandFeeRate = brand !== null ? BRAND_FEE_RATE[brand] : DEFAULT_BRAND_FEE_RATE;
+  if (issuer === 'TOSS') {
+    return Math.round(
+      (currentAmount * originalAmount)
+      / ((originalAmount * (1 + brandFeeRate) + 0.5) * (1 + TT_SELLING_SPREAD)),
+    );
+  }
+  return Math.round(
+    currentAmount / ((1 + brandFeeRate) * (1 + STANDARD_ISSUER_FEE_RATE) * (1 + TT_SELLING_SPREAD)),
+  );
+}

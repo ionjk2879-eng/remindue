@@ -413,11 +413,15 @@ export function buildAdminFeedbackNotificationEmailHtml(
  * 키를 넣는 순간 코드 변경 없이 바로 발송이 시작된다.
  */
 export async function sendDigestEmail(
-  apiKey: string,
+  apiKey: string | undefined,
   to: string,
   subject: string,
   html: string
 ): Promise<{ sent: boolean }> {
+  // Dev environments intentionally omit RESEND_API_KEY so previews can never
+  // send mail to real users. Production keeps the secret binding configured.
+  if (!apiKey) return { sent: false };
+
   if (!apiKey) {
     logger.warn('email.digest_missing_api_key', { recipient: maskEmail(to) });
     return { sent: false };

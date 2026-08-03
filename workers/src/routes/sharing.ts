@@ -9,19 +9,13 @@ import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
 import { buildShareAcceptedEmailHtml, buildShareInviteEmailHtml, sendDigestEmail } from '../lib/email';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, PaymentRequiredError } from '../lib/errors';
-import type { Env, PurchaseResponse, PurchaseRow, SharedAccessResponse, SharedAccessRow, UserRow } from '../types';
+import type { Env, PurchaseRow, SharedAccessResponse, SharedAccessRow, UserRow } from '../types';
+import { isPastItem } from '../../../shared/domain-policy';
 
 const sharing = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 sharing.use('*', authMiddleware);
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/** Keep the shared list aligned with the owner's active list. */
-function isPastItem(purchase: PurchaseResponse): boolean {
-  const isRecurring = purchase.type === 'RECURRING_DELIVERY' || purchase.type === 'SUBSCRIPTION';
-  return (!isRecurring && purchase.dDay < 0)
-    || (isRecurring && !purchase.isOneTime && purchase.discontinuedAt !== null);
-}
 
 async function getUserByEmail(db: D1Database, email: string): Promise<UserRow> {
   const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>();

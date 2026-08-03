@@ -14,6 +14,7 @@ import {
 import { generateForwardingToken } from './auth';
 import { FX_CARD_BRANDS, FX_CARD_ISSUERS, type FxCardBrand, type FxCardIssuer } from '../lib/fx-card';
 import type { Env, UserRow } from '../types';
+import { FREE_NOTIFICATION_DAYS, formatNotificationDays } from '../../../shared/domain-policy';
 
 const settings = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 settings.use('*', authMiddleware);
@@ -43,7 +44,7 @@ settings.get('/notification-days', async (c) => {
 settings.put('/notification-days', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   if (user.is_premium !== 1) {
-    throw new PaymentRequiredError('커스텀 알림 시점은 프리미엄 전용 기능이에요. 무료 플랜은 7/3/1/0일 전으로 고정됩니다.');
+    throw new PaymentRequiredError(`커스텀 알림 시점은 프리미엄 전용 기능이에요. 무료 플랜은 ${formatNotificationDays(FREE_NOTIFICATION_DAYS)}일 전으로 고정됩니다.`);
   }
 
   const body = await c.req.json<{ notificationDays?: unknown }>().catch(() => ({}) as { notificationDays?: unknown });

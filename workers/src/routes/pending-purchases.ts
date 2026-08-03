@@ -5,6 +5,9 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPendingPurchaseResponse } from '../lib/mapper';
 import { BadRequestError, ForbiddenError } from '../lib/errors';
+import { convertToKrw } from '../lib/pending-purchase-intake';
+import { recordFxCalculationAudit } from '../lib/fx-audit';
+import type { FxCardBrand, FxCardIssuer } from '../lib/fx-card';
 import type { Env, PendingPurchaseRow, UserRow } from '../types';
 
 const pendingPurchases = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
@@ -85,20 +88,39 @@ pendingPurchases.post('/:id/apply-price-change', async (c) => {
 
   const purchase = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?')
     .bind(pending.matched_purchase_id)
-    .first<{ user_id: number }>();
+    .first<{ user_id: number; amount: number | null }>();
   if (!purchase || purchase.user_id !== user.id) {
     throw new ForbiddenError('본인 소유의 항목만 처리할 수 있습니다');
   }
 
   // 외화 구독이면 이번에 새로 감지된 환율/원본 금액으로도 같이 갱신한다 — 안 하면 최초 등록 때의
   // 옛 환율이 남아서 "적용 환율" 표시가 이번 인상분과 안 맞게 된다.
+  const converted = pending.original_currency && pending.original_amount !== null
+    ? await convertToKrw(
+      pending.original_currency, pending.original_amount, pending.order_date,
+      user.fx_card_issuer as FxCardIssuer | null, user.fx_card_brand as FxCardBrand | null,
+      c.env.KOREA_EXIM_API_KEY,
+    )
+    : null;
+  const amount = converted?.amountKrw ?? pending.amount;
+  const exchangeRate = converted?.rate ?? pending.exchange_rate;
   await c.env.DB.prepare(
     `UPDATE purchases
         SET amount = ?, original_amount = ?, original_currency = ?, exchange_rate = ?, updated_at = datetime('now')
       WHERE id = ?`
   )
-    .bind(pending.amount, pending.original_amount, pending.original_currency, pending.exchange_rate, pending.matched_purchase_id)
+    .bind(amount, pending.original_amount, pending.original_currency, exchangeRate, pending.matched_purchase_id)
     .run();
+  if (converted && pending.original_amount !== null && pending.original_currency) {
+    await recordFxCalculationAudit(c.env.DB, {
+      purchaseId: pending.matched_purchase_id,
+      calculationDate: pending.order_date ?? new Date().toISOString().slice(0, 10),
+      originalAmount: pending.original_amount,
+      originalCurrency: pending.original_currency,
+      previousAmount: purchase.amount,
+      evidence: converted,
+    });
+  }
   await setStatus(c.env.DB, id, 'confirmed');
 
   return c.body(null, 204);

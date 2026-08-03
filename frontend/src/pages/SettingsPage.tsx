@@ -21,10 +21,14 @@ import type { SharedAccess } from '../types';
 import { getNotificationPermission } from '../lib/push';
 import { isNative, getNativePushPermissionStatus, registerNativePush, type NativePushPermissionStatus } from '../lib/native';
 import { registerNativePushToken } from '../api/push';
-
-/** 백엔드 lib/notification-prefs.ts의 NOTIFICATION_DAY_OPTIONS와 같은 목록 — 설정 화면 체크박스 후보. */
-const NOTIFICATION_DAY_OPTIONS = [10, 7, 5, 3, 2, 1, 0];
-const FREE_PLAN_FIXED_DAYS = [7, 3, 0];
+import { FREE_NOTIFICATION_DAYS, NOTIFICATION_DAY_OPTIONS } from '../../../shared/domain-policy';
+import {
+  applyFxRecalculation,
+  fetchLatestFxRecalculation,
+  previewFxRecalculation,
+  retryFxRecalculation,
+  type FxRecalculationJob,
+} from '../api/fxRecalculation';
 
 /** 백엔드 lib/fx-card.ts의 FX_CARD_ISSUERS와 같은 목록 — 설정 화면 드롭다운 후보. */
 const FX_CARD_ISSUER_LABELS: Record<FxCardIssuer, string> = {
@@ -64,6 +68,9 @@ export default function SettingsPage() {
   const [fxCardLoaded, setFxCardLoaded] = useState(false);
   const [savingFxCard, setSavingFxCard] = useState(false);
   const [fxCardMessage, setFxCardMessage] = useState<string | null>(null);
+  const [fxRecalculation, setFxRecalculation] = useState<FxRecalculationJob | null>(null);
+  const [fxRecalculationBusy, setFxRecalculationBusy] = useState(false);
+  const [fxRecalculationMessage, setFxRecalculationMessage] = useState<string | null>(null);
   const [sendingTestPush, setSendingTestPush] = useState<PushTestKind | null>(null);
   const [testPushMessage, setTestPushMessage] = useState<string | null>(null);
   const [nativePushStatus, setNativePushStatus] = useState<NativePushPermissionStatus>('unsupported');
@@ -107,6 +114,7 @@ export default function SettingsPage() {
   useEffect(() => {
     loadNotificationDays();
     loadFxCard();
+    fetchLatestFxRecalculation().then(setFxRecalculation).catch(() => undefined);
     loadSharing();
     if (isNative) {
       getNativePushPermissionStatus().then(setNativePushStatus);
@@ -206,6 +214,25 @@ export default function SettingsPage() {
       setFxCardMessage(message ?? '저장하지 못했어요.');
     } finally {
       setSavingFxCard(false);
+    }
+  };
+
+  const runFxRecalculation = async (action: 'preview' | 'apply' | 'retry') => {
+    setFxRecalculationBusy(true);
+    setFxRecalculationMessage(null);
+    try {
+      const result = action === 'preview'
+        ? await previewFxRecalculation()
+        : action === 'apply'
+          ? await applyFxRecalculation(fxRecalculation!.id)
+          : await retryFxRecalculation(fxRecalculation!.id);
+      setFxRecalculation(result);
+      setFxRecalculationMessage(action === 'apply' ? '재계산 금액을 적용했어요.' : '재계산 결과를 준비했어요.');
+    } catch (err) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setFxRecalculationMessage(message ?? '환율 재계산 작업을 처리하지 못했어요.');
+    } finally {
+      setFxRecalculationBusy(false);
     }
   };
 
@@ -376,7 +403,7 @@ export default function SettingsPage() {
           <>
             <p className="settings-section__hint">무료 플랜의 기본 예정 알림이에요.</p>
             <div className="notification-day-options" aria-label="무료 기한 예정 알림 시점">
-              {FREE_PLAN_FIXED_DAYS.map((day) => (
+              {FREE_NOTIFICATION_DAYS.map((day) => (
                 <label key={day} className="notification-day-option notification-day-option--active">
                   <input type="checkbox" checked readOnly />
                   {formatDayLabel(day)}
@@ -467,6 +494,45 @@ export default function SettingsPage() {
               {savingFxCard ? '저장 중...' : '저장'}
             </button>
             {fxCardMessage && <p className="settings-section__message">{fxCardMessage}</p>}
+            <hr />
+            <h3>기존 해외결제 다시 계산</h3>
+            <p className="settings-section__hint">
+              기존 금액은 바로 바뀌지 않아요. 먼저 구매일 기준 환율과 현재 카드 설정으로 계산한 전후 금액을 확인한 뒤 적용할 수 있어요.
+            </p>
+            <button className="btn btn-sm btn-outline" onClick={() => runFxRecalculation('preview')} disabled={fxRecalculationBusy}>
+              {fxRecalculationBusy ? '계산 중...' : '재계산 미리보기'}
+            </button>
+            {fxRecalculation && fxRecalculation.items.length > 0 && (
+              <>
+                <div className="table-scroll">
+                  <table className="pricing-table">
+                    <thead><tr><th>항목·기준일</th><th>기존 금액</th><th>재계산 금액</th><th>계산 근거</th></tr></thead>
+                    <tbody>
+                      {fxRecalculation.items.map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.itemName}<br /><small>{item.calculationDate}</small></td>
+                          <td>{item.beforeAmount === null ? '-' : `${item.beforeAmount.toLocaleString('ko-KR')}원`}</td>
+                          <td>{item.proposedAmount === null ? '실패' : `${item.proposedAmount.toLocaleString('ko-KR')}원`}</td>
+                          <td>
+                            {item.rateSource ?? item.errorMessage}<br />
+                            {item.rateDate && <small>{item.rateDate} · {item.cardIssuer ?? '평균'} {item.cardBrand ?? ''} · {item.formulaVersion}{item.usedFallback ? ' · 대체 환율' : ''}</small>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="settings-actions">
+                  {fxRecalculation.readyCount > 0 && fxRecalculation.status !== 'APPLIED' && (
+                    <button className="btn btn-sm" onClick={() => runFxRecalculation('apply')} disabled={fxRecalculationBusy}>검토한 금액 적용</button>
+                  )}
+                  {fxRecalculation.failedCount > 0 && (
+                    <button className="btn btn-sm btn-outline" onClick={() => runFxRecalculation('retry')} disabled={fxRecalculationBusy}>실패 {fxRecalculation.failedCount}건 재시도</button>
+                  )}
+                </div>
+              </>
+            )}
+            {fxRecalculationMessage && <p className="settings-section__message">{fxRecalculationMessage}</p>}
           </>
         )}
       </section>

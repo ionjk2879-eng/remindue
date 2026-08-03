@@ -3,11 +3,16 @@
 // 발송/조회 시점에는 항상 DEFAULT_NOTIFICATION_DAYS로 강제한다 — effectiveNotificationDays가
 // 그 강제를 담당하는 유일한 통로다.
 
-export const DEFAULT_NOTIFICATION_DAYS: readonly number[] = [7, 3, 0];
+import {
+  FREE_NOTIFICATION_DAYS,
+  NOTIFICATION_DAY_OPTIONS as SHARED_NOTIFICATION_DAY_OPTIONS,
+} from '../../../shared/domain-policy';
+
+export const DEFAULT_NOTIFICATION_DAYS: readonly number[] = FREE_NOTIFICATION_DAYS;
 export const MIN_NOTIFICATION_DAY = 0;
 export const MAX_NOTIFICATION_DAY = 60;
 /** 사용자가 선택할 수 있는 알림 시점 후보 — 프론트 설정 화면의 체크박스 목록과 동일하다. */
-export const NOTIFICATION_DAY_OPTIONS: readonly number[] = [10, 7, 5, 3, 2, 1, 0];
+export const NOTIFICATION_DAY_OPTIONS: readonly number[] = SHARED_NOTIFICATION_DAY_OPTIONS;
 
 export function serializeNotificationDays(days: number[]): string {
   return days.length === 0 ? 'none' : days.join(',');

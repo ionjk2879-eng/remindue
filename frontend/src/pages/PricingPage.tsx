@@ -7,13 +7,11 @@ import { useAuth } from '../context/AuthContext';
 import { isNative } from '../lib/native';
 import SubscriptionStatus from '../components/SubscriptionStatus';
 import type { BillingPlan } from '../types';
+import { FREE_PLAN_MAX_PURCHASES, FREE_NOTIFICATION_DAYS, formatNotificationDays } from '../../../shared/domain-policy';
 
 // client.ts의 VITE_API_BASE_URL과 동일한 이유의 폴백 — 순수 `vite`(로컬 개발, --mode 없음)는
 // .env.dev/.env.production을 읽지 않으므로 로컬에서도 바로 동작하도록 테스트 키를 기본값으로 둔다.
 const TOSS_CLIENT_KEY = import.meta.env.VITE_TOSS_CLIENT_KEY ?? 'test_ck_PBal2vxj81vzPEX56jqG35RQgOAN';
-/** 무료 플랜 최대 등록 개수 — 백엔드 purchase-logic.ts의 FREE_PLAN_MAX_PURCHASES와 값을 맞춘다. */
-const FREE_PLAN_MAX_PURCHASES = 5;
-
 interface PlanCard {
   key: BillingPlan;
   title: string;
@@ -198,7 +196,7 @@ export default function PricingPage() {
         <tbody>
           <tr>
             <td>등록 개수</td>
-            <td>5개</td>
+            <td>{FREE_PLAN_MAX_PURCHASES}개</td>
             <td>무제한</td>
           </tr>
           <tr>
@@ -208,7 +206,7 @@ export default function PricingPage() {
           </tr>
           <tr>
             <td>커스텀 알림 시점(D-day)</td>
-            <td>7/3/1/당일 고정</td>
+            <td>{formatNotificationDays(FREE_NOTIFICATION_DAYS)}일 전/당일 고정</td>
             <td>직접 설정</td>
           </tr>
           <tr>

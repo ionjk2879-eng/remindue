@@ -2,6 +2,7 @@ import type { FxCardBrand, FxCardIssuer } from './fx-card';
 import type { PaymentHistoryEntry, PurchaseRow } from '../types';
 import { computeDDay, computeDeadline, computePreviousScheduleDeadline } from './purchase-logic';
 import { convertToKrw } from './pending-purchase-intake';
+import { recordFxCalculationAudit, type FxCalculationEvidence } from './fx-audit';
 
 /**
  * 유지 확인한 회차의 결제일. computeDeadline()의 "다음 회차"가 아직 지나지 않았다면(오늘 포함 —
@@ -31,6 +32,7 @@ export async function recordConfirmedPaymentCycle(db: D1Database, row: PurchaseR
   const cycleDate = confirmedScheduleDate(row);
   let amount = row.amount;
   let exchangeRate = row.exchange_rate;
+  let calculationEvidence: FxCalculationEvidence | null = null;
 
   if (row.original_currency && row.original_amount !== null) {
     const user = await db.prepare('SELECT fx_card_issuer, fx_card_brand FROM users WHERE id = ?')
@@ -45,6 +47,7 @@ export async function recordConfirmedPaymentCycle(db: D1Database, row: PurchaseR
       eximApiKey
     );
     if (converted) {
+      calculationEvidence = converted;
       amount = converted.amountKrw;
       exchangeRate = converted.rate;
       await db.prepare(
@@ -54,6 +57,14 @@ export async function recordConfirmedPaymentCycle(db: D1Database, row: PurchaseR
       )
         .bind(amount, exchangeRate, row.id)
         .run();
+      await recordFxCalculationAudit(db, {
+        purchaseId: row.id,
+        calculationDate: cycleDate,
+        originalAmount: row.original_amount,
+        originalCurrency: row.original_currency,
+        previousAmount: row.amount,
+        evidence: converted,
+      });
     }
   }
 
@@ -71,15 +82,31 @@ export async function recordConfirmedPaymentCycle(db: D1Database, row: PurchaseR
   await db.prepare(`UPDATE purchases SET price_change_previous_amount = ? WHERE id = ?`).bind(priceChangePreviousAmount, row.id).run();
 
   await db.prepare(
-    `INSERT INTO payment_history (purchase_id, cycle_date, amount, original_amount, original_currency, exchange_rate)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO payment_history
+      (purchase_id, cycle_date, amount, original_amount, original_currency, exchange_rate,
+       rate_source, rate_date, card_issuer, card_brand, formula_version, used_fallback)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(purchase_id, cycle_date) DO UPDATE SET
        amount = excluded.amount,
        original_amount = excluded.original_amount,
        original_currency = excluded.original_currency,
-       exchange_rate = excluded.exchange_rate`
+       exchange_rate = excluded.exchange_rate,
+       rate_source = excluded.rate_source,
+       rate_date = excluded.rate_date,
+       card_issuer = excluded.card_issuer,
+       card_brand = excluded.card_brand,
+       formula_version = excluded.formula_version,
+       used_fallback = excluded.used_fallback`
   )
-    .bind(row.id, cycleDate, amount, row.original_amount, row.original_currency, exchangeRate)
+    .bind(
+      row.id, cycleDate, amount, row.original_amount, row.original_currency, exchangeRate,
+      calculationEvidence?.rateSource ?? null,
+      calculationEvidence?.rateDate ?? null,
+      calculationEvidence?.cardIssuer ?? null,
+      calculationEvidence?.cardBrand ?? null,
+      calculationEvidence?.formulaVersion ?? null,
+      calculationEvidence?.usedFallback ? 1 : 0,
+    )
     .run();
 }
 

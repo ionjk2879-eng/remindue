@@ -30,6 +30,7 @@ const BillingSuccessPage = lazy(() => import('./pages/BillingSuccessPage'));
 const BillingAuthSuccessPage = lazy(() => import('./pages/BillingAuthSuccessPage'));
 const BillingFailPage = lazy(() => import('./pages/BillingFailPage'));
 const TicketDesignPreviewPage = lazy(() => import('./pages/TicketDesignPreviewPage'));
+const FxRecalculationAdminPage = lazy(() => import('./pages/FxRecalculationAdminPage'));
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated, isInitializing } = useAuth();
@@ -87,6 +88,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <SettingsPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/fx-recalculations"
+              element={
+                <RequireAuth>
+                  <FxRecalculationAdminPage />
                 </RequireAuth>
               }
             />

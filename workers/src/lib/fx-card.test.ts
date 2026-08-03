@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyCardFee } from './fx-card';
+import { applyCardFee, estimateTravelCardAmount } from './fx-card';
 
 describe('applyCardFee', () => {
   it('토스뱅크+마스터카드 실측 검증: $5.50 결제가 실제 청구액(8,822원)에 근접한다', () => {
@@ -58,5 +58,18 @@ describe('applyCardFee', () => {
     const expected = Math.round(1500 * jpyTtsPerYen * 1.01 + 0.5 * usdTts);
 
     expect(applyCardFee(1500, 9.3, 'TOSS', 'MASTER', jpyTtsPerYen, usdTts)).toBe(expected);
+  });
+});
+
+describe('estimateTravelCardAmount', () => {
+  it('서버에서 토스 청구액의 트래블 카드 예상액을 역산한다', () => {
+    const currentAmount = applyCardFee(5.5, 1457, 'TOSS', 'MASTER');
+
+    expect(estimateTravelCardAmount(currentAmount, 5.5, 'TOSS', 'MASTER')).toBeCloseTo(5.5 * 1457, -1);
+  });
+
+  it('카드 미설정 또는 이미 트래블 카드면 제안하지 않는다', () => {
+    expect(estimateTravelCardAmount(10_000, 7, null, null)).toBeNull();
+    expect(estimateTravelCardAmount(10_000, 7, 'TRAVEL', 'VISA')).toBeNull();
   });
 });

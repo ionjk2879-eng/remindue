@@ -1,17 +1,23 @@
-export type PurchaseType = 'GENERAL' | 'RECURRING_DELIVERY' | 'SUBSCRIPTION';
+import {
+  isRecurringType as isSharedRecurringType,
+  PURCHASE_TYPES as SHARED_PURCHASE_TYPES,
+  type SharedPurchaseType,
+} from '../../shared/domain-policy';
+
+export type PurchaseType = SharedPurchaseType;
 export type ScheduleType = 'INTERVAL' | 'FIXED_DAY';
 /** 서비스 카테고리 — 이제 모든 구매 유형에 적용된다(GENERAL 포함). 대시보드의 "카테고리별
  *  분석" 보드 자체는 정기배송/구독 지출 전용으로 남아있지만, 필드는 GENERAL도 채울 수 있다. */
 export type PurchaseCategory = 'SOFTWARE' | 'AI' | 'ENTERTAINMENT' | 'SHOPPING' | 'FOOD' | 'HAIR_BODY' | 'SKINCARE' | 'PET' | 'ELECTRONICS' | 'CREATOR_SUPPORT' | 'CLOUD' | 'OTHER';
 
-export const PURCHASE_TYPES: readonly PurchaseType[] = ['GENERAL', 'RECURRING_DELIVERY', 'SUBSCRIPTION'];
+export const PURCHASE_TYPES: readonly PurchaseType[] = SHARED_PURCHASE_TYPES;
 export const PURCHASE_CATEGORIES: readonly PurchaseCategory[] = ['SOFTWARE', 'AI', 'ENTERTAINMENT', 'SHOPPING', 'FOOD', 'HAIR_BODY', 'SKINCARE', 'PET', 'ELECTRONICS', 'CREATOR_SUPPORT', 'CLOUD', 'OTHER'];
 
 /** RECURRING_DELIVERY(실물 정기배송)와 SUBSCRIPTION(디지털 정기구독)은 라벨/색상, 스케줄 방식
  *  선택(INTERVAL/FIXED_DAY)·회차·확인 버튼 등은 완전히 동일하다 — 이 둘을 묶어 판단할 때는
  *  항상 이 헬퍼를 쓴다. 단, 스케줄의 "앵커 날짜"만은 다르다 — usesArrivalDate 참고. */
 export function isRecurringType(type: PurchaseType): boolean {
-  return type === 'RECURRING_DELIVERY' || type === 'SUBSCRIPTION';
+  return isSharedRecurringType(type);
 }
 
 /**
@@ -148,8 +154,8 @@ export interface UserRow {
   /** 토스 자동결제(빌링) API의 고객 식별자. 결제를 한 번도 시도하지 않았으면 NULL. */
   toss_customer_key: string | null;
   /**
-   * 커스텀 알림 시점(프리미엄) — "며칠 전에 알릴지"를 콤마로 구분한 정수 목록(예: "7,3,1,0").
-   * 무료 플랜은 is_premium 여부와 무관하게 라우트에서 항상 기본값 "7,3,1,0"으로 강제하므로,
+   * 커스텀 알림 시점(프리미엄) — "며칠 전에 알릴지"를 콤마로 구분한 정수 목록(예: "7,3,0").
+   * 무료 플랜은 is_premium 여부와 무관하게 라우트에서 항상 기본값 "7,3,0"으로 강제하므로,
    * 이 컬럼에 남아있는 값은 사실상 프리미엄이었을 때 저장해둔 값 — 다시 프리미엄이 되면 그대로
    * 되살아난다(무료로 내려갔다고 값을 지우지 않는다).
    */
@@ -347,6 +353,8 @@ export interface PurchaseResponse {
   originalCurrency: string | null;
   /** 결제일 기준 적용 환율(1 originalCurrency = N KRW). 원화 결제면 null. */
   exchangeRate: number | null;
+  /** 현재 카드 대신 트래블 카드를 썼을 때의 서버 추정 원화 금액. 계산 불가·카드 미설정이면 null. */
+  travelCardAmount: number | null;
   /** "유지하기"로 회차가 갱신될 때 직전 회차 대비 금액이 달라졌으면 그 직전 금액(카드 옆 인상/인하
    *  화살표용). 변동 없거나 아직 비교할 이전 회차가 없으면 null. 이메일로 새 pending_purchase가
    *  매칭돼 감지되는 것과는 별개 경로 — 둘 다 대시보드에서 같은 화살표로 표시된다. */
@@ -559,7 +567,7 @@ export interface Env {
   /** 다이제스트 이메일/푸시에 넣을 대시보드 링크의 기준 출처(단일 URL). CORS_ORIGIN은 콤마로 구분된 여러 출처를 담을 수 있어 링크 조립에는 쓸 수 없다. */
   APP_URL: string;
   /** Resend API 키. 로컬은 .dev.vars, 배포본은 `wrangler secret put RESEND_API_KEY`로 관리한다. */
-  RESEND_API_KEY: string;
+  RESEND_API_KEY?: string;
   /** VAPID 키 쌍 — `npx web-push generate-vapid-keys`로 생성. 공개키는 프론트에도 노출되는 값이라 비밀은 아니지만, 개인키는 반드시 시크릿으로 관리한다. */
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;

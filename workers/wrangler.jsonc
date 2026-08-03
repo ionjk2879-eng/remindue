@@ -65,5 +65,40 @@
     // `--var ENVIRONMENT:development`로 이 값을 덮어쓴다 — 로컬은 .dev.vars가 덮어쓴다.
     // 개발 전용 기능(테스트 시드 엔드포인트 등)이 production에 절대 켜지지 않게 하는 가드.
     "ENVIRONMENT": "production"
+  },
+  "env": {
+    "dev": {
+      "name": "remindue-dev",
+      "triggers": {
+        "crons": []
+      },
+      "ai": {
+        "binding": "AI"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "remindue-db-dev",
+          "database_id": "4f862ccc-fd87-47b7-b457-905e801d4822",
+          "migrations_dir": "./migrations"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "DOWNLOADS_BUCKET",
+          "bucket_name": "remindue-downloads-dev"
+        }
+      ],
+      "vars": {
+        "CORS_ORIGIN": "https://dev-remindue-frontend.ionjk2879.workers.dev,https://localhost",
+        "APP_URL": "https://dev-remindue-frontend.ionjk2879.workers.dev",
+        "VAPID_SUBJECT": "mailto:ionjk2879@gmail.com",
+        "FORWARDING_EMAIL_DOMAIN": "remindue.kr",
+        "ADMIN_EMAIL": "ionjk2879@gmail.com",
+        "KAKAOPAY_CID": "TC0ONETIME",
+        "KAKAOPAY_SUBSCRIPTION_CID": "TCSUBSCRIP",
+        "ENVIRONMENT": "development"
+      }
+    }
   }
 }

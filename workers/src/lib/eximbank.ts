@@ -17,7 +17,11 @@ export interface EximRate {
   dealBasR: number;
   /** 전신환매도율 — 카드사·브랜드 수수료 계산의 실제 기준환율(fx-card.ts). */
   tts: number;
+  /** 요청일이 휴일일 때 이전 영업일로 폴백한 결과까지 반영한 실제 고시일. */
+  rateDate: string;
 }
+
+type RawEximRate = Omit<EximRate, 'rateDate'>;
 
 function formatYyyymmdd(dateStr: string): string {
   return dateStr.replaceAll('-', '');
@@ -55,7 +59,7 @@ export function parseCommaNumber(value: string): number | null {
  * 아끼는 게 예의이자, 응답 속도에도 유리하다). 캐시 키에는 authkey를 넣지 않는다(키가 캐시
  * URL에 노출/로그되는 걸 피하기 위해) — 날짜별로만 구분한다.
  */
-async function fetchRatesForDate(dateStr: string, apiKey: string): Promise<Map<string, EximRate> | null> {
+async function fetchRatesForDate(dateStr: string, apiKey: string): Promise<Map<string, RawEximRate> | null> {
   const cacheKey = new Request(`https://cache.internal/eximbank-rates/${dateStr}`);
   const cache = caches.default;
 
@@ -77,7 +81,7 @@ async function fetchRatesForDate(dateStr: string, apiKey: string): Promise<Map<s
 
   if (!Array.isArray(rows) || rows.length === 0) return null;
 
-  const map = new Map<string, EximRate>();
+  const map = new Map<string, RawEximRate>();
   for (const row of rows) {
     if (row.result !== 1) continue;
     const { code, perUnits } = parseCurUnit(row.cur_unit);
@@ -104,7 +108,7 @@ export async function fetchEximRate(currency: string, dateStr: string | null, ap
       const rates = await fetchRatesForDate(cursor, apiKey);
       if (rates) {
         const rate = rates.get(currency);
-        if (rate) return rate;
+        if (rate) return { ...rate, rateDate: cursor };
         // 그 날짜엔 데이터가 있는데 통화 자체를 이 API가 취급 안 하면(마이너 통화) 더 거슬러
         // 올라가봤자 소용없으므로 바로 포기하고 Frankfurter 폴백에 맡긴다.
         return null;
