@@ -2956,10 +2956,9 @@ button.summary-board__tile:hover {
   color: var(--ink-soft);
 }
 
-/* 가격 변동 감지(확인 대기 카드 + "가격 변동 감지" 타일 상세) 공용 색상 — 왼쪽 전월 금액은
-   중립색 그대로 두고, 방향(인상/인하)을 나타내는 화살표·현재 금액·라벨만 색으로 구분한다.
-   인상은 빨강(danger, ticket-card 금액 옆 화살표와 동일 색), 인하는 초록(safe)이라 한눈에
-   방향을 알 수 있다. */
+/* 가격 변동 감지(확인 대기 카드 + "가격 변동 감지" 타일 상세) 공용 색상 — 이번 달 금액은
+   선명한 검정색으로 고정하고, 방향(인상/인하)은 화살표와 라벨로 구분한다.
+   인상은 빨강(danger, ticket-card 금액 옆 화살표와 동일 색), 인하는 초록(safe)이다. */
 .price-change-arrow {
   font-weight: 800;
 }
@@ -2974,14 +2973,7 @@ button.summary-board__tile:hover {
 
 .price-change-current {
   font-weight: 800;
-}
-
-.price-change-current--up {
-  color: var(--stamp-red);
-}
-
-.price-change-current--down {
-  color: var(--safe-teal);
+  color: var(--ink);
 }
 
 .price-change-label {

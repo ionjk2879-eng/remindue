@@ -73,18 +73,18 @@ async function getAccessToken(sa: ServiceAccount): Promise<string> {
 }
 
 // PWA(sw.ts)는 알림마다 색이 다른 시계 PNG를 그대로 아이콘으로 쓰지만, Android 상태바
-// 아이콘은 항상 단색으로 강제 렌더링되기 때문에 같은 방식을 쓸 수 없다. 대신 알림의 accent
-// color(원형 배경 틴트)를 종류별로 다르게 주고, 펼친 화면에는 같은 PNG를 큰 이미지로 보여줘
-// PWA와 시각적으로 최대한 비슷하게 맞춘다.
+// 아이콘은 항상 단색으로 강제 렌더링되기 때문에 같은 방식을 쓸 수 없다. Android 알림에는
+// 종류별 accent color만 적용한다. android.notification.image를 지정하면 펼친 알림이
+// BigPictureStyle로 바뀌어 실제 알림 본문 대신 이미지가 영역을 차지하므로 사용하지 않는다.
 // 종류별 색은 대시보드의 유형 배지 팔레트(styles.css --type-*)와 맞춘다: DEADLINE(기한 예정)은
 // GENERAL 전용 알림이라 --type-general, ARRIVAL(배송 수령 확인)은 정기배송 색인 --type-recurring,
 // RENEWAL(정기배송·구독 유지 확인)은 --type-subscription을 쓴다. WEEKLY_SUMMARY는 대응하는
 // 구매 유형이 없어 기존 보라색을 그대로 유지한다.
-const NOTIFICATION_STYLE: Record<NonNullable<PushPayload['notificationKind']>, { color: string; image: string }> = {
-  DEADLINE: { color: '#6A7BA8', image: '/notification-deadline.png' },
-  RENEWAL: { color: '#C47B6A', image: '/notification-renewal.png' },
-  ARRIVAL: { color: '#8A9B6A', image: '/notification-arrival.png' },
-  WEEKLY_SUMMARY: { color: '#7B6FA3', image: '/notification-weekly-summary.png' },
+const NOTIFICATION_STYLE: Record<NonNullable<PushPayload['notificationKind']>, { color: string }> = {
+  DEADLINE: { color: '#6A7BA8' },
+  RENEWAL: { color: '#C47B6A' },
+  ARRIVAL: { color: '#8A9B6A' },
+  WEEKLY_SUMMARY: { color: '#7B6FA3' },
 };
 
 async function sendWithToken(
@@ -94,12 +94,6 @@ async function sendWithToken(
   payload: PushPayload
 ): Promise<FcmSendResult> {
   const style = payload.notificationKind ? NOTIFICATION_STYLE[payload.notificationKind] : undefined;
-  let origin: string | undefined;
-  try {
-    origin = new URL(payload.url).origin;
-  } catch {
-    origin = undefined;
-  }
 
   const message = {
     message: {
@@ -116,7 +110,6 @@ async function sendWithToken(
           sound: 'default',
           channel_id: 'remindue_default',
           ...(style ? { color: style.color } : {}),
-          ...(style && origin ? { image: `${origin}${style.image}` } : {}),
         },
       },
     },
