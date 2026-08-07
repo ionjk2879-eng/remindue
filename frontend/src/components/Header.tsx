@@ -76,9 +76,6 @@ export default function Header() {
                 <Link to="/faq" className="site-header__link" onClick={closeMenu}>
                   FAQ
                 </Link>
-                <Link to="/feedback" className="site-header__link" onClick={closeMenu}>
-                  문의/제안
-                </Link>
                 <Link to="/settings" className="site-header__link" onClick={closeMenu}>
                   설정
                 </Link>

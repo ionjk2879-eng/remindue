@@ -490,72 +490,6 @@ export interface SharedAccessResponse {
   createdAt: string;
 }
 
-export type FeedbackCategory = 'BUG' | 'FEATURE_REQUEST' | 'QUESTION' | 'OTHER';
-
-export const FEEDBACK_CATEGORIES: readonly FeedbackCategory[] = ['BUG', 'FEATURE_REQUEST', 'QUESTION', 'OTHER'];
-
-export type FeedbackStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
-
-export const FEEDBACK_STATUSES: readonly FeedbackStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED'];
-
-// D1 row shape (snake_case columns from migrations/0014_add_feedback.sql,
-// is_private added in 0029_add_feedback_private.sql)
-export interface FeedbackRow {
-  id: number;
-  user_id: number;
-  category: FeedbackCategory;
-  title: string;
-  content: string;
-  status: FeedbackStatus;
-  /** SQLite boolean(0/1) — 1이면 작성자 본인과 운영자만 상세를 볼 수 있다(목록엔 제목 마스킹돼서 계속 노출). */
-  is_private: number;
-  created_at: string;
-}
-
-export interface FeedbackReplyRow {
-  id: number;
-  feedback_id: number;
-  content: string;
-  /** SQLite boolean(0/1) — 1이면 운영자(Env.ADMIN_EMAIL) 답글, 0이면 글쓴이 본인 답글. */
-  is_admin: number;
-  created_at: string;
-}
-
-export interface FeedbackListItemResponse {
-  id: number;
-  category: FeedbackCategory;
-  /** 비밀글이고 조회자가 작성자/운영자가 아니면 "🔒 비밀글입니다"로 마스킹된다. */
-  title: string;
-  status: FeedbackStatus;
-  authorNickname: string;
-  replyCount: number;
-  isPrivate: boolean;
-  createdAt: string;
-}
-
-export interface FeedbackReplyResponse {
-  id: number;
-  content: string;
-  isAdmin: boolean;
-  createdAt: string;
-}
-
-export interface FeedbackDetailResponse {
-  id: number;
-  category: FeedbackCategory;
-  title: string;
-  content: string;
-  status: FeedbackStatus;
-  authorNickname: string;
-  /** 조회자가 이 글의 작성자 본인인지 — 답글 작성 폼 노출 여부에 쓴다. */
-  isMine: boolean;
-  /** 조회자가 운영자(Env.ADMIN_EMAIL)인지 — 상태 변경 UI 노출 여부에 쓴다. */
-  viewerIsAdmin: boolean;
-  isPrivate: boolean;
-  createdAt: string;
-  replies: FeedbackReplyResponse[];
-}
-
 export interface Env {
   DB: D1Database;
   AI: Ai;
@@ -593,7 +527,7 @@ export interface Env {
   KAKAOPAY_SUBSCRIPTION_CID: string;
   /** 이메일 포워딩 수신 주소에 쓰는 도메인(add-{token}@{도메인}). Cloudflare Email Routing이 붙어있는 도메인. */
   FORWARDING_EMAIL_DOMAIN: string;
-  /** 새 문의 알림 메일을 받을 운영자 이메일. 이 이메일로 로그인한 사용자는 모든 문의에 답글을 남길 수 있다(routes/feedback.ts). */
+  /** 운영자 이메일 — 관리자 전용 라우트(routes/fx-recalculation.ts)와 크론 실패 알림(lib/cron-alert.ts)에서 이 이메일과 비교/발송한다. */
   ADMIN_EMAIL: string;
   /**
    * "production"(기본, wrangler.jsonc) 또는 "development"(로컬 .dev.vars, dev 프리뷰 배포 시

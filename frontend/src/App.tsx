@@ -26,8 +26,6 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const FeedbackPage = lazy(() => import('./pages/FeedbackPage'));
-const FeedbackDetailPage = lazy(() => import('./pages/FeedbackDetailPage'));
 const BillingSuccessPage = lazy(() => import('./pages/BillingSuccessPage'));
 const BillingAuthSuccessPage = lazy(() => import('./pages/BillingAuthSuccessPage'));
 const BillingFailPage = lazy(() => import('./pages/BillingFailPage'));
@@ -104,22 +102,6 @@ export default function App() {
               }
             />
             <Route path="/pricing" element={<PricingPage />} />
-            <Route
-              path="/feedback"
-              element={
-                <RequireAuth>
-                  <FeedbackPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/feedback/:id"
-              element={
-                <RequireAuth>
-                  <FeedbackDetailPage />
-                </RequireAuth>
-              }
-            />
             <Route
               path="/billing/success"
               element={

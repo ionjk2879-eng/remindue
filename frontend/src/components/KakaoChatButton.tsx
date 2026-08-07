@@ -1,4 +1,4 @@
-const KAKAO_OPEN_CHAT_URL = 'https://open.kakao.com/o/gxIfJIHi';
+import { KAKAO_OPEN_CHAT_URL } from '../lib/constants';
 
 export default function KakaoChatButton() {
   return (
