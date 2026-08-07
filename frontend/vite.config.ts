@@ -28,8 +28,10 @@ export default defineConfig({
         start_url: '/',
         lang: 'ko',
         icons: [
-          // Android 알림 왼쪽의 앱 식별 아이콘. 흰 원 대신 색 시계 SVG를 공통 아이콘으로 쓴다.
-          { src: '/notification-renewal.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+          // 브랜드 스탬프 로고(Logo.tsx와 동일한 도장 아이콘) — PWA 설치 시 홈 화면에 뜨는 아이콘.
+          // notification-renewal.png(알림 전용, 시계 아이콘)와는 용도가 달라 따로 둔다.
+          { src: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+          { src: '/pwa-icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
       },
       injectManifest: {
