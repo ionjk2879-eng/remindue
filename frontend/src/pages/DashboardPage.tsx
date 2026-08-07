@@ -576,12 +576,14 @@ export default function DashboardPage() {
    * 정기배송·구독만 대상이다. 일반구매의 반품기한/A·S보증은 이미 대시보드 다른 곳(7일 이내
    * 마감 등)에 따로 노출되고 있어서 여기서는 대상에서 뺀다.
    */
-  /** 메인 요약 보드 — 활성 항목 기준(archived 제외, purchases가 이미 그렇게 온다). */
-  const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY' && p.discontinuedAt === null).length;
-  const subscriptionCount = purchases.filter((p) => p.type === 'SUBSCRIPTION' && p.discontinuedAt === null).length;
-  /** "정기배송"/"정기구독" 타일 상세 — 아래 목록과 달리 날짜순이 아니라 카테고리별로 묶어서 보여준다. */
-  const recurringDeliveryGroups = groupByCategory(purchases.filter((p) => p.type === 'RECURRING_DELIVERY'));
-  const subscriptionGroups = groupByCategory(purchases.filter((p) => p.type === 'SUBSCRIPTION'));
+  /** 메인 요약 보드 — 활성 항목 기준. purchases는 archived 제외만 서버에서 걸러져 오고
+   *  discardedAt(삭제)은 "지난 항목" 탭에 두려고 그대로 포함돼 있으므로 여기서 따로 걸러낸다. */
+  const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY' && p.discontinuedAt === null && p.discardedAt === null).length;
+  const subscriptionCount = purchases.filter((p) => p.type === 'SUBSCRIPTION' && p.discontinuedAt === null && p.discardedAt === null).length;
+  /** "정기배송"/"정기구독" 타일 상세 — 아래 목록과 달리 날짜순이 아니라 카테고리별로 묶어서 보여준다.
+   *  삭제한 항목은 지난 항목 탭으로 옮겨갔으니 여기서도 제외한다. */
+  const recurringDeliveryGroups = groupByCategory(purchases.filter((p) => p.type === 'RECURRING_DELIVERY' && p.discardedAt === null));
+  const subscriptionGroups = groupByCategory(purchases.filter((p) => p.type === 'SUBSCRIPTION' && p.discardedAt === null));
 
   /** N일마다 항목은 30일 기준 월 환산액으로, 매월 특정일 고정 항목은 금액을 그대로 더한다. */
   const monthlyEquivalent = (p: Purchase): number =>

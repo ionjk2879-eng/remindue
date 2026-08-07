@@ -36,6 +36,8 @@ export default function OverduePurchaseList(props: Props) {
       {purchases.map((purchase) => <div className={`ticket-card ticket-card--${purchase.type}`} key={purchase.id}>
         <div className={`ticket-card__type-tab ticket-card__type-tab--${purchase.type}`} aria-hidden="true" />
         <div className="ticket-card__body">
+          {purchase.discardedAt !== null && <span className="ticket-card__discarded-badge">🗑 삭제됨 · 갱신 안 함</span>}
+          {purchase.discardedAt === null && purchase.discontinuedAt !== null && <span className="ticket-card__discarded-badge">⏸ 유지 안 함</span>}
           <div className="ticket-card__heading">
             {purchase.brand && <BrandAvatar brand={purchase.brand} />}
             <div className="ticket-card__heading-text">{purchase.brand && <span className="brand-kicker">{purchase.brand}</span>}<h3 className="ticket-card__title">{purchase.itemName}</h3></div>

@@ -48,6 +48,7 @@ const purchase = (overrides: Partial<Purchase> = {}): Purchase => ({
   priceChangePreviousAmount: null,
   paymentHistory: [],
   createdAt: '2026-08-01T00:00:00Z',
+  updatedAt: '2026-08-01T00:00:00Z',
   ...overrides,
 });
 

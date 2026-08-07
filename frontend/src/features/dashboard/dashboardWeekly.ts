@@ -24,7 +24,12 @@ export function needsAttentionBadge(purchase: Purchase) {
     && missedRoundsFor(purchase) >= 1;
 }
 
-export function selectWeeklyDashboard(purchases: Purchase[], today = todayDateOnly()) {
+export function selectWeeklyDashboard(allPurchases: Purchase[], today = todayDateOnly()) {
+  // "삭제"(discard)된 항목은 GET /purchases 기본 조회에 여전히 포함되지만(지난 항목 탭에 두기
+  // 위해) 대시보드 요약 위젯들은 지난 항목이 아니라 "지금 챙겨야 할 것"만 보여줘야 하므로 여기서
+  // 한 번에 걸러낸다 — 개별 필터마다 discardedAt 체크를 깜빡하면 삭제한 항목이 "이번 주 결제
+  // 예정"/긴급 배너 등에 계속 남는 버그가 생긴다(실제로 있었음).
+  const purchases = allPurchases.filter((purchase) => purchase.discardedAt === null);
   const urgent = purchases
     .filter((purchase) => isRecurringType(purchase.type)
       ? purchase.paymentDDay === 0

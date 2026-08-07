@@ -52,8 +52,10 @@ export interface Purchase {
   paymentDDay: number;
   deliveryRound: number | null;
   archivedAt: string | null;
-  /** "삭제"(취소와 다름) 시각. discard된 항목은 목록 조회에 안 잡히므로 사실상 항상 null. */
+  /** "삭제"(취소와 다름) 시각. null이 아니면 "지난 항목" 탭 대상. */
   discardedAt: string | null;
+  /** 마지막 갱신 시각 — "지난 항목" 탭 최신순 정렬에 쓴다. */
+  updatedAt: string;
   category: PurchaseCategory | null;
   /** One order can contain products from several categories. category is the primary tag. */
   categoryTags: PurchaseCategory[];
