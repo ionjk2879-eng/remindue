@@ -323,9 +323,13 @@ export interface PurchaseResponse {
   deliveryRound: number | null;
   /** 이력 보관(프리미엄) 시각. null이면 활성 항목. */
   archivedAt: string | null;
-  /** "삭제"(취소와 다름) 시각. null이면 정상 — discard된 항목은 애초에 목록 조회에 안 잡히므로
-   *  이 필드는 사실상 항상 null로 온다(스키마 완전성을 위해 남겨둠). */
+  /** "삭제"(취소와 다름) 시각. null이면 정상. GET /purchases 기본 조회는 archived_at만 걸러내고
+   *  discarded_at은 걸러내지 않으므로(라우트 주석 참고) discard된 항목도 이 필드가 채워진 채로
+   *  내려온다 — 클라이언트가 이 값으로 "지난 항목" 탭에 배치한다. */
   discardedAt: string | null;
+  /** 행이 마지막으로 갱신된 시각 — "지난 항목" 탭을 최신순으로 정렬하는 데 쓴다(수정/삭제/유지
+   *  안 함/보관 등 어떤 액션이든 이 값을 갱신하므로 "왜" 지난 항목이 됐는지와 무관하게 쓸 수 있다). */
+  updatedAt: string;
   /** 서비스 카테고리 — 모든 구매 유형에 적용. 미지정이면 null. */
   category: PurchaseCategory | null;
   categoryTags: PurchaseCategory[];

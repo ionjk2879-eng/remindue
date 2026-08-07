@@ -17,7 +17,9 @@ export function selectPurchaseList(
   filterCategory: CategoryFilter,
   page: number,
 ) {
-  const overdueItems = purchases.filter(isPastItem);
+  // "지난 항목" 탭은 최신순(방금 삭제/유지 안 함 처리한 항목이 맨 위)으로 보여준다 — updatedAt은
+  // 삭제·유지 안 함·복원 등 어떤 액션이든 갱신되므로, 왜 지난 항목이 됐는지와 무관하게 쓸 수 있다.
+  const overdueItems = purchases.filter(isPastItem).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const activeItems = purchases.filter((purchase) => !isPastItem(purchase));
   const categoryFilterOptions: ('UNCATEGORIZED' | PurchaseCategory)[] = [
     ...PURCHASE_CATEGORIES.filter((category) =>
@@ -42,7 +44,10 @@ export function selectPurchaseList(
   return { overdueItems, activeItems, categoryFilterOptions, displayedPurchases, totalPages, safePage, pagedPurchases };
 }
 
-export function selectPurchaseSignals(purchases: Purchase[], pendingItems: PendingPurchase[]) {
+export function selectPurchaseSignals(allPurchases: Purchase[], pendingItems: PendingPurchase[]) {
+  // "삭제"(discard)된 항목은 지난 항목 탭으로 옮겨간 것이니 절약 제안/가격 변동 감지 같은
+  // "지금 챙길 것" 신호에는 다시 나타나면 안 된다 — selectWeeklyDashboard와 동일한 이유로 걸러낸다.
+  const purchases = allPurchases.filter((purchase) => purchase.discardedAt === null);
   const reviewCandidates = purchases
     .filter((purchase) =>
       isRecurringType(purchase.type)

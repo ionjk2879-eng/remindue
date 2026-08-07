@@ -15,6 +15,7 @@ const purchase = (overrides: Partial<Purchase> = {}) => ({
   lastDeliveredDate: null,
   isOneTime: false,
   discontinuedAt: null,
+  discardedAt: null,
   deliveryRound: null,
   deliveryConfirmCount: 0,
   ...overrides,
@@ -34,5 +35,19 @@ describe('dashboardWeekly', () => {
     expect(needsAttentionBadge(recurring)).toBe(true);
     expect(needsAttentionBadge({ ...recurring, isOneTime: true })).toBe(false);
     expect(needsAttentionBadge(purchase())).toBe(false);
+  });
+
+  it('excludes discarded items from every weekly widget', () => {
+    const discarded = purchase({
+      type: 'SUBSCRIPTION',
+      paymentDDay: 0,
+      discardedAt: '2026-08-07T00:00:00Z',
+    });
+    const result = selectWeeklyDashboard([discarded]);
+    expect(result.urgent).toEqual([]);
+    expect(result.weeklySubscriptions).toEqual([]);
+    expect(result.weeklyDeliveries).toEqual([]);
+    expect(result.weeklyPaymentCount).toBe(0);
+    expect(result.arrivalChecks).toEqual([]);
   });
 });

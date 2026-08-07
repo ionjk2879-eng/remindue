@@ -3817,6 +3817,23 @@ button.summary-board__tile:hover {
   font-size: 0.72rem;
 }
 
+/* "지난 항목" 탭에서 "삭제"(discard)로 옮겨온 카드에 붙는 배지 — 앞으로 갱신·알림 대상이 아니라는
+   뜻이라 경고색이 아니라 중립색(회색)을 쓴다. "유지 안 함"으로 옮겨온 카드와는 별개 배지. */
+.ticket-card__discarded-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--neutral-bg);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 2px 9px;
+  margin-bottom: 6px;
+}
+
 @keyframes confirmPopIn {
   0% {
     transform: scale(0.7);

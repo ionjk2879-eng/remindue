@@ -21,9 +21,12 @@ interface UseAiBriefOptions {
   fxCardSettings: { fxCardIssuer: FxCardIssuer | null; fxCardBrand: FxCardBrand | null } | null;
 }
 export function useAiBrief({
-  purchases, spendHistoryPurchases, reviewCount, priceUpItems, unusedItems,
+  purchases: allPurchases, spendHistoryPurchases, reviewCount, priceUpItems, unusedItems,
   pendingPriceChangeByPurchaseId, savingsEstimate, fxCardSettings,
 }: UseAiBriefOptions) {
+  // "삭제"(discard)된 항목은 지난 항목 탭으로 옮겨간 것이니 AI 소비 매니저 분석 대상에서도
+  // 제외한다 — dashboardWeekly.ts/dashboardSelectors.ts와 동일한 이유.
+  const purchases = allPurchases.filter((p) => p.discardedAt === null);
   const [aiBrief, setAiBrief] = useState<AiBriefData | null>(null);
   const [aiBriefTextLoading, setAiBriefTextLoading] = useState(false);
   const aiSummaryInFlightRef = useRef(false);
@@ -87,7 +90,6 @@ export function useAiBrief({
           p.type === 'SUBSCRIPTION' &&
           !p.isOneTime &&
           p.discontinuedAt === null &&
-          p.discardedAt === null &&
           p.amount !== null,
       )
       .map((p) => ({

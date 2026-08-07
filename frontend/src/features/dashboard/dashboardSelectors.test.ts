@@ -9,6 +9,8 @@ const purchase = (id: number, overrides: Partial<Purchase> = {}) => ({
   dDay: 5,
   isOneTime: false,
   discontinuedAt: null,
+  discardedAt: null,
+  updatedAt: '2026-08-01T00:00:00Z',
   category: 'OTHER',
   amount: 1000,
   priceChangePreviousAmount: null,
@@ -28,6 +30,27 @@ describe('dashboardSelectors', () => {
     expect(selected.displayedPurchases).toHaveLength(6);
     expect(selected.totalPages).toBe(2);
     expect(selected.pagedPurchases.map(({ id }) => id)).toEqual([7]);
+  });
+
+  it('sorts overdue/discarded items by most recently updated first', () => {
+    const purchases = [
+      purchase(1, { dDay: -1, updatedAt: '2026-08-01T00:00:00Z' }),
+      purchase(2, { discardedAt: '2026-08-05T00:00:00Z', updatedAt: '2026-08-05T00:00:00Z' }),
+      purchase(3, { discardedAt: '2026-08-07T00:00:00Z', updatedAt: '2026-08-07T00:00:00Z' }),
+    ];
+    const selected = selectPurchaseList(purchases, 'ALL', 'ALL', 1);
+    expect(selected.overdueItems.map(({ id }) => id)).toEqual([3, 2, 1]);
+  });
+
+  it('excludes discarded items from AI-brief signals', () => {
+    const discarded = purchase(4, {
+      type: 'SUBSCRIPTION',
+      discardedAt: '2026-08-07T00:00:00Z',
+      discontinuedAt: '2026-08-07T00:00:00Z',
+    });
+    const selected = selectPurchaseSignals([discarded], []);
+    expect(selected.reviewCandidates).toEqual([]);
+    expect(selected.needsConfirmationItems).toEqual([]);
   });
 
   it('combines persisted and pending price changes without duplicating counts', () => {

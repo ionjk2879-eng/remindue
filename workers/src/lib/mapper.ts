@@ -49,6 +49,7 @@ export function toPurchaseResponse(row: PurchaseRow, paymentHistory: PaymentHist
     deliveryRound,
     archivedAt: row.archived_at,
     discardedAt: row.discarded_at,
+    updatedAt: row.updated_at,
     category: row.category,
     categoryTags: parseCategoryTags(row.category_tags, row.category),
     returnDeadlineDate: returnInstance?.deadline ?? null,
