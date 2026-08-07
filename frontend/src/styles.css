@@ -418,6 +418,41 @@ select option {
 }
 
 /* --------------------------------------------------------------------------
+   Kakao open chat floating button (site-wide, fixed on scroll)
+   -------------------------------------------------------------------------- */
+
+.kakao-chat-fab {
+  position: fixed;
+  bottom: 28px;
+  right: 20px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fee500;
+  box-shadow: var(--shadow-lift);
+  transition: transform 0.15s ease;
+}
+
+.kakao-chat-fab:hover {
+  transform: scale(1.06);
+}
+
+/* 뷰포트가 넓을 때는 화면 우측 끝이 아니라, 가운데 정렬된 본문 영역(대략
+   720px) 바로 옆에 붙는다 — 본문 폭보다 화면이 훨씬 넓어야 자리가 나오므로
+   이 여유가 없는 좁은/중간 화면에서는 위 기본값(화면 우측 하단 고정)으로
+   충분히 떨어진다. */
+@media (min-width: 960px) {
+  .kakao-chat-fab {
+    right: auto;
+    left: calc(50% + 384px);
+  }
+}
+
+/* --------------------------------------------------------------------------
    Site header (common — landing/login/signup/dashboard)
    -------------------------------------------------------------------------- */
 
