@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import TesterRecruitBanner from './components/TesterRecruitBanner';
+import KakaoChatButton from './components/KakaoChatButton';
 import NativeTabBar from './components/NativeTabBar';
 import NativeHeader from './components/NativeHeader';
 import NativeInitializer from './components/NativeInitializer';
@@ -63,6 +64,7 @@ function Layout() {
         <Outlet />
       </Suspense>
       <Footer />
+      <KakaoChatButton />
     </>
   );
 }
