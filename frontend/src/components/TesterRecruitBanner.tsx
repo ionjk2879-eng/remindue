@@ -1,4 +1,4 @@
-const MESSAGE = '🧪 리마인듀 테스터를 모집합니다';
+const MESSAGE = '🙏 리마인듀 테스터로 함께해 주시겠어요?';
 const REPEAT = 6;
 
 export default function TesterRecruitBanner() {
