@@ -531,21 +531,32 @@ export async function callExtractionApi(
     return null;
   }
 
-  const res = await fetch(ANTHROPIC_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': ANTHROPIC_VERSION,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      output_config: { format: { type: 'json_schema', schema: EXTRACTION_SCHEMA } },
-      messages: [{ role: 'user', content }],
-    }),
-  });
+  // 5xx(일시적 서버 오류)에 한해 최대 3회까지 지수 백오프(1s → 2s)로 재시도한다.
+  // 4xx는 요청 자체가 잘못된 것이므로 재시도하지 않는다.
+  let res!: Response;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    res = await fetch(ANTHROPIC_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        output_config: { format: { type: 'json_schema', schema: EXTRACTION_SCHEMA } },
+        messages: [{ role: 'user', content }],
+      }),
+    });
+    if (res.ok || res.status < 500) break;
+    if (attempt < 3) {
+      logger.warn('ai.order_extraction_retry', { logPrefix, statusCode: res.status, attempt });
+      await res.text().catch(() => '');
+      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+    }
+  }
 
   if (!res.ok) {
     await res.text().catch(() => '');

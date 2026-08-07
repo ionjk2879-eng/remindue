@@ -20,6 +20,8 @@ interface SpendingSummaryInput {
   nextPaymentDate: string | null;
   nextPaymentItem: string | null;
   priceChangeItems: string[];
+  /** 현재 월 단위로 결제 중인 구독 서비스 목록 — 연간 플랜 절약 제안 계산용. */
+  subscriptionItems: Array<{ name: string; monthlyAmount: number | null }>;
 }
 
 function validateSpendingSummaryInput(value: unknown): SpendingSummaryInput {
@@ -44,6 +46,21 @@ function validateSpendingSummaryInput(value: unknown): SpendingSummaryInput {
   }
   if (!Array.isArray(input.priceChangeItems) || input.priceChangeItems.length > 20 || input.priceChangeItems.some((item) => typeof item !== 'string' || item.length > 120)) {
     throw new BadRequestError('가격 변동 항목이 올바르지 않습니다.');
+  }
+  if (
+    !Array.isArray(input.subscriptionItems) ||
+    input.subscriptionItems.length > 20 ||
+    input.subscriptionItems.some(
+      (item) =>
+        typeof item !== 'object' || item === null ||
+        typeof (item as Record<string, unknown>).name !== 'string' || ((item as Record<string, unknown>).name as string).length > 120 ||
+        ((item as Record<string, unknown>).monthlyAmount !== null &&
+          (typeof (item as Record<string, unknown>).monthlyAmount !== 'number' ||
+           !Number.isFinite((item as Record<string, unknown>).monthlyAmount as number) ||
+           ((item as Record<string, unknown>).monthlyAmount as number) < 0))
+    )
+  ) {
+    throw new BadRequestError('구독 서비스 목록이 올바르지 않습니다.');
   }
   return input as unknown as SpendingSummaryInput;
 }
@@ -127,6 +144,7 @@ aiSummary.post('/spending-summary', async (c) => {
       nextPaymentDate,
       nextPaymentItem,
       priceChangeItems,
+      subscriptionItems,
     } = body;
 
     const fmt = (n: number) => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -155,6 +173,11 @@ aiSummary.post('/spending-summary', async (c) => {
       priceChangeItems.length > 0
         ? `- 최근 가격 변동 감지된 서비스: ${priceChangeItems.join(', ')}`
         : '- 최근 가격 변동 감지된 서비스: 없음',
+      subscriptionItems.length > 0
+        ? `- 연간 플랜 절약 검토 대상(현재 월 구독 중): ${subscriptionItems.map((item) =>
+            item.monthlyAmount !== null ? `${item.name} (월 ${fmt(item.monthlyAmount)}원)` : item.name
+          ).join(', ')}`
+        : null,
     ]
       .filter(Boolean)
       .join('\n');
@@ -171,6 +194,7 @@ aiSummary.post('/spending-summary', async (c) => {
 좋은소식: (긍정적인 관찰 1문장, 한국어)
 주의사항: (주목할 만한 점 1문장, 한국어)
 인사이트: (아래 항목들을 종합했을 때의 핵심 제안 1문장, 한국어)
+절약제안: (연간 플랜 검토 대상 서비스 중 연간 결제로 전환 시 절약 가능한 서비스가 있으면 서비스명과 예상 절약액을 1~2문장으로. 확실히 아는 서비스만 언급하고 불확실한 서비스는 언급 금지. 없으면 "없음". 금액은 참고용이므로 실제 가격은 해당 서비스에서 직접 확인하라는 안내 포함. 한국어)
 
 - 각 문장은 "구체적인 사실 하나 + 그에 대한 따뜻한 반응이나 챙겨주는 말 하나"를 같이 담아라.
   사실만 던지고 끝내지 마라 — 그러면 은행 알림 문자나 고지서처럼 차갑게 느껴진다.
@@ -210,13 +234,15 @@ aiSummary.post('/spending-summary', async (c) => {
     let goodNews = parseTag(raw, '좋은소식');
     let attention = parseTag(raw, '주의사항');
     let insight = parseTag(raw, '인사이트');
+    let annualSavingsSuggestion = parseTag(raw, '절약제안');
 
     // 프롬프트로 막아도 llama-3.3-70b가 가끔 한자/일본어를 섞어 쓰는 경우가 있어서, 감지되면
     // 그 필드만 한국어로 다시 쓰게 하는 교정 재요청을 한 번 더 보낸다.
-    const toFix: Array<{ key: 'goodNews' | 'attention' | 'insight'; text: string }> = [];
+    const toFix: Array<{ key: 'goodNews' | 'attention' | 'insight' | 'annualSavingsSuggestion'; text: string }> = [];
     if (goodNews && FOREIGN_SCRIPT_PATTERN.test(goodNews)) toFix.push({ key: 'goodNews', text: goodNews });
     if (attention && FOREIGN_SCRIPT_PATTERN.test(attention)) toFix.push({ key: 'attention', text: attention });
     if (insight && FOREIGN_SCRIPT_PATTERN.test(insight)) toFix.push({ key: 'insight', text: insight });
+    if (annualSavingsSuggestion && FOREIGN_SCRIPT_PATTERN.test(annualSavingsSuggestion)) toFix.push({ key: 'annualSavingsSuggestion', text: annualSavingsSuggestion });
 
     if (toFix.length > 0) {
       console.warn('[ai-summary] 한자/외국어 감지 —', toFix.map((f) => f.key).join(', '), '교정 재요청');
@@ -224,12 +250,13 @@ aiSummary.post('/spending-summary', async (c) => {
       toFix.forEach((f, i) => {
         if (f.key === 'goodNews') goodNews = fixed[i];
         else if (f.key === 'attention') attention = fixed[i];
-        else insight = fixed[i];
+        else if (f.key === 'insight') insight = fixed[i];
+        else annualSavingsSuggestion = fixed[i];
       });
     }
 
-    console.log('[ai-summary] ok — good:', !!goodNews, 'attention:', !!attention, 'insight:', !!insight);
-    return c.json({ goodNews, attention, insight });
+    console.log('[ai-summary] ok — good:', !!goodNews, 'attention:', !!attention, 'insight:', !!insight, 'annualSavings:', !!annualSavingsSuggestion);
+    return c.json({ goodNews, attention, insight, annualSavingsSuggestion });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[ai-summary] unexpected error:', msg);

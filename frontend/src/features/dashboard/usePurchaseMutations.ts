@@ -9,6 +9,7 @@ import {
   discontinuePurchase,
   markDelivered,
   unarchivePurchase,
+  undiscardPurchase,
 } from '../../api/purchases';
 import type { Purchase } from '../../types';
 import { daysSinceBaseDate } from '../../components/dashboard/dashboardUtils';
@@ -38,15 +39,21 @@ export function usePurchaseMutations({
     await Promise.all([load(), loadSpendHistory()]);
   };
   const handleDiscard = async (id: number) => {
-    if (!window.confirm('삭제하면 목록에서는 빠지지만, 이미 발생한 지출은 통계에 그대로 남아요. 계속할까요?')) return;
+    if (!window.confirm('지난 항목으로 이동해요. 이미 발생한 지출은 통계에 그대로 남아요. 계속할까요?')) return;
     await discardPurchase(id);
     await Promise.all([load(), loadSpendHistory()]);
   };
   const handleDiscardAll = async () => {
-    if (overdueItems.length === 0) return;
-    if (!window.confirm(`지난 항목 ${overdueItems.length}건을 한 번에 삭제할까요? 목록에서는 빠지지만, 이미 발생한 지출은 통계에 그대로 남아요.`)) return;
-    await discardAllPurchases(overdueItems.map(({ id }) => id));
+    // 이미 삭제(discard)된 항목은 "지난 항목"에 이미 있으니 제외 — 자연 만료된 항목만 대상.
+    const targets = overdueItems.filter((p) => p.discardedAt === null);
+    if (targets.length === 0) return;
+    if (!window.confirm(`지난 항목 ${targets.length}건을 한 번에 삭제할까요? 이미 발생한 지출은 통계에 그대로 남아요.`)) return;
+    await discardAllPurchases(targets.map(({ id }) => id));
     await Promise.all([load(), loadSpendHistory()]);
+  };
+  const handleUndiscard = async (id: number) => {
+    await undiscardPurchase(id);
+    await load();
   };
   const handleMarkDelivered = async (id: number) => {
     await markDelivered(id);
@@ -88,6 +95,7 @@ export function usePurchaseMutations({
     handleDelete,
     handleDiscard,
     handleDiscardAll,
+    handleUndiscard,
     handleMarkDelivered,
     handleRecurringSelectionConfirm,
     handleDiscontinue,

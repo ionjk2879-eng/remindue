@@ -10,6 +10,7 @@
 import PostalMime from 'postal-mime';
 import { extractOrderConfirmation } from './email-extract';
 import { insertPendingPurchase } from './pending-purchase-intake';
+import { buildExtractionFailedEmailHtml, sendDigestEmail } from './email';
 import type { FxCardBrand, FxCardIssuer } from './fx-card';
 import type { Env, UserRow } from '../types';
 import { logger, maskEmail } from './logger';
@@ -77,7 +78,15 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
 
   // subject/bodyText는 여기서만 쓰이고 함수 종료와 함께 버려진다 — 어디에도 저장/로그하지 않는다.
   const extracted = await extractOrderConfirmation(env.ANTHROPIC_API_KEY, subject, bodyText);
-  if (!extracted || !extracted.isOrderConfirmation) {
+  if (!extracted) {
+    // API 오류(null) — 주문 메일임에도 처리 못 했을 수 있으니 사용자에게 알린다.
+    logger.warn('email.intake.extraction_api_error', { recipient: maskEmail(user.email) });
+    const html = buildExtractionFailedEmailHtml(user.nickname, `${env.APP_URL}/dashboard`);
+    await sendDigestEmail(env.RESEND_API_KEY, user.email, '포워딩된 메일을 읽지 못했어요 — Remindue', html);
+    return;
+  }
+  if (!extracted.isOrderConfirmation) {
+    // 주문확인 메일이 아님 — 광고/뉴스레터 등 정상 필터링이므로 조용히 무시한다.
     logger.info('email.intake.not_order_confirmation', { recipient: maskEmail(user.email) });
     return;
   }

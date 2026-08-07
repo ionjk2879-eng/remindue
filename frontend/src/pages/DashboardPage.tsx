@@ -759,6 +759,7 @@ export default function DashboardPage() {
     handleDelete,
     handleDiscard,
     handleDiscardAll,
+    handleUndiscard,
     handleMarkDelivered,
     handleRecurringSelectionConfirm,
     handleDiscontinue,
@@ -1499,7 +1500,7 @@ export default function DashboardPage() {
           purchases={overdueItems} pendingPriceChanges={pendingPriceChangeByPurchaseId}
           currentYear={currentYearNum} currentMonth={currentMonthNum} isPremium={isPremium}
           needsAttention={needsAttentionBadge} onDiscardAll={handleDiscardAll} onResume={handleMarkDelivered}
-          onEdit={handleEditClick} onArchive={handleArchive} onDiscard={handleDiscard} onDelete={handleDelete}
+          onEdit={handleEditClick} onArchive={handleArchive} onDiscard={handleDiscard} onUndiscard={handleUndiscard} onDelete={handleDelete}
         />
       )}
 

@@ -194,6 +194,12 @@ export default function AiBriefPanel({
                 {aiBrief.insight && (
                   <div className="ai-brief__insight">💡 {aiBrief.insight}</div>
                 )}
+                {aiBrief.annualSavingsSuggestion && (
+                  <div className="ai-brief__section ai-brief__section--savings">
+                    <span className="ai-brief__section-label">💰 연간 결제 절약 제안</span>
+                    <p className="ai-brief__section-text">{aiBrief.annualSavingsSuggestion}</p>
+                  </div>
+                )}
               </>
             )}
           </div>

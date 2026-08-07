@@ -30,9 +30,15 @@ export async function deletePurchase(id: number) {
   await apiClient.delete(`/purchases/${id}`);
 }
 
-/** "삭제" — 목록에서는 빠지지만 실제 지출로서 월별/연간 통계에는 계속 집계된다. */
+/** "삭제" — 활성 목록에서는 빠지지만 "지난 항목" 탭에 표시되고, 지출 통계에는 계속 집계된다. */
 export async function discardPurchase(id: number) {
   await apiClient.post(`/purchases/${id}/discard`);
+}
+
+/** "지난 항목"에서 "복원" — 활성 목록으로 되돌린다. */
+export async function undiscardPurchase(id: number) {
+  const { data } = await apiClient.post<Purchase>(`/purchases/${id}/undiscard`);
+  return data;
 }
 
 /** "지난 항목" 탭의 "전체 삭제" — 여러 건을 한 번에 discard. */
@@ -92,12 +98,15 @@ export interface AiSummaryInput {
   nextPaymentItem: string | null;
   /** 확인 대기 목록에서 가격 변동이 감지된 항목명 목록. 없으면 빈 배열. */
   priceChangeItems: string[];
+  /** 현재 월 단위로 결제 중인 구독 서비스 목록 — 연간 플랜 절약 제안 계산용. */
+  subscriptionItems: Array<{ name: string; monthlyAmount: number | null }>;
 }
 
 export interface AiBriefSections {
   goodNews: string | null;
   attention: string | null;
   insight: string | null;
+  annualSavingsSuggestion: string | null;
 }
 
 export async function fetchAiSummary(input: AiSummaryInput): Promise<AiBriefSections> {

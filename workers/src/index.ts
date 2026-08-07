@@ -189,6 +189,19 @@ export default {
       );
     }
 
+    // 2일 넘은 로그인 시도 기록은 더 이상 rate limiting 판단에 쓰이지 않으니 정리한다.
+    // 무한 누적을 막기 위해 매일 한 번 돌리는 것으로 충분하다.
+    ctx.waitUntil(
+      env.DB.prepare(`DELETE FROM rate_limit_attempts WHERE window_started_at < datetime('now', '-2 days')`)
+        .run()
+        .then((result) => {
+          if ((result.meta.changes ?? 0) > 0) {
+            console.log(`[rate-limit-cleanup] ${result.meta.changes}건의 만료된 시도 기록 삭제`);
+          }
+        })
+        .catch((err) => notifyCronFailure(env, 'rate-limit-cleanup', err))
+    );
+
     // 정기결제 자동 갱신은 매일 확인한다(요일 무관 — 만료가 임박한 구독마다 날짜가 다르므로).
     // 갱신을 먼저 끝낸 뒤에 만료 스윕을 돌려야, 방금 갱신된 사용자가 스윕에 잘못 걸리지 않는다.
     // 갱신이 실패해도(.catch) 스윕은 별개 작업이니 .finally로 그대로 이어서 돌린다 — 안 그러면

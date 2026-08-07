@@ -56,6 +56,19 @@ export async function runBillingRenewals(env: Env): Promise<BillingRenewalRunRes
     }
 
     const config = PLAN_CONFIG[sub.plan];
+
+    // Worker 크래시(청구 성공 후 DB 업데이트 전)나 크론 중복 실행으로 인한 이중 청구 방지 —
+    // current_period_end 3일 전 이후에 CONFIRMED된 결제가 이미 있으면 이번 주기는 건너뛴다.
+    const alreadyCharged = await env.DB.prepare(
+      `SELECT 1 FROM payments
+       WHERE subscription_id = ? AND status = 'CONFIRMED'
+         AND confirmed_at >= datetime(?, '-3 days')`
+    ).bind(sub.id, sub.current_period_end).first();
+    if (alreadyCharged) {
+      console.log(`[billing-renewal] 구독 ${sub.id}: 이번 주기 이미 청구됨, 건너뜁니다`);
+      continue;
+    }
+
     const orderId = crypto.randomUUID();
     await env.DB.prepare(
       `INSERT INTO payments (user_id, subscription_id, order_id, plan, amount, status, pg_provider) VALUES (?, ?, ?, ?, ?, 'PENDING', ?)`

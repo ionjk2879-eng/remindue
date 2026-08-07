@@ -371,6 +371,19 @@ export function buildShareInviteEmailHtml(inviteeEmail: string, ownerNickname: s
   });
 }
 
+/** 이메일 포워딩 자동 등록: AI 추출 API 오류 시 사용자에게 알리는 메일. */
+export function buildExtractionFailedEmailHtml(nickname: string, dashboardUrl: string): string {
+  return buildSimpleEmailHtml({
+    nickname,
+    headingPlain: '포워딩된 메일을 ',
+    headingHighlight: '읽지 못했어요',
+    message:
+      'AI 분석 중 일시적인 오류가 생겨서 주문 정보를 자동으로 가져오지 못했어요. 잠시 후 같은 메일을 다시 전달하거나, 대시보드에서 직접 등록해주세요.',
+    ctaLabel: '직접 등록하기',
+    ctaUrl: dashboardUrl,
+  });
+}
+
 /** 초대 수락 안내 — 초대를 보낸 소유자에게 발송한다. */
 export function buildShareAcceptedEmailHtml(ownerNickname: string, accepterEmail: string, dashboardUrl: string): string {
   return buildSimpleEmailHtml({

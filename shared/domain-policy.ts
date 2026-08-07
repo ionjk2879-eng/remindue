@@ -33,11 +33,14 @@ export interface PastItemInput {
   dDay: number;
   isOneTime: boolean;
   discontinuedAt: string | null;
+  /** "내 목록"에서 수동으로 삭제한 항목 — null이 아니면 "지난 항목" 탭으로 분류한다. */
+  discardedAt?: string | null;
 }
 
 export function isPastItem(item: PastItemInput): boolean {
   return (!isRecurringType(item.type) && item.dDay < 0)
-    || (isRecurringType(item.type) && !item.isOneTime && item.discontinuedAt !== null);
+    || (isRecurringType(item.type) && !item.isOneTime && item.discontinuedAt !== null)
+    || (item.discardedAt != null);
 }
 
 export function formatNotificationDays(days: readonly number[]): string {

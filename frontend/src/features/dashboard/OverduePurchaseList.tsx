@@ -20,16 +20,18 @@ interface Props {
   onEdit: (purchase: Purchase) => void;
   onArchive: (id: number) => void;
   onDiscard: (id: number) => void;
+  onUndiscard: (id: number) => void;
   onDelete: (id: number) => void;
 }
 
 export default function OverduePurchaseList(props: Props) {
   const { purchases } = props;
+  const naturallyOverdue = purchases.filter((p) => p.discardedAt === null);
   return <>
     <p className="register-form__hint" style={{ marginBottom: 14 }}>
-      반품기한·A/S보증이 다 지난 일반구매, "유지 안 함"으로 표시한 정기배송·구독이 여기 모여요 — 내 목록(전체)에는 안 보이지만 삭제하기 전까지는 계속 여기서 확인할 수 있고, 삭제해도 이미 발생한 지출은 통계에 남아요.
+      반품기한·A/S보증이 다 지난 항목, "유지 안 함"으로 표시한 정기배송·구독, 내 목록에서 직접 삭제한 항목이 여기 모여요. 삭제해도 이미 발생한 지출은 통계에 남아요.
     </p>
-    {purchases.length > 0 && <button type="button" className="btn btn-sm btn-outline" style={{ marginBottom: 14 }} onClick={props.onDiscardAll}>전체 삭제 ({purchases.length}건)</button>}
+    {naturallyOverdue.length > 0 && <button type="button" className="btn btn-sm btn-outline" style={{ marginBottom: 14 }} onClick={props.onDiscardAll}>전체 삭제 ({naturallyOverdue.length}건)</button>}
     <div className="ticket-list">
       {purchases.map((purchase) => <div className={`ticket-card ticket-card--${purchase.type}`} key={purchase.id}>
         <div className={`ticket-card__type-tab ticket-card__type-tab--${purchase.type}`} aria-hidden="true" />
@@ -46,11 +48,19 @@ export default function OverduePurchaseList(props: Props) {
           </div>
           {isRecurringType(purchase.type) && purchase.deliveryRound !== null ? renderRecurringScheduleLine(purchase) : renderGeneralDeadlineLines(purchase)}
           <div className="ticket-card__actions">
-            {isRecurringType(purchase.type) && purchase.discontinuedAt !== null && <button className="btn-text" onClick={() => props.onResume(purchase.id)}>유지하기(재개)</button>}
-            <button className="btn-text" onClick={() => props.onEdit(purchase)}>수정</button>
-            {props.isPremium && <button className="btn-text" onClick={() => props.onArchive(purchase.id)}>보관</button>}
-            <button className="btn-text" onClick={() => props.onDiscard(purchase.id)}>삭제</button>
-            <button className="btn-text" onClick={() => props.onDelete(purchase.id)}>취소</button>
+            {purchase.discardedAt !== null
+              ? <>
+                  <button className="btn-text" onClick={() => props.onUndiscard(purchase.id)}>복원</button>
+                  <button className="btn-text" onClick={() => props.onDelete(purchase.id)}>취소</button>
+                </>
+              : <>
+                  {isRecurringType(purchase.type) && purchase.discontinuedAt !== null && <button className="btn-text" onClick={() => props.onResume(purchase.id)}>유지하기(재개)</button>}
+                  <button className="btn-text" onClick={() => props.onEdit(purchase)}>수정</button>
+                  {props.isPremium && <button className="btn-text" onClick={() => props.onArchive(purchase.id)}>보관</button>}
+                  <button className="btn-text" onClick={() => props.onDiscard(purchase.id)}>삭제</button>
+                  <button className="btn-text" onClick={() => props.onDelete(purchase.id)}>취소</button>
+                </>
+            }
           </div>
         </div>
         <div className="ticket-card__perforation" aria-hidden="true" />

@@ -91,6 +91,33 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
 
   const fcmSend = makeFcmSender(env.FIREBASE_SERVICE_ACCOUNT);
 
+  // push_subscriptions / native_push_tokens를 사용자별 개별 조회(N+1) 대신 한 번에 가져온다.
+  const userIds = Array.from(itemsByUserId.keys());
+  const subsByUserId = new Map<number, PushSubscriptionRow[]>();
+  const nativeTokensByUserId = new Map<number, NativePushTokenRow[]>();
+
+  if (userIds.length > 0) {
+    const placeholders = userIds.map(() => '?').join(',');
+    const { results: allSubs } = await env.DB.prepare(
+      `SELECT * FROM push_subscriptions WHERE user_id IN (${placeholders})`
+    ).bind(...userIds).all<PushSubscriptionRow>();
+    for (const sub of allSubs) {
+      const list = subsByUserId.get(sub.user_id) ?? [];
+      list.push(sub);
+      subsByUserId.set(sub.user_id, list);
+    }
+    if (fcmSend) {
+      const { results: allNativeTokens } = await env.DB.prepare(
+        `SELECT * FROM native_push_tokens WHERE user_id IN (${placeholders})`
+      ).bind(...userIds).all<NativePushTokenRow>();
+      for (const row of allNativeTokens) {
+        const list = nativeTokensByUserId.get(row.user_id) ?? [];
+        list.push(row);
+        nativeTokensByUserId.set(row.user_id, list);
+      }
+    }
+  }
+
   for (const [userId, { email, nickname, emailEnabled, items, purchaseIds }] of itemsByUserId) {
     // 급한 순서(0 → 1 → 3 → 7)로 정렬 — 다이제스트 상단과 제목 모두 이 순서를 기준으로 삼는다.
     items.sort((a, b) => a.dDay - b.dDay);
@@ -102,9 +129,7 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
       if (sent) emailsSent += 1;
     }
 
-    const { results: subs } = await env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?')
-      .bind(userId)
-      .all<PushSubscriptionRow>();
+    const subs = subsByUserId.get(userId) ?? [];
 
     for (const sub of subs) {
       // 한 항목만 담긴 기한 알림은 알림 창에서 바로 이후 알림을 끌 수 있다.
@@ -125,8 +150,7 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
 
     // 네이티브 앱(Android FCM) 발송
     if (fcmSend) {
-      const { results: nativeTokens } = await env.DB.prepare('SELECT * FROM native_push_tokens WHERE user_id = ?')
-        .bind(userId).all<NativePushTokenRow>();
+      const nativeTokens = nativeTokensByUserId.get(userId) ?? [];
       const pushPayload = {
         title: subject,
         body: buildPushBody(items),
