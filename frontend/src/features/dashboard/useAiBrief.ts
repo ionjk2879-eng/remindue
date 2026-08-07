@@ -280,6 +280,7 @@ export function useAiBrief({
       totalItems: purchases.length,
       nextPaymentDate: upcoming?.deadline ?? null,
       nextPaymentItem: upcoming?.itemName ?? null,
+      nextPaymentDDay: upcoming?.paymentDDay ?? null,
       priceChangeItems,
       subscriptionItems,
     };

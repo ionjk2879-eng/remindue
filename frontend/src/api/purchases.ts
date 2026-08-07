@@ -92,10 +92,12 @@ export interface AiSummaryInput {
   topCategoryShare: number | null;
   reviewCount: number;
   totalItems: number;
-  /** 가장 가까운 다음 결제/배송 예정일·항목명. AI가 코멘트에서 언급할 수 있게 넘겨준다 — 있는
-   *  그대로만 인용해야 하는 값이라 서버 프롬프트에서 "지어내지 마라"로 못박아둔다. */
+  /** 가장 가까운 다음 결제/배송 예정일·항목명·남은 일수. AI가 코멘트에서 언급할 수 있게 넘겨준다 —
+   *  있는 그대로만 인용해야 하는 값이라 서버 프롬프트에서 "지어내지 마라"로 못박아둔다.
+   *  nextPaymentDDay를 함께 넘겨야 AI가 날짜 문자열에서 일수를 직접 계산하다 틀리는 걸 막는다. */
   nextPaymentDate: string | null;
   nextPaymentItem: string | null;
+  nextPaymentDDay: number | null;
   /** 확인 대기 목록에서 가격 변동이 감지된 항목명 목록. 없으면 빈 배열. */
   priceChangeItems: string[];
   /** 현재 월 단위로 결제 중인 구독 서비스 목록 — 연간 플랜 절약 제안 계산용. */
