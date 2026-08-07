@@ -7,7 +7,7 @@ import { usePurchaseMutations } from './usePurchaseMutations';
 vi.mock('../../api/purchases', () => ({
   archivePurchase: vi.fn(), confirmAllDelivered: vi.fn(), deletePurchase: vi.fn(),
   disableDeadlineNotifications: vi.fn(), discardAllPurchases: vi.fn(), discardPurchase: vi.fn(),
-  discontinuePurchase: vi.fn(), markDelivered: vi.fn(), unarchivePurchase: vi.fn(),
+  discontinuePurchase: vi.fn(), markDelivered: vi.fn(), unarchivePurchase: vi.fn(), undiscardPurchase: vi.fn(),
 }));
 
 describe('usePurchaseMutations', () => {
@@ -17,7 +17,7 @@ describe('usePurchaseMutations', () => {
     vi.mocked(discardAllPurchases).mockResolvedValue(undefined);
     const load = vi.fn().mockResolvedValue(undefined);
     const loadSpendHistory = vi.fn().mockResolvedValue(undefined);
-    const overdue = [{ id: 7, itemName: '지난 항목' }] as Purchase[];
+    const overdue = [{ id: 7, itemName: '지난 항목', discardedAt: null }] as unknown as Purchase[];
     const { result } = renderHook(() => usePurchaseMutations({
       overdueItems: overdue,
       needsConfirmationItems: [],
