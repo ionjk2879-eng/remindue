@@ -365,6 +365,59 @@ select option {
 }
 
 /* --------------------------------------------------------------------------
+   Tester recruit marquee banner (site-wide, sits above the header)
+   -------------------------------------------------------------------------- */
+
+.tester-banner {
+  background: var(--danger-bg);
+  border-bottom: 1px dashed var(--stamp-red);
+  overflow: hidden;
+}
+
+.tester-banner__viewport {
+  max-width: 720px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.tester-banner__track {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  width: max-content;
+  padding: 7px 0;
+  animation: tester-banner-scroll 22s linear infinite;
+}
+
+.tester-banner__item {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--stamp-red);
+}
+
+.tester-banner:hover .tester-banner__track {
+  animation-play-state: paused;
+}
+
+@keyframes tester-banner-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tester-banner__track {
+    animation: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
    Site header (common — landing/login/signup/dashboard)
    -------------------------------------------------------------------------- */
 

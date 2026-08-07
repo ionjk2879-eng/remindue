@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import TesterRecruitBanner from './components/TesterRecruitBanner';
 import NativeTabBar from './components/NativeTabBar';
 import NativeHeader from './components/NativeHeader';
 import NativeInitializer from './components/NativeInitializer';
@@ -56,6 +57,7 @@ function Layout() {
   }
   return (
     <>
+      <TesterRecruitBanner />
       <Header />
       <Suspense fallback={<RouteLoading />}>
         <Outlet />
