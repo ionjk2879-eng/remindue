@@ -92,10 +92,6 @@ if (token) {
   // Settings
   await authPage.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
   await shot(authPage, '375_10_settings');
-
-  // Feedback
-  await authPage.goto(`${BASE}/feedback`, { waitUntil: 'networkidle' });
-  await shot(authPage, '375_11_feedback');
 } else {
   console.log('  Login failed (wrong credentials for dev db), skipping auth pages');
 }

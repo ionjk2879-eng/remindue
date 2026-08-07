@@ -53,8 +53,8 @@
     "VAPID_SUBJECT": "mailto:ionjk2879@gmail.com",
     // Email Routing이 붙어있는 도메인 — 사용자 전용 수신 주소(add-{token}@{도메인}) 조립에 쓴다.
     "FORWARDING_EMAIL_DOMAIN": "remindue.kr",
-    // 새 문의 알림 메일을 받는 운영자 주소. 비밀값이 아니라 그냥 vars로 둔다 — 이 이메일로
-    // 로그인한 사용자는 모든 문의 스레드에 답글을 남길 수 있다(routes/feedback.ts).
+    // 운영자 이메일. 비밀값이 아니라 그냥 vars로 둔다 — 관리자 전용 라우트(fx-recalculation.ts)와
+    // 크론 실패 알림(cron-alert.ts)에서 이 이메일과 비교/발송한다.
     "ADMIN_EMAIL": "ionjk2879@gmail.com",
     // 카카오페이 단건결제 가맹점 코드 — 비밀값 아님. 심사 전에는 카카오페이가 공개한 테스트
     // CID(TC0ONETIME)를 쓴다. 심사 통과 후 발급받은 실 가맹점 코드로 교체하면 된다.

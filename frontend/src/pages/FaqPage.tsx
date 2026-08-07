@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { KAKAO_OPEN_CHAT_URL } from '../lib/constants';
 
 interface FaqItem {
   q: string;
@@ -110,7 +111,11 @@ const FAQ: FaqCategory[] = [
         q: '해지 또는 환불은 어떻게 하나요?',
         a: (
           <>
-            <Link to="/settings">설정</Link>에서 자동 결제를 해지할 수 있습니다. 환불이 필요하거나 결제 관련 도움이 필요하면 <Link to="/feedback">문의 게시판</Link> 또는 <a href="mailto:ionjk2879@gmail.com">ionjk2879@gmail.com</a>으로 연락해 주세요. 자세한 기준은 <Link to="/terms">이용약관</Link>에서 확인할 수 있습니다.
+            <Link to="/settings">설정</Link>에서 자동 결제를 해지할 수 있습니다. 환불이 필요하거나 결제 관련 도움이 필요하면{' '}
+            <a href={KAKAO_OPEN_CHAT_URL} target="_blank" rel="noopener noreferrer">
+              카카오톡 오픈채팅
+            </a>{' '}
+            또는 <a href="mailto:ionjk2879@gmail.com">ionjk2879@gmail.com</a>으로 연락해 주세요. 자세한 기준은 <Link to="/terms">이용약관</Link>에서 확인할 수 있습니다.
           </>
         ),
       },
@@ -123,7 +128,10 @@ const FAQ: FaqCategory[] = [
         q: '버그를 발견했거나 기능을 제안하고 싶어요.',
         a: (
           <>
-            <Link to="/feedback">문의 게시판</Link>에 남겨 주세요. 버그, 기능 요청, 질문 등으로 분류해 작성할 수 있으며, 확인 후 답변드리겠습니다.
+            <a href={KAKAO_OPEN_CHAT_URL} target="_blank" rel="noopener noreferrer">
+              카카오톡 오픈채팅
+            </a>
+            으로 편하게 남겨 주세요. 확인 후 답변드리겠습니다.
           </>
         ),
       },

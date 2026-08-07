@@ -70,7 +70,6 @@ export default function NativeHeader() {
             {isAuthenticated ? (
               <>
                 <Link to="/faq" className="site-header__link" onClick={closeMenu}>FAQ</Link>
-                <Link to="/feedback" className="site-header__link" onClick={closeMenu}>문의/제안</Link>
                 <button className="btn btn-outline btn-sm" onClick={handleLogout}>로그아웃</button>
               </>
             ) : (
