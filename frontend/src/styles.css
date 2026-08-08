@@ -386,7 +386,7 @@ select option {
   gap: 40px;
   width: max-content;
   padding: 7px 0;
-  animation: tester-banner-scroll 22s linear infinite;
+  animation: tester-banner-scroll 34s linear infinite;
 }
 
 .tester-banner__item {

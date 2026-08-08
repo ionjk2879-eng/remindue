@@ -8,7 +8,7 @@ vi.mock('../../api/purchases', () => ({ fetchAiSummary: vi.fn() }));
 
 describe('useAiBrief', () => {
   it('shows deterministic metrics immediately and prevents duplicate summary requests', async () => {
-    let resolveSummary!: (value: { goodNews: string; attention: string; insight: string; annualSavingsSuggestion: string | null }) => void;
+    let resolveSummary!: (value: { goodNews: string; attention: string; insight: string }) => void;
     vi.mocked(fetchAiSummary).mockReturnValue(new Promise((resolve) => { resolveSummary = resolve; }));
     const subscription = {
       id: 1,
@@ -54,7 +54,7 @@ describe('useAiBrief', () => {
     expect(result.current.aiBriefTextLoading).toBe(true);
     expect(fetchAiSummary).toHaveBeenCalledTimes(1);
 
-    resolveSummary({ goodNews: '좋아요', attention: '확인', insight: '안정적', annualSavingsSuggestion: null });
+    resolveSummary({ goodNews: '좋아요', attention: '확인', insight: '안정적' });
     await waitFor(() => expect(result.current.aiBriefTextLoading).toBe(false));
     expect(result.current.aiBrief?.goodNews).toBe('좋아요');
   });
