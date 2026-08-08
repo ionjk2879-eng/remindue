@@ -82,21 +82,6 @@ export function useAiBrief({
     const priceChangeItems = priceUpItems.map((p) => p.itemName);
     const unusedServiceItems = unusedItems.map((p) => p.itemName);
 
-    // 월 단위 구독 목록 — 연간 플랜 절약 제안용. 정기배송(RECURRING_DELIVERY)은 제외하고
-    // 구독(SUBSCRIPTION)만 포함. 삭제·유지안함·한번만사용은 이미 소비 매니저 분석 대상 밖.
-    const subscriptionItems = purchases
-      .filter(
-        (p) =>
-          p.type === 'SUBSCRIPTION' &&
-          !p.isOneTime &&
-          p.discontinuedAt === null &&
-          p.amount !== null,
-      )
-      .map((p) => ({
-        name: p.brand ? `${p.brand} ${p.itemName}`.trim() : p.itemName,
-        monthlyAmount: Math.round(monthlyEquivalent(p)),
-      }));
-
     /**
      * priceUpItems는 이름과 달리 인상/인하를 둘 다 포함한다(priceChangePurchaseIds가 방향을
      * 안 가려서). 건강도 점수·"AI 추천 절약 액션"은 방향이 중요해서(가격이 내렸는데 감점되면
@@ -226,7 +211,6 @@ export function useAiBrief({
       goodNews: null,
       attention: null,
       insight: null,
-      annualSavingsSuggestion: null,
     });
     setAiBriefTextLoading(true);
 
@@ -265,7 +249,7 @@ export function useAiBrief({
       else if (trendPct !== null && trendPct < -10) insight = '지출이 줄고 있어요. 현재 소비 패턴을 유지하면 좋겠어요.';
       else insight = '이번 달 지출 패턴은 안정적입니다.';
 
-      return { goodNews, attention, insight, annualSavingsSuggestion: null };
+      return { goodNews, attention, insight };
     };
 
     const input: AiSummaryInput = {
@@ -284,7 +268,6 @@ export function useAiBrief({
       nextPaymentItem: upcoming?.itemName ?? null,
       nextPaymentDDay: upcoming?.paymentDDay ?? null,
       priceChangeItems,
-      subscriptionItems,
     };
 
     fetchAiSummary(input)

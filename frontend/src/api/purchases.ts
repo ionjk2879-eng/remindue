@@ -100,15 +100,12 @@ export interface AiSummaryInput {
   nextPaymentDDay: number | null;
   /** 확인 대기 목록에서 가격 변동이 감지된 항목명 목록. 없으면 빈 배열. */
   priceChangeItems: string[];
-  /** 현재 월 단위로 결제 중인 구독 서비스 목록 — 연간 플랜 절약 제안 계산용. */
-  subscriptionItems: Array<{ name: string; monthlyAmount: number | null }>;
 }
 
 export interface AiBriefSections {
   goodNews: string | null;
   attention: string | null;
   insight: string | null;
-  annualSavingsSuggestion: string | null;
 }
 
 export async function fetchAiSummary(input: AiSummaryInput): Promise<AiBriefSections> {
