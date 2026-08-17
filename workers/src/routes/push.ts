@@ -8,10 +8,22 @@ import { recordConfirmedPaymentCycle } from '../lib/recurring-fx';
 import { sendPush } from '../lib/push';
 import { makeFcmSender } from '../lib/fcm';
 import { computeDDay, computeDeadline } from '../lib/purchase-logic';
+import { logger } from '../lib/logger';
 import type { Env, NativePushTokenRow, PurchaseRow, PushSubscriptionRequestBody, UserRow } from '../types';
 import type { PushSubscriptionRow } from '../types';
 
 const push = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
+
+/**
+ * RemindueMessagingService.java가 커스텀 알림(버튼 등) 구성에 실패했을 때만 보고한다 — adb로
+ * 기기에 붙지 않아도 wrangler tail로 원인을 확인할 수 있는 안전망. 인증 불필요(백그라운드
+ * 서비스는 로그인 세션에 접근할 수 없음), 민감정보 없음(에러 메시지 문자열만 로그로 남김, 저장 안 함).
+ */
+push.post('/client-error', async (c) => {
+  const body = await c.req.json<{ message?: string }>().catch(() => ({}) as { message?: string });
+  logger.error('push.native_client_error', { message: (body.message ?? '').slice(0, 500) });
+  return c.body(null, 204);
+});
 
 async function getUserByEmail(db: D1Database, email: string): Promise<UserRow> {
   const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>();

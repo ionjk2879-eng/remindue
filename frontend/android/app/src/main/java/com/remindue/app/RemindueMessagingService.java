@@ -13,11 +13,17 @@ import androidx.core.app.NotificationManagerCompat;
 import com.capacitorjs.plugins.pushnotifications.PushNotificationsPlugin;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -37,6 +43,10 @@ import org.json.JSONObject;
 public class RemindueMessagingService extends FirebaseMessagingService {
 
     private static final String CHANNEL_ID = "remindue_default";
+
+    // PushActionReceiver.java와 동일한 값 — 네이티브 빌드는 Vite 환경변수 주입이 없다.
+    private static final String API_BASE_URL = "https://remindue.ionjk2879.workers.dev/api";
+    private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
 
     // 서비스워커(frontend/src/sw.ts)의 notificationclick과 동일한 목록 — 여기 있는 액션은
     // 앱을 열지 않고 PushActionReceiver가 곧바로 서버에 확인 처리를 요청한다. 그 외
@@ -62,6 +72,17 @@ public class RemindueMessagingService extends FirebaseMessagingService {
         String body = data.get("body");
         if (title == null && body == null) return;
 
+        try {
+            showRichNotification(remoteMessage, data, title, body);
+        } catch (Exception e) {
+            // 커스텀 알림(버튼 등) 구성 중 어디선가 실패해도 알림 자체는 뜨게 한다 — 버튼 없는
+            // 기본 알림이라도 뜨는 게 "알림이 아예 안 온다"보다 낫다.
+            reportClientError("showRichNotification failed: " + e);
+            showFallbackNotification(title, body);
+        }
+    }
+
+    private void showRichNotification(RemoteMessage remoteMessage, Map<String, String> data, String title, String body) {
         ensureChannel();
 
         int notificationId = (int) System.nanoTime();
@@ -75,7 +96,7 @@ public class RemindueMessagingService extends FirebaseMessagingService {
             .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentTitle(title)
             .setContentText(body)
-            .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(body != null ? body : ""))
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(buildOpenAppPendingIntent(data, messageId, notificationId, "content"));
@@ -88,6 +109,53 @@ public class RemindueMessagingService extends FirebaseMessagingService {
         }
 
         NotificationManagerCompat.from(this).notify(notificationId, builder.build());
+    }
+
+    private void showFallbackNotification(String title, String body) {
+        try {
+            ensureChannel();
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent pendingIntent = PendingIntent.getActivity(
+                this, (int) System.nanoTime(), intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_notify)
+                .setContentTitle(title != null ? title : "Remindue")
+                .setContentText(body != null ? body : "")
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent);
+            NotificationManagerCompat.from(this).notify((int) System.nanoTime(), builder.build());
+        } catch (Exception e) {
+            reportClientError("showFallbackNotification also failed: " + e);
+        }
+    }
+
+    /**
+     * showRichNotification이 실패했을 때만 서버로 보고한다 — 기기에 adb로 붙지 않아도
+     * wrangler tail로 원인을 확인할 수 있다. 정상 동작 시에는 호출되지 않는다.
+     */
+    private void reportClientError(String message) {
+        EXECUTOR.execute(() -> {
+            try {
+                HttpURLConnection connection = (HttpURLConnection) new URL(API_BASE_URL + "/push/client-error").openConnection();
+                try {
+                    connection.setRequestMethod("POST");
+                    connection.setRequestProperty("Content-Type", "application/json");
+                    connection.setConnectTimeout(3_000);
+                    connection.setReadTimeout(3_000);
+                    connection.setDoOutput(true);
+                    JSONObject body = new JSONObject();
+                    body.put("message", message);
+                    try (OutputStream os = connection.getOutputStream()) {
+                        os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                    }
+                    connection.getResponseCode();
+                } finally {
+                    connection.disconnect();
+                }
+            } catch (Exception ignored) {
+            }
+        });
     }
 
     // 대시보드의 유형 배지 팔레트(frontend/src/styles.css --type-*)와 맞춘다 — 예전에
