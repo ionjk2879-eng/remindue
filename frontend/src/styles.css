@@ -4292,6 +4292,7 @@ button.summary-board__tile:hover {
 /* 표가 좁은 화면에서 넘칠 때 카드 밖으로 잘리는 대신 가로 스크롤이 생기게 한다. */
 .table-scroll {
   overflow-x: auto;
+  margin-top: 14px;
 }
 
 .settings-actions {
