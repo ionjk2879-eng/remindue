@@ -23,8 +23,9 @@
 import { arrivalAnchor } from './purchase-logic';
 import { addDays, todayDateOnly } from './date';
 import { sendPush } from './push';
+import { makeFcmSender } from './fcm';
 import { createActionBatchToken } from './action-tokens';
-import type { Env, PurchaseRow, PushSubscriptionRow } from '../types';
+import type { Env, NativePushTokenRow, PurchaseRow, PushSubscriptionRow } from '../types';
 
 export interface ArrivalConfirmRunResult {
   itemsAsked: number;
@@ -64,6 +65,7 @@ export async function rollOverUnansweredArrivals(env: Env): Promise<number> {
 }
 
 export async function runArrivalConfirm(env: Env): Promise<ArrivalConfirmRunResult> {
+  const fcmSend = makeFcmSender(env.FIREBASE_SERVICE_ACCOUNT);
   const { results } = await env.DB.prepare(
     `SELECT * FROM purchases
        WHERE type = 'GENERAL'
@@ -98,30 +100,52 @@ export async function runArrivalConfirm(env: Env): Promise<ArrivalConfirmRunResu
     const { results: subs } = await env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?')
       .bind(userId)
       .all<PushSubscriptionRow>();
-    if (subs.length === 0) continue;
+    const { results: nativeTokens } = await env.DB.prepare('SELECT * FROM native_push_tokens WHERE user_id = ?')
+      .bind(userId)
+      .all<NativePushTokenRow>();
+    if (subs.length === 0 && nativeTokens.length === 0) continue;
 
     const actionToken = await createActionBatchToken(env.DB, userId, 'ARRIVAL', items.map((item) => item.id));
     const dashboardUrl = `${env.APP_URL}/dashboard?confirmArrivalBatch=${actionToken}&confirmArrivalItems=${items.map((item) => item.id).join(',')}`;
     const itemSummary = items.slice(0, 2).map((item) => item.item_name).join(', ');
     const more = items.length > 2 ? ` 외 ${items.length - 2}건` : '';
-
-    for (const sub of subs) {
-      const { sent, gone } = await sendPush(env, sub, {
-        title: `📦 오늘 배송 확인 ${items.length}건`,
-        body: `${itemSummary}${more} — 수령한 배송만 처리해 주세요. 미도착 항목은 내일 다시 알려드려요.`,
-        url: dashboardUrl,
-        notificationKind: 'ARRIVAL',
-        actions: [
+    // 항목이 하나뿐이면 "모두 받음"/"일부 받음"의 구분이 의미가 없다(어차피 하나만 고를 수 있어서
+    // 늘 같은 동작) — "받았어요"(날짜 선택 모달) / "아직 안 옴" 2버튼으로 단순화한다.
+    // "받았어요"는 여러 건일 때의 "일부 받음"과 같은 arrival_partial 액션을 그대로 재사용한다 —
+    // 어차피 그 모달이 항목 하나짜리 체크박스+날짜 선택으로도 그대로 동작한다.
+    const actions = items.length === 1
+      ? [
+          { action: 'arrival_partial', title: '받았어요' },
+          { action: 'arrival_not_yet', title: '아직 안 옴' },
+        ]
+      : [
           { action: 'arrival_all_received', title: '모두 받음' },
           { action: 'arrival_partial', title: '일부 받음' },
           { action: 'arrival_not_yet', title: '아직 미도착' },
-        ],
-        actionToken,
-      });
+        ];
+    const pushPayload = {
+      title: `📦 오늘 배송 확인 ${items.length}건`,
+      body: `${itemSummary}${more} — 수령한 배송만 처리해 주세요. 미도착 항목은 내일 다시 알려드려요.`,
+      url: dashboardUrl,
+      notificationKind: 'ARRIVAL' as const,
+      actions,
+      actionToken,
+    };
+
+    for (const sub of subs) {
+      const { sent, gone } = await sendPush(env, sub, pushPayload);
       if (sent) pushSent += 1;
       if (gone) {
         await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(sub.id).run();
         pushSubscriptionsPruned += 1;
+      }
+    }
+
+    if (fcmSend) {
+      for (const row of nativeTokens) {
+        const { sent, gone } = await fcmSend(row.token, pushPayload);
+        if (sent) pushSent += 1;
+        if (gone) await env.DB.prepare('DELETE FROM native_push_tokens WHERE id = ?').bind(row.id).run();
       }
     }
   }
