@@ -4231,6 +4231,77 @@ button.summary-board__tile:hover {
   border-bottom: none;
 }
 
+/* 설정 화면의 해외결제 재계산 표 — .pricing-table과 달리 폭이 좁은 .settings-section 안에
+   들어가고, 컬럼 성격도 다르다(긴 항목명/근거 vs 짧은 금액). table-layout: fixed로 폭을
+   직접 배분하지 않으면 브라우저가 금액 컬럼을 너무 좁게 잡아 "34,714"·"원"이 줄바꿈된다. */
+.fx-recalc-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  background: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  box-shadow: var(--shadow-rest);
+}
+
+.fx-recalc-table th,
+.fx-recalc-table td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--hairline);
+  word-break: keep-all;
+}
+
+.fx-recalc-table th {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: var(--paper);
+}
+
+.fx-recalc-table th:nth-child(1) { width: 30%; }
+.fx-recalc-table th:nth-child(2) { width: 17%; }
+.fx-recalc-table th:nth-child(3) { width: 17%; }
+.fx-recalc-table th:nth-child(4) { width: 36%; }
+
+.fx-recalc-table td:nth-child(2),
+.fx-recalc-table td:nth-child(3) {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.fx-recalc-table td:first-child {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.fx-recalc-table small {
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+}
+
+.fx-recalc-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* 표가 좁은 화면에서 넘칠 때 카드 밖으로 잘리는 대신 가로 스크롤이 생기게 한다. */
+.table-scroll {
+  overflow-x: auto;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
 /* --------------------------------------------------------------------------
    Billing callback pages (success/auth-success/fail)
    -------------------------------------------------------------------------- */

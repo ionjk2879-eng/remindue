@@ -490,22 +490,26 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
-            <button className="btn btn-sm" onClick={handleSaveFxCard} disabled={savingFxCard}>
-              {savingFxCard ? '저장 중...' : '저장'}
-            </button>
+            <div className="register-form__actions">
+              <button className="btn btn-sm" onClick={handleSaveFxCard} disabled={savingFxCard}>
+                {savingFxCard ? '저장 중...' : '저장'}
+              </button>
+            </div>
             {fxCardMessage && <p className="settings-section__message">{fxCardMessage}</p>}
             <hr />
             <h3>기존 해외결제 다시 계산</h3>
             <p className="settings-section__hint">
               기존 금액은 바로 바뀌지 않아요. 먼저 구매일 기준 환율과 현재 카드 설정으로 계산한 전후 금액을 확인한 뒤 적용할 수 있어요.
             </p>
-            <button className="btn btn-sm btn-outline" onClick={() => runFxRecalculation('preview')} disabled={fxRecalculationBusy}>
-              {fxRecalculationBusy ? '계산 중...' : '재계산 미리보기'}
-            </button>
+            <div className="register-form__actions">
+              <button className="btn btn-sm btn-outline" onClick={() => runFxRecalculation('preview')} disabled={fxRecalculationBusy}>
+                {fxRecalculationBusy ? '계산 중...' : '재계산 미리보기'}
+              </button>
+            </div>
             {fxRecalculation && fxRecalculation.items.length > 0 && (
               <>
                 <div className="table-scroll">
-                  <table className="pricing-table">
+                  <table className="fx-recalc-table">
                     <thead><tr><th>항목·기준일</th><th>기존 금액</th><th>재계산 금액</th><th>계산 근거</th></tr></thead>
                     <tbody>
                       {fxRecalculation.items.map((item) => (
