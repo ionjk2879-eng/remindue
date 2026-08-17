@@ -9,6 +9,10 @@ ext {
     androidxFragmentVersion = '1.8.9'
     coreSplashScreenVersion = '1.2.0'
     androidxWebkitVersion = '1.14.0'
+    // @capacitor/push-notifications의 android/build.gradle과 동일한 버전 — 그쪽은
+    // implementation으로만 선언돼 있어 app 모듈 컴파일 classpath에 전이되지 않는다
+    // (RemindueMessagingService.java가 FirebaseMessagingService/RemoteMessage를 직접 참조).
+    firebaseMessagingVersion = '25.0.1'
     junitVersion = '4.13.2'
     androidxJunitVersion = '1.3.0'
     androidxEspressoCoreVersion = '3.7.0'

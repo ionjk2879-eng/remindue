@@ -72,45 +72,32 @@ async function getAccessToken(sa: ServiceAccount): Promise<string> {
   return access_token;
 }
 
-// PWA(sw.ts)는 알림마다 색이 다른 시계 PNG를 그대로 아이콘으로 쓰지만, Android 상태바
-// 아이콘은 항상 단색으로 강제 렌더링되기 때문에 같은 방식을 쓸 수 없다. Android 알림에는
-// 종류별 accent color만 적용한다. android.notification.image를 지정하면 펼친 알림이
-// BigPictureStyle로 바뀌어 실제 알림 본문 대신 이미지가 영역을 차지하므로 사용하지 않는다.
-// 종류별 색은 대시보드의 유형 배지 팔레트(styles.css --type-*)와 맞춘다: DEADLINE(기한 예정)은
-// GENERAL 전용 알림이라 --type-general, ARRIVAL(배송 수령 확인)은 정기배송 색인 --type-recurring,
-// RENEWAL(정기배송·구독 유지 확인)은 --type-subscription을 쓴다. WEEKLY_SUMMARY는 대응하는
-// 구매 유형이 없어 기존 보라색을 그대로 유지한다.
-const NOTIFICATION_STYLE: Record<NonNullable<PushPayload['notificationKind']>, { color: string }> = {
-  DEADLINE: { color: '#6A7BA8' },
-  RENEWAL: { color: '#C47B6A' },
-  ARRIVAL: { color: '#8A9B6A' },
-  WEEKLY_SUMMARY: { color: '#7B6FA3' },
-};
-
+// data-only 메시지로 보낸다 — 최상위 "notification" 필드가 있으면 앱이 백그라운드/종료
+// 상태일 때 Play Services가 onMessageReceived 호출 전에 알림을 직접 그려버려서, actions(유지
+// 하기/나중에 버튼)를 붙일 기회 자체가 없다. data만 보내면 앱 상태와 무관하게 항상
+// RemindueMessagingService.onMessageReceived가 호출되어 우리가 직접 버튼 달린 알림을 그릴 수
+// 있다(frontend/android/app/src/main/java/com/remindue/app/RemindueMessagingService.java).
+// 그 파일에 색상 팔레트·채널 생성 등 표시 관련 로직이 전부 있고, 여기서는 값만 문자열로
+// 실어 보낸다(FCM data 페이로드는 모든 값이 string이어야 함).
 async function sendWithToken(
   projectId: string,
   accessToken: string,
   fcmToken: string,
   payload: PushPayload
 ): Promise<FcmSendResult> {
-  const style = payload.notificationKind ? NOTIFICATION_STYLE[payload.notificationKind] : undefined;
-
   const message = {
     message: {
       token: fcmToken,
-      notification: { title: payload.title, body: payload.body },
       data: {
+        title: payload.title,
+        body: payload.body,
         url: payload.url,
         notificationKind: payload.notificationKind ?? '',
         ...(payload.actionToken ? { actionToken: payload.actionToken } : {}),
+        ...(payload.actions ? { actions: JSON.stringify(payload.actions) } : {}),
       },
       android: {
         priority: 'high',
-        notification: {
-          sound: 'default',
-          channel_id: 'remindue_default',
-          ...(style ? { color: style.color } : {}),
-        },
       },
     },
   };

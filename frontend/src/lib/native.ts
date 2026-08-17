@@ -134,6 +134,31 @@ export async function registerNativePushIfGranted(): Promise<string | null> {
 }
 
 /**
+ * 알림(본문 또는 "일부 유지"처럼 앱을 열어야 하는 액션 버튼)을 탭해 앱이 열렸을 때, 알림에
+ * 실려온 url(예: /dashboard?confirmRecurringBatch=...)로 라우팅한다. 이게 없으면 앱이 그냥
+ * 기본 화면으로만 열려서 대시보드의 확인 모달(DashboardConfirmationModals.tsx)이 뜨지 않는다
+ * — 웹/PWA는 sw.ts의 notificationclick이 clients.openWindow(url)로 이 역할을 대신한다.
+ * 콜드 스타트로 앱이 알림을 통해 처음 열린 경우도 Capacitor가 리스너 등록 시점에 버퍼링된
+ * 이벤트를 그대로 전달해줘서 동일하게 동작한다.
+ */
+export function setupPushNotificationOpenHandler(navigate: (to: string) => void): () => void {
+  if (!isNative) return () => {};
+
+  const handle = PushNotifications.addListener('pushNotificationActionPerformed', (performed) => {
+    const url = (performed.notification.data as { url?: string } | undefined)?.url;
+    if (!url) return;
+    try {
+      const parsed = new URL(url);
+      navigate(parsed.pathname + parsed.search);
+    } catch {
+      navigate(url.startsWith('/') ? url : `/${url}`);
+    }
+  });
+
+  return () => { handle.then((h) => h.remove()); };
+}
+
+/**
  * 앱 시작 시 최대한 일찍 호출해야 한다 — capacitor.config.ts의 readyTimeout(10초) 안에 이 호출이
  * 도달하지 못하면 플러그인이 "이번 번들이 문제 있다"고 판단해 자동으로 이전 번들로 롤백한다.
  * 인증 확인 등 비동기 작업을 기다리지 말고 무조건 바로 호출한다.
