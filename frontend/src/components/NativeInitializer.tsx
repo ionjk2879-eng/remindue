@@ -2,10 +2,12 @@
 // 웹 환경에서는 isNative=false라 모든 호출이 no-op.
 
 import { useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   initNative,
   hideSplash,
   setupBackButton,
+  setupPushNotificationOpenHandler,
   registerNativePushIfGranted,
   isNative,
   markLiveUpdateReady,
@@ -17,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 export default function NativeInitializer() {
   const { isAuthenticated, isInitializing } = useAuth();
   const fcmTokenRef = useRef<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!isNative) return;
@@ -34,7 +37,9 @@ export default function NativeInitializer() {
     initNative();
 
     // Android 뒤로가기 버튼
-    const cleanup = setupBackButton();
+    const cleanupBackButton = setupBackButton();
+    // 알림(본문 또는 앱을 열어야 하는 액션 버튼) 탭 시 대시보드의 확인 모달로 바로 이동.
+    const cleanupPushOpen = setupPushNotificationOpenHandler(navigate);
 
     // 이미 권한이 허용된 기기에서만 토큰을 가져와 둔다 — 아직 답하지 않은 사용자에게 앱 시작과
     // 동시에 OS 권한 다이얼로그를 띄우지 않기 위해서다(설정 화면의 "알림 켜기"에서만 요청한다).
@@ -43,8 +48,11 @@ export default function NativeInitializer() {
       fcmTokenRef.current = token;
     });
 
-    return cleanup;
-  }, []);
+    return () => {
+      cleanupBackButton();
+      cleanupPushOpen();
+    };
+  }, [navigate]);
 
   useEffect(() => {
     if (!isNative || isInitializing) return;

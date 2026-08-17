@@ -70,8 +70,9 @@ function Layout() {
 export default function App() {
   return (
     <AuthProvider>
-      <NativeInitializer />
       <BrowserRouter>
+        {/* useNavigate()로 알림 딥링크를 라우팅하려면(native.ts) BrowserRouter 안에 있어야 한다. */}
+        <NativeInitializer />
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<LandingPage />} />
