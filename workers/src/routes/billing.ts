@@ -1,4 +1,4 @@
-// 토스페이먼츠 결제 연동 — 1회성(30일)/월 정기결제/연 정기결제 세 플랜.
+// 토스페이먼츠 결제 연동 — 1회성(30일)/월 정기결제 두 플랜.
 //
 // 1회성: 결제창(일반 결제) → 프론트가 리다이렉트로 돌아온 paymentKey/orderId/amount를
 //   /confirm에 넘기면 서버가 토스에 승인 확정.
@@ -33,8 +33,8 @@ async function getUserByEmail(db: D1Database, email: string): Promise<UserRow> {
 }
 
 function requirePlan(value: unknown): BillingPlan {
-  if (value !== 'ONE_TIME' && value !== 'MONTHLY' && value !== 'ANNUAL') {
-    throw new BadRequestError('plan은 ONE_TIME/MONTHLY/ANNUAL 중 하나여야 합니다');
+  if (value !== 'ONE_TIME' && value !== 'MONTHLY') {
+    throw new BadRequestError('plan은 ONE_TIME/MONTHLY 중 하나여야 합니다');
   }
   return value;
 }
@@ -198,8 +198,8 @@ billing.post('/billing-key/issue', async (c) => {
     .json<{ authKey?: string; customerKey?: string; plan?: string }>()
     .catch(() => ({}) as { authKey?: string; customerKey?: string; plan?: string });
   const plan = requirePlan(body.plan);
-  if (plan === 'ONE_TIME') {
-    throw new BadRequestError('billing-key 발급은 MONTHLY/ANNUAL 플랜에서만 가능합니다');
+  if (plan !== 'MONTHLY') {
+    throw new BadRequestError('billing-key 발급은 MONTHLY 플랜에서만 가능합니다');
   }
   if (!body.authKey || !body.customerKey) {
     throw new BadRequestError('authKey, customerKey는 필수입니다');

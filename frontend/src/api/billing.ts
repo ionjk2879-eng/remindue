@@ -32,8 +32,8 @@ export async function createKakaoCheckout() {
   return data;
 }
 
-/** 카카오페이 정기결제 등록 준비 — 심사 전 테스트 CID(TCSUBSCRIP)로 MONTHLY/ANNUAL만 지원한다. */
-export async function createKakaoSubscribeCheckout(plan: 'MONTHLY' | 'ANNUAL') {
+/** 카카오페이 월 정기결제 등록 준비 — 심사 전 테스트 CID(TCSUBSCRIP)를 사용한다. */
+export async function createKakaoSubscribeCheckout(plan: 'MONTHLY') {
   const { data } = await apiClient.post<{ redirectUrlPc: string; redirectUrlMobile: string }>('/kakao-billing/subscribe', { plan });
   return data;
 }

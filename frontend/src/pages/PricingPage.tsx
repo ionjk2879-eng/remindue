@@ -30,8 +30,6 @@ const PLAN_CARDS: PlanCard[] = [
     note: '매달 자동 결제',
     recommended: true,
   },
-  // 19,000원/년은 1,900원×12개월(22,800원)보다 3,800원 싸다 — 딱 2개월치 요금이라 "2개월 무료 효과".
-  { key: 'ANNUAL', title: '연 정기결제', price: '19,000원', note: '매년 자동 결제', badge: '2개월 무료 효과' },
 ];
 
 function NativePricingInfo() {
@@ -113,8 +111,13 @@ export default function PricingPage() {
     setErrorMessage(null);
     setLoadingPlan(plan);
     try {
-      const { redirectUrlPc, redirectUrlMobile } =
-        plan === 'ONE_TIME' ? await createKakaoCheckout() : await createKakaoSubscribeCheckout(plan);
+      const checkout = plan === 'ONE_TIME'
+        ? await createKakaoCheckout()
+        : plan === 'MONTHLY'
+          ? await createKakaoSubscribeCheckout(plan)
+          : null;
+      if (!checkout) throw new Error('연간 정기결제는 지원하지 않습니다.');
+      const { redirectUrlPc, redirectUrlMobile } = checkout;
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       window.location.href = isMobile ? redirectUrlMobile : redirectUrlPc;
     } catch (err) {

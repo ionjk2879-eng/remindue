@@ -114,10 +114,10 @@ describe('runBillingRenewals', () => {
   it('카카오페이 구독은 chargeSubscription을 영문 item_name으로 호출한다', async () => {
     const userId = seedUser(db, { toss_customer_key: null });
     seedSubscription(db, userId, {
-      plan: 'ANNUAL', current_period_end: PAST_DUE_DATE, toss_billing_key: null, kakao_sid: 'sid-123',
+      plan: 'MONTHLY', current_period_end: PAST_DUE_DATE, toss_billing_key: null, kakao_sid: 'sid-123',
     });
     vi.mocked(chargeSubscription).mockResolvedValue({
-      aid: 'a', tid: 'tid-1', cid: 'TCSUBSCRIP', sid: 'sid-123', amount: { total: 19000 }, approved_at: '2026-01-01',
+      aid: 'a', tid: 'tid-1', cid: 'TCSUBSCRIP', sid: 'sid-123', amount: { total: 1900 }, approved_at: '2026-01-01',
     });
 
     const result = await runBillingRenewals(makeEnv(db));
@@ -125,9 +125,27 @@ describe('runBillingRenewals', () => {
     expect(result.renewed).toBe(1);
     expect(chargeSubscription).toHaveBeenCalledWith(
       'test_kakao_dummy',
-      expect.objectContaining({ sid: 'sid-123', itemName: KAKAO_CHARGE_ITEM_NAME.ANNUAL })
+      expect.objectContaining({ sid: 'sid-123', itemName: KAKAO_CHARGE_ITEM_NAME.MONTHLY })
     );
     expect(chargeBillingKey).not.toHaveBeenCalled();
+  });
+
+  it('연간 정기결제는 재청구하지 않고 자동갱신을 해지한다', async () => {
+    const userId = seedUser(db, { toss_customer_key: null });
+    const subId = seedSubscription(db, userId, {
+      plan: 'ANNUAL', current_period_end: PAST_DUE_DATE, toss_billing_key: null, kakao_sid: 'sid-annual',
+    });
+
+    const result = await runBillingRenewals(makeEnv(db));
+
+    expect(result).toEqual({ attempted: 1, renewed: 0, failed: 0, downgraded: 1 });
+    expect(chargeSubscription).not.toHaveBeenCalled();
+    expect(chargeBillingKey).not.toHaveBeenCalled();
+    const sub = db.raw.prepare('SELECT * FROM subscriptions WHERE id = ?').get(subId) as never as {
+      status: string; auto_renew: number;
+    };
+    expect(sub.status).toBe('CANCELED');
+    expect(sub.auto_renew).toBe(0);
   });
 
   it('토스 빌링키/고객키가 없는 정합성 깨진 행은 건너뛰고 크래시하지 않는다', async () => {

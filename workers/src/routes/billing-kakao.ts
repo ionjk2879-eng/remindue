@@ -90,9 +90,9 @@ function returnOrigin(c: { req: { query: (key: string) => string | undefined }; 
   return c.req.query('origin') ?? c.env.APP_URL;
 }
 
-function requireSubscriptionPlan(value: unknown): 'MONTHLY' | 'ANNUAL' {
-  if (value !== 'MONTHLY' && value !== 'ANNUAL') {
-    throw new BadRequestError('plan은 MONTHLY/ANNUAL 중 하나여야 합니다');
+function requireSubscriptionPlan(value: unknown): 'MONTHLY' {
+  if (value !== 'MONTHLY') {
+    throw new BadRequestError('plan은 MONTHLY여야 합니다');
   }
   return value;
 }

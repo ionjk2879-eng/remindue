@@ -59,12 +59,6 @@ export default function TermsPage() {
               <td>1개월</td>
               <td>매월 자동 결제</td>
             </tr>
-            <tr>
-              <td>연 정기결제</td>
-              <td>19,000원 / 년</td>
-              <td>1년</td>
-              <td>매년 자동 결제</td>
-            </tr>
           </tbody>
         </table>
         <ol>

@@ -48,6 +48,15 @@ export async function runBillingRenewals(env: Env): Promise<BillingRenewalRunRes
   const dashboardUrl = `${env.APP_URL}/dashboard`;
 
   for (const sub of results) {
+    // 장기 정기결제는 더 이상 갱신하지 않고 현재 이용 기간 만료 후 종료한다.
+    if (sub.plan === 'ANNUAL') {
+      await env.DB.prepare(
+        `UPDATE subscriptions SET status = 'CANCELED', auto_renew = 0, updated_at = datetime('now') WHERE id = ?`
+      ).bind(sub.id).run();
+      downgraded += 1;
+      continue;
+    }
+
     const isKakao = !!sub.kakao_sid;
     if (!isKakao && (!sub.toss_billing_key || !sub.user_toss_customer_key)) {
       // 데이터 정합성이 깨진 행(빌링키 없이 auto_renew=1) — 청구를 시도할 수 없으니 건너뛴다.
