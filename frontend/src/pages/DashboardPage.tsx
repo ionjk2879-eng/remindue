@@ -45,6 +45,7 @@ import {
   calculateSelectedSpend,
   calculateYearlySpending,
   computeSpendingByDate,
+  selectCalculatorPurchases,
   type SpendingDateGroup,
 } from '../features/dashboard/dashboardMetrics';
 import { selectPurchaseList, selectPurchaseSignals } from '../features/dashboard/dashboardSelectors';
@@ -590,6 +591,10 @@ export default function DashboardPage() {
     p.scheduleType === 'FIXED_DAY' ? p.amount! : (p.amount! * 30) / (p.intervalDays || 30);
 
   const [currentYearNum, currentMonthNum] = today.split('-').map(Number);
+  const [calculatorMonth, setCalculatorMonth] = useState(
+    `${currentYearNum}-${String(currentMonthNum).padStart(2, '0')}`,
+  );
+  const [calculatorYearNum, calculatorMonthNum] = calculatorMonth.split('-').map(Number);
 
   /**
    * "이번 달 예상지출"/"올해 예상 지출" 월별 항목 클릭 시 보여주는 항목별 내역 — 정기배송/구독은
@@ -651,8 +656,12 @@ export default function DashboardPage() {
       </>
     );
 
-  /** 특정 지출 계산기: 활성 항목을 카테고리와 개별 항목으로 좁혀 이번 달 발생 예정액을 계산한다. */
-  const calculatorCandidates = purchases.filter((p) => p.amount !== null && p.discontinuedAt === null);
+  /** 특정 지출 계산기: 선택한 달의 지출 이력에서 삭제하지 않은 항목만 고른다. */
+  const calculatorCandidates = selectCalculatorPurchases(
+    spendHistoryPurchases,
+    calculatorYearNum,
+    calculatorMonthNum,
+  );
   const calculatorTypeFiltered = calculatorCandidates.filter(
     (p) => calculatorType === 'ALL' || p.type === calculatorType
   );
@@ -666,8 +675,8 @@ export default function DashboardPage() {
   const calculatorAmount = calculateSelectedSpend(
     calculatorCategoryFiltered,
     calculatorSelectedItemIds,
-    currentYearNum,
-    currentMonthNum,
+    calculatorYearNum,
+    calculatorMonthNum,
   );
 
   /** "올해 예상 지출" — 1~12월 각각의 실제 지출 총액(정기 결제 발생 횟수 + 1회성 결제)과 그 합계. */
@@ -1122,7 +1131,21 @@ export default function DashboardPage() {
         <div className="spending-detail specific-spend-calculator">
           <div className="spending-detail__section">
             <p className="spending-detail__heading">🧮 특정 지출 계산기</p>
-            <p className="spending-detail__hint">카테고리를 고르면 해당 항목만 자동으로 걸러집니다. 이어서 필요한 항목만 선택해 이번 달 예상 지출을 계산하세요.</p>
+            <p className="spending-detail__hint">계산할 달을 고른 뒤, 그달에 구매·결제한 기록 중 필요한 항목만 선택하세요. 삭제한 기록은 표시되지 않습니다.</p>
+
+            <label className="specific-spend-calculator__month">
+              <span>계산할 달</span>
+              <input
+                type="month"
+                value={calculatorMonth}
+                max={`${currentYearNum}-${String(currentMonthNum).padStart(2, '0')}`}
+                onChange={(event) => {
+                  setCalculatorMonth(event.target.value);
+                  setCalculatorCategories([]);
+                  setCalculatorSelectedItemIds([]);
+                }}
+              />
+            </label>
 
             <div className="specific-spend-calculator__types" role="group" aria-label="지출 유형 필터">
               <button
@@ -1176,13 +1199,16 @@ export default function DashboardPage() {
 
             <div className="specific-spend-calculator__items">
               {calculatorCategoryFiltered.length === 0 ? (
-                <p className="spending-detail__empty">선택한 카테고리에 금액이 등록된 활성 항목이 없어요.</p>
+                <p className="spending-detail__empty">선택한 달과 조건에 해당하는 구매 기록이 없어요.</p>
               ) : (
                 calculatorCategoryFiltered.map((p) => {
                   const checked = calculatorSelectedItemIds.includes(p.id);
-                  const itemAmount = isRecurringType(p.type)
-                    ? occurrencesInMonth(p, currentYearNum, currentMonthNum) * p.amount!
-                    : p.baseDate.startsWith(`${currentYearNum}-${String(currentMonthNum).padStart(2, '0')}`) ? p.amount! : 0;
+                  const itemAmount = calculateSelectedSpend(
+                    [p],
+                    [p.id],
+                    calculatorYearNum,
+                    calculatorMonthNum,
+                  );
                   return (
                     <label key={p.id} className="specific-spend-calculator__item">
                       <input
@@ -1200,7 +1226,7 @@ export default function DashboardPage() {
               )}
             </div>
             <p className="spending-detail__total">
-              <span>선택한 {calculatorSelectedItems.length}건의 {currentMonthNum}월 예상 지출</span>
+              <span>선택한 {calculatorSelectedItems.length}건의 {calculatorYearNum}년 {calculatorMonthNum}월 지출</span>
               <span className="mono">{calculatorAmount.toLocaleString('ko-KR')}원</span>
             </p>
           </div>

@@ -107,8 +107,22 @@ export function calculateCategoryItems(purchases: Purchase[], category: Purchase
 export function calculateSelectedSpend(purchases: Purchase[], selectedIds: number[], year: number, month: number) {
   return Math.round(purchases.filter(({ id }) => selectedIds.includes(id)).reduce((sum, purchase) => {
     if (purchase.amount === null) return sum;
-    if (isRecurringType(purchase.type)) return sum + occurrencesInMonth(purchase, year, month) * purchase.amount;
+    if (isRecurringType(purchase.type)) {
+      return sum + occurrenceDatesInMonth(purchase, year, month).reduce(
+        (purchaseTotal, date) => purchaseTotal + (occurrenceAmount(purchase, date) ?? 0),
+        0,
+      );
+    }
     const [baseYear, baseMonth] = purchase.baseDate.split('-').map(Number);
     return sum + (baseYear === year && baseMonth === month ? purchase.amount : 0);
   }, 0));
+}
+
+/** 특정 지출 계산기에는 선택한 달에 실제 지출이 있고, 사용자가 삭제하지 않은 기록만 보여준다. */
+export function selectCalculatorPurchases(purchases: Purchase[], year: number, month: number) {
+  return purchases.filter((purchase) =>
+    purchase.amount !== null
+    && purchase.discardedAt === null
+    && totalSpendInMonth([purchase], year, month) > 0
+  );
 }

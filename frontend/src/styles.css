@@ -967,6 +967,31 @@ button.summary-board__tile:hover {
   border-radius: var(--radius-sm);
 }
 
+.specific-spend-calculator__month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, #6b7dff 24%, var(--hairline));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, #6b7dff 5%, var(--paper-card));
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.specific-spend-calculator__month input {
+  min-width: 150px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: var(--paper-card);
+  color: var(--ink);
+  font: inherit;
+}
+
 .specific-spend-calculator__types {
   display: flex;
   flex-wrap: wrap;
