@@ -76,9 +76,15 @@ export interface PurchaseRow {
   delivery_confirm_count: number;
   /**
    * 사용자가 "유지 안 함"을 눌러 명시적으로 표시한 시각. NULL이면 그냥 미확인일 뿐 — 침묵을
-   * "사용 안 함"으로 해석하지 않는다. "유지하기"(mark-delivered)를 다시 누르면 NULL로 되돌아간다.
+   * "사용 안 함"으로 해석하지 않는다. 재개 시 NULL로 되돌아간다.
    */
   discontinued_at: string | null;
+  /** 완료된 중단 구간 JSON: [{"from":"YYYY-MM-DD","to":"YYYY-MM-DD"}]. */
+  schedule_pause_periods: string;
+  /** 원래 앵커 기준 회차에서 빼서 사용자에게 연속 회차를 표시하는 보정값. */
+  delivery_round_offset: number;
+  /** 유지 안 함을 누른 순간 표시되던 회차. */
+  discontinued_round: number | null;
   /** 유지 확인에서 "모두 중단"을 선택했을 때, 현재 회차를 마친 뒤 종료할 예정일. */
   stop_after_current_at: string | null;
   renewal_decision_for: string | null;
@@ -345,6 +351,7 @@ export interface PurchaseResponse {
   deliveryConfirmCount: number;
   /** 사용자가 "유지 안 함"을 누른 시각. null이면 미확인일 뿐(사용 안 함으로 해석 금지). */
   discontinuedAt: string | null;
+  schedulePausePeriods: { from: string; to: string }[];
   stopAfterCurrentAt: string | null;
   deadlineNotificationsDisabledAt: string | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */

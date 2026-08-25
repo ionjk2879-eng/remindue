@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
 import { getPaymentHistoryByPurchaseIds, recordConfirmedPaymentCycle } from '../lib/recurring-fx';
-import { computeDDay, computeDeadline, FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
+import { computeDDay, computeDeadline, computeDeadlineAt, FREE_PLAN_MAX_PURCHASES, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
 import {
   convertToKrw,
   sanitizeBrandDomain,
@@ -51,6 +51,34 @@ async function getOwnedPurchase(db: D1Database, userId: number, id: number): Pro
     throw new ForbiddenError('본인 소유의 항목만 수정/삭제할 수 있습니다');
   }
   return purchase;
+}
+
+async function resumePurchaseSchedule(db: D1Database, existing: PurchaseRow): Promise<PurchaseRow> {
+  const currentRound = computeDeadline(existing).deliveryRound ?? 1;
+  const previousRound = existing.discontinued_round
+    ?? computeDeadlineAt(existing, existing.discontinued_at!.slice(0, 10)).deliveryRound
+    ?? currentRound;
+  const desiredRound = previousRound + 1;
+  const nextOffset = (existing.delivery_round_offset ?? 0) + currentRound - desiredRound;
+  const pausePeriods = (() => {
+    try {
+      const parsed = JSON.parse(existing.schedule_pause_periods || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
+  pausePeriods.push({ from: existing.discontinued_at!.slice(0, 10), to: confirmReceiptToday(existing.type) });
+
+  await db.prepare(
+    `UPDATE purchases
+        SET discontinued_at = NULL, discontinued_round = NULL, delivery_round_offset = ?,
+            schedule_pause_periods = ?, stop_after_current_at = NULL, renewal_decision_for = NULL,
+            updated_at = datetime('now')
+      WHERE id = ?`
+  ).bind(nextOffset, JSON.stringify(pausePeriods), existing.id).run();
+
+  return (await db.prepare('SELECT * FROM purchases WHERE id = ?').bind(existing.id).first<PurchaseRow>())!;
 }
 
 function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRequestBody {
@@ -450,7 +478,7 @@ purchases.post('/confirm-all', async (c) => {
 /**
  * "유지 안 함" — 사용자가 명시적으로 "더 이상 안 쓴다"고 표시. discontinued_at을 채운다.
  * 미확인(침묵)과 구분되는 확실한 신호라 AI 절약 후보 판정에서 더 높은 확신으로 취급된다.
- * mark-delivered를 다시 누르면(재사용 재개) discontinued_at은 NULL로 되돌아간다.
+ * 재개는 /:id/resume에서 별도로 처리해 중단 구간과 연속 회차를 보존한다.
  */
 purchases.post('/:id/discontinue', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
@@ -460,14 +488,38 @@ purchases.post('/:id/discontinue', async (c) => {
     throw new BadRequestError('정기구독·배송 항목에서만 "유지 안 함"을 표시할 수 있습니다');
   }
 
+  const discontinuedRound = computeDeadline(existing).deliveryRound;
   await c.env.DB.prepare(
-    `UPDATE purchases SET discontinued_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`
+    `UPDATE purchases
+        SET discontinued_at = datetime('now'), discontinued_round = ?, updated_at = datetime('now')
+      WHERE id = ?`
   )
-    .bind(id)
+    .bind(discontinuedRound, id)
     .run();
 
   const updated = await c.env.DB.prepare('SELECT * FROM purchases WHERE id = ?').bind(id).first<PurchaseRow>();
   return c.json(toPurchaseResponse(updated!));
+});
+
+/** 중단했던 동일 항목을 재개한다. 중단 중 예정됐던 회차는 건너뛰고 직전 회차 다음부터 잇는다. */
+purchases.post('/:id/resume', async (c) => {
+  const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
+  const id = Number(c.req.param('id'));
+  const existing = await getOwnedPurchase(c.env.DB, user.id, id);
+
+  // 구버전 클라이언트는 재개 버튼으로 이 경로를 호출한다. 결제 확인으로 기록하지 말고 새 재개
+  // 처리와 동일하게 중단 구간·연속 회차를 보존한다.
+  if (existing.discontinued_at !== null) {
+    return c.json(toPurchaseResponse(await resumePurchaseSchedule(c.env.DB, existing)));
+  }
+  if (!isRecurringType(existing.type)) {
+    throw new BadRequestError('정기구독·배송 항목에서만 재개할 수 있습니다');
+  }
+  if (existing.discontinued_at === null) {
+    throw new BadRequestError('중단된 항목만 재개할 수 있습니다');
+  }
+
+  return c.json(toPurchaseResponse(await resumePurchaseSchedule(c.env.DB, existing)));
 });
 
 /** 반품 신청/A·S 접수 뒤에는 해당 일반구매의 남은 기한 알림을 모두 끈다. */

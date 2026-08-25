@@ -69,6 +69,8 @@ export interface Purchase {
   deliveryConfirmCount: number;
   /** 사용자가 "유지 안 함"을 누른 시각. null이면 미확인일 뿐(사용 안 함으로 해석 금지). */
   discontinuedAt: string | null;
+  /** 재개가 완료된 중단 구간. 이 사이의 예정 회차는 지출에서 제외한다. */
+  schedulePausePeriods?: { from: string; to: string }[];
   stopAfterCurrentAt: string | null;
   deadlineNotificationsDisabledAt: string | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */

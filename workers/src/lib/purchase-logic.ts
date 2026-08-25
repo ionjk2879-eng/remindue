@@ -38,7 +38,7 @@ type DeadlineInput = Pick<
   | 'is_one_time'
   | 'expected_delivery_date'
   | 'arrival_offset_days'
->;
+> & { delivery_round_offset?: number };
 
 /**
  * GENERAL/RECURRING_DELIVERY는 expectedDeliveryDate(있으면)를 앵커로 쓰고, 없으면 baseDate로
@@ -151,7 +151,7 @@ function nextIntervalAnchoredCycle(
  * 순회해서 각 인스턴스를 독립적으로 알림 대상 여부를 판단한다. RECURRING_DELIVERY/SUBSCRIPTION은
  * 지금까지처럼 스케줄 인스턴스 1개뿐이다.
  */
-export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
+function computeRawDeadlines(row: DeadlineInput, referenceDate: string): DeadlineInstance[] {
   switch (row.type as PurchaseType) {
     case 'GENERAL': {
       // 반품기한/A·S보증 모두 "받은 날"부터 세는 게 맞다 — expected_delivery_date(도착일)가
@@ -209,14 +209,14 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
         // 반복, 토·일·공휴일이면 다음 영업일로 밀림)이 고정 앵커고 결제일은 그 도착일에서
         // 영업일만큼 거꾸로 역산된 값이다 — 실제 정기배송 회차별 상세정보 데이터로 검증됨.
         if (row.arrival_offset_days !== null) {
-          const { deadline, k } = nextArrivalAnchoredCycle(intervalMonths, anchor, todayDateOnly(), row.arrival_offset_days);
+          const { deadline, k } = nextArrivalAnchoredCycle(intervalMonths, anchor, referenceDate, row.arrival_offset_days);
           return [{ kind: 'SCHEDULE', deadline, deliveryRound: k + 1 }];
         }
         // 오프셋이 없으면(대부분의 기존 항목) fixedDayOfMonth 자체가 결제일이고, 결제는
         // 공휴일과 무관하게 그대로 이뤄진다(사용자 확정: "결제일 자체는 공휴일이라도 결제됨").
         // 회차: 시작월(anchor 기준)부터 다음 일정까지 몇 달이 지났는지 ÷ N + 1.
         const fixedDay = row.fixed_day_of_month ?? 1;
-        const deadline = nextFixedDayEveryNMonths(fixedDay, intervalMonths, anchor, todayDateOnly());
+        const deadline = nextFixedDayEveryNMonths(fixedDay, intervalMonths, anchor, referenceDate);
         const base = parseDateOnly(anchor);
         const next = parseDateOnly(deadline);
         const monthsElapsed = (next.year - base.year) * 12 + (next.month - base.month);
@@ -231,11 +231,11 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
       // 구한다 — 주/일 단위 정기배송도 "도착 N영업일 전 = 결제" 패턴을 쓰기 때문이다. 몇 회차인지도
       // 원시 날짜(anchor + interval*k)가 아니라 영업일 보정까지 끝난 실제 결제일 기준으로 찾는다.
       if (row.arrival_offset_days !== null) {
-        const { cyclesElapsed, deadline } = nextIntervalAnchoredCycle(interval, anchor, todayDateOnly(), row.arrival_offset_days);
+        const { cyclesElapsed, deadline } = nextIntervalAnchoredCycle(interval, anchor, referenceDate, row.arrival_offset_days);
         return [{ kind: 'SCHEDULE', deadline, deliveryRound: cyclesElapsed + 1 }];
       }
 
-      const daysSinceStart = daysBetween(anchor, todayDateOnly());
+      const daysSinceStart = daysBetween(anchor, referenceDate);
       const cyclesElapsed = Math.max(0, Math.ceil(daysSinceStart / interval));
       const arrivalDate = addDays(anchor, interval * cyclesElapsed);
       return [
@@ -249,15 +249,28 @@ export function computeDeadlines(row: DeadlineInput): DeadlineInstance[] {
   }
 }
 
+/** 중단 기간에 건너뛴 회차만큼 번호를 보정하되 판매처의 일정 날짜는 그대로 유지한다. */
+export function computeDeadlines(row: DeadlineInput, referenceDate = todayDateOnly()): DeadlineInstance[] {
+  const offset = row.delivery_round_offset ?? 0;
+  return computeRawDeadlines(row, referenceDate).map((instance) => ({
+    ...instance,
+    deliveryRound: instance.deliveryRound === null ? null : Math.max(1, instance.deliveryRound - offset),
+  }));
+}
+
 /**
  * 카드 배지/정렬/CSV·PDF export처럼 "항목당 기한 1개"를 가정하는 소비처를 위한 대표 기한 —
  * computeDeadlines() 중 오늘 이후 가장 가까운 것(전부 지났으면 가장 덜 지난 것)을 고른다.
  * RECURRING_DELIVERY/SUBSCRIPTION, 또는 GENERAL이라도 둘 중 하나만 있으면 항상 그 값과 동일하다.
  */
 export function computeDeadline(row: DeadlineInput): DeadlineResult {
-  const instances = computeDeadlines(row);
-  const today = todayDateOnly();
-  const upcoming = instances.filter((i) => i.deadline >= today).sort((a, b) => a.deadline.localeCompare(b.deadline));
+  return computeDeadlineAt(row, todayDateOnly());
+}
+
+/** 과거 중단 시점처럼 특정 날짜를 기준으로 당시 표시 회차를 복원한다. */
+export function computeDeadlineAt(row: DeadlineInput, referenceDate: string): DeadlineResult {
+  const instances = computeDeadlines(row, referenceDate);
+  const upcoming = instances.filter((i) => i.deadline >= referenceDate).sort((a, b) => a.deadline.localeCompare(b.deadline));
   const chosen = upcoming[0] ?? instances.slice().sort((a, b) => b.deadline.localeCompare(a.deadline))[0];
   return { deadline: chosen.deadline, deliveryRound: chosen.deliveryRound };
 }

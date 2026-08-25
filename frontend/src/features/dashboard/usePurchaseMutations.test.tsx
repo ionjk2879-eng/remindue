@@ -7,7 +7,7 @@ import { usePurchaseMutations } from './usePurchaseMutations';
 vi.mock('../../api/purchases', () => ({
   archivePurchase: vi.fn(), confirmAllDelivered: vi.fn(), deletePurchase: vi.fn(),
   disableDeadlineNotifications: vi.fn(), discardAllPurchases: vi.fn(), discardPurchase: vi.fn(),
-  discontinuePurchase: vi.fn(), markDelivered: vi.fn(), unarchivePurchase: vi.fn(), undiscardPurchase: vi.fn(),
+  discontinuePurchase: vi.fn(), markDelivered: vi.fn(), resumePurchase: vi.fn(), unarchivePurchase: vi.fn(), undiscardPurchase: vi.fn(),
 }));
 
 describe('usePurchaseMutations', () => {

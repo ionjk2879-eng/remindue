@@ -11,6 +11,18 @@ function parseCategoryTags(value: string | null, primary: PurchaseRow['category'
   return primary ? [primary] : [];
 }
 
+function parsePausePeriods(value?: string): PurchaseResponse['schedulePausePeriods'] {
+  try {
+    const periods = JSON.parse(value || '[]');
+    if (!Array.isArray(periods)) return [];
+    return periods.filter((period): period is { from: string; to: string } =>
+      typeof period?.from === 'string' && typeof period?.to === 'string'
+    );
+  } catch {
+    return [];
+  }
+}
+
 export function toPurchaseResponse(row: PurchaseRow, paymentHistory: PaymentHistoryEntry[] = []): PurchaseResponse {
   const { deadline, deliveryRound } = computeDeadline(row);
   const paymentDDay = computeDDay(deadline);
@@ -58,6 +70,7 @@ export function toPurchaseResponse(row: PurchaseRow, paymentHistory: PaymentHist
     warrantyDeadlineDDay: warrantyInstance ? computeDDay(warrantyInstance.deadline) : null,
     deliveryConfirmCount: row.delivery_confirm_count,
     discontinuedAt: row.discontinued_at,
+    schedulePausePeriods: parsePausePeriods(row.schedule_pause_periods),
     stopAfterCurrentAt: row.stop_after_current_at,
     deadlineNotificationsDisabledAt: row.deadline_notifications_disabled_at,
     brand: row.brand,

@@ -770,6 +770,7 @@ export default function DashboardPage() {
     handleMarkDelivered,
     handleRecurringSelectionConfirm,
     handleDiscontinue,
+    handleResume,
     handleDisableDeadlineNotifications,
     handleConfirmAll,
     handleArchive,
@@ -1527,7 +1528,7 @@ export default function DashboardPage() {
         <OverduePurchaseList
           purchases={overdueItems} pendingPriceChanges={pendingPriceChangeByPurchaseId}
           currentYear={currentYearNum} currentMonth={currentMonthNum} isPremium={isPremium}
-          needsAttention={needsAttentionBadge} onDiscardAll={handleDiscardAll} onResume={handleMarkDelivered}
+          needsAttention={needsAttentionBadge} onDiscardAll={handleDiscardAll} onResume={handleResume}
           onEdit={handleEditClick} onArchive={handleArchive} onDiscard={handleDiscard} onUndiscard={handleUndiscard} onDelete={handleDelete}
         />
       )}

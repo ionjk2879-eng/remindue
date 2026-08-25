@@ -162,7 +162,7 @@ export function daysSinceBaseDate(baseDate: string): number {
 
 function spendCutoffDate(purchase: Purchase): string | null {
   const dates = [purchase.archivedAt, purchase.discardedAt, purchase.discontinuedAt]
-    .filter((date): date is string => date !== null)
+    .filter((date): date is string => typeof date === 'string')
     .map((date) => date.slice(0, 10));
   return dates.length === 0 ? null : dates.sort()[0];
 }
@@ -173,6 +173,10 @@ function scheduleAnchorDate(purchase: Purchase): string {
     : purchase.baseDate;
 }
 
+function isInsideCompletedPause(purchase: Purchase, date: string): boolean {
+  return (purchase.schedulePausePeriods ?? []).some(({ from, to }) => date > from && date < to);
+}
+
 export function occurrenceDatesInMonth(purchase: Purchase, year: number, month: number): string[] {
   if (!isRecurringType(purchase.type)) return [];
   const anchorDate = scheduleAnchorDate(purchase);
@@ -181,7 +185,7 @@ export function occurrenceDatesInMonth(purchase: Purchase, year: number, month: 
   const cutoff = spendCutoffDate(purchase);
 
   if (purchase.isOneTime) {
-    return baseYear === year && baseMonth === month && (cutoff === null || anchorDate <= cutoff) ? [anchorDate] : [];
+    return baseYear === year && baseMonth === month && (cutoff === null || anchorDate <= cutoff) && !isInsideCompletedPause(purchase, anchorDate) ? [anchorDate] : [];
   }
 
   if (purchase.scheduleType === 'FIXED_DAY') {
@@ -210,7 +214,7 @@ export function occurrenceDatesInMonth(purchase: Purchase, year: number, month: 
         const deadline = subtractBusinessDays(arrivalDate, purchase.arrivalOffsetDays);
         const [deadlineYear, deadlineMonth] = deadline.split('-').map(Number);
         if (deadlineYear === year && deadlineMonth === month && (cutoff === null || deadline <= cutoff)) {
-          dates.push(deadline);
+          if (!isInsideCompletedPause(purchase, deadline)) dates.push(deadline);
         }
       }
       return dates.sort();
@@ -225,7 +229,7 @@ export function occurrenceDatesInMonth(purchase: Purchase, year: number, month: 
     const daysInMonth = new Date(year, month, 0).getDate();
     const day = Math.min(purchase.fixedDayOfMonth ?? 1, daysInMonth);
     const date = `${year}-${pad(month)}-${pad(day)}`;
-    return cutoff !== null && date > cutoff ? [] : [date];
+    return (cutoff !== null && date > cutoff) || isInsideCompletedPause(purchase, date) ? [] : [date];
   }
 
   const interval = Math.max(1, purchase.intervalDays || 30);
@@ -241,7 +245,7 @@ export function occurrenceDatesInMonth(purchase: Purchase, year: number, month: 
     if (time < monthStart) continue;
     const date = new Date(time);
     const dateOnly = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-    if (cutoff === null || dateOnly <= cutoff) dates.push(dateOnly);
+    if ((cutoff === null || dateOnly <= cutoff) && !isInsideCompletedPause(purchase, dateOnly)) dates.push(dateOnly);
   }
   return dates;
 }

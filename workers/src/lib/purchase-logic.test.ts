@@ -5,6 +5,7 @@ import {
   arrivalAnchor,
   computeArrivalEstimate,
   computeDeadline,
+  computeDeadlineAt,
   computeDeadlines,
   computePreviousScheduleDeadline,
   computeStatusLabel,
@@ -28,7 +29,7 @@ type DeadlineRow = Pick<
   | 'arrival_offset_days'
 >;
 
-function row(type: PurchaseType, overrides: Partial<DeadlineRow> = {}): DeadlineRow {
+function row(type: PurchaseType, overrides: Partial<DeadlineRow & { delivery_round_offset: number }> = {}): DeadlineRow & { delivery_round_offset?: number } {
   return {
     type,
     base_date: '2026-07-01',
@@ -74,6 +75,16 @@ describe('purchase deadline logic', () => {
     });
     expect(computeDeadline(recurring)).toEqual({ deadline: '2026-07-31', deliveryRound: 4 });
     expect(computePreviousScheduleDeadline(recurring)).toBe('2026-07-21');
+  });
+
+  it('subtracts paused cycles from the visible round without moving the vendor schedule', () => {
+    const recurring = row('SUBSCRIPTION', {
+      base_date: '2026-07-01',
+      interval_days: 10,
+      delivery_round_offset: 2,
+    });
+    expect(computeDeadline(recurring)).toEqual({ deadline: '2026-07-31', deliveryRound: 2 });
+    expect(computeDeadlineAt(recurring, '2026-07-11')).toEqual({ deadline: '2026-07-11', deliveryRound: 1 });
   });
 
   it('steps back by fixed_day_interval_months for multi-month FIXED_DAY schedules', () => {

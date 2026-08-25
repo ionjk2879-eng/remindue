@@ -8,6 +8,7 @@ import {
   discardPurchase,
   discontinuePurchase,
   markDelivered,
+  resumePurchase,
   unarchivePurchase,
   undiscardPurchase,
 } from '../../api/purchases';
@@ -67,6 +68,10 @@ export function usePurchaseMutations({
     await discontinuePurchase(id);
     await Promise.all([load(), loadSpendHistory()]);
   };
+  const handleResume = async (id: number) => {
+    await resumePurchase(id);
+    await Promise.all([load(), loadSpendHistory()]);
+  };
   const handleDisableDeadlineNotifications = async (id: number) => {
     await disableDeadlineNotifications(id);
     await load();
@@ -99,6 +104,7 @@ export function usePurchaseMutations({
     handleMarkDelivered,
     handleRecurringSelectionConfirm,
     handleDiscontinue,
+    handleResume,
     handleDisableDeadlineNotifications,
     handleConfirmAll,
     handleArchive,

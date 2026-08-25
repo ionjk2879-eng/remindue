@@ -388,8 +388,9 @@ push.post('/recurring-batch/:action', async (c) => {
       ).bind(today, decisionFor, id, batch.userId).run();
       await recordConfirmedPaymentCycle(c.env.DB, purchase, c.env.KOREA_EXIM_API_KEY);
     } else {
-      await c.env.DB.prepare(`UPDATE purchases SET renewal_decision_for = ?, stop_after_current_at = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?`)
-        .bind(decisionFor, decisionFor, id, batch.userId).run();
+      const discontinuedRound = computeDeadline(purchase).deliveryRound;
+      await c.env.DB.prepare(`UPDATE purchases SET renewal_decision_for = ?, stop_after_current_at = ?, discontinued_round = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?`)
+        .bind(decisionFor, decisionFor, discontinuedRound, id, batch.userId).run();
     }
   }
   return c.body(null, 204);

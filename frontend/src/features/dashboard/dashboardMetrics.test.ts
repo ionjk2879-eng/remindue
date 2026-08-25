@@ -65,4 +65,24 @@ describe('dashboardMetrics', () => {
 
     expect(calculateSelectedSpend([recurring], [4], 2026, 8)).toBe(80000);
   });
+
+  it('does not include recurring occurrences that fall inside a completed pause', () => {
+    const paused = {
+      ...general,
+      id: 5,
+      type: 'SUBSCRIPTION',
+      baseDate: '2026-07-15',
+      scheduleType: 'FIXED_DAY',
+      fixedDayOfMonth: 15,
+      fixedDayIntervalMonths: 1,
+      isOneTime: false,
+      arrivalOffsetDays: null,
+      paymentHistory: [],
+      discontinuedAt: null,
+      schedulePausePeriods: [{ from: '2026-07-20', to: '2026-09-01' }],
+    } as Purchase;
+
+    expect(selectCalculatorPurchases([paused], 2026, 8)).toEqual([]);
+    expect(calculateSelectedSpend([paused], [5], 2026, 8)).toBe(0);
+  });
 });
