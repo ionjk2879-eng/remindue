@@ -53,6 +53,34 @@ describe('dashboardSelectors', () => {
     expect(selected.needsConfirmationItems).toEqual([]);
   });
 
+  it('offers an unresolved recurring decision during the seven-day window', () => {
+    const upcoming = purchase(5, {
+      type: 'SUBSCRIPTION',
+      deliveryRound: 2,
+      deliveryConfirmCount: 1,
+      paymentDDay: 4,
+      deadline: '2026-08-29',
+      renewalDecisionFor: null,
+    });
+    const selected = selectPurchaseSignals([upcoming], []);
+    expect(selected.needsConfirmationItems).toEqual([upcoming]);
+    expect(selected.reviewCandidates).toEqual([]);
+  });
+
+  it('treats an explicit discontinue as resolved rather than usage-unconfirmed', () => {
+    const stopped = purchase(6, {
+      type: 'SUBSCRIPTION',
+      deliveryRound: 5,
+      deliveryConfirmCount: 0,
+      paymentDDay: -2,
+      discontinuedAt: '2026-08-25T00:00:00Z',
+    });
+    const selected = selectPurchaseSignals([stopped], []);
+    expect(selected.reviewCandidates).toEqual([]);
+    expect(selected.needsConfirmationItems).toEqual([]);
+    expect(selected.unusedItems).toEqual([]);
+  });
+
   it('combines persisted and pending price changes without duplicating counts', () => {
     const recurring = purchase(3, {
       type: 'SUBSCRIPTION',

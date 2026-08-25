@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchAiSummary, type AiBriefSections, type AiSummaryInput } from '../../api/purchases';
 import type { PendingPurchase, Purchase } from '../../types';
 import { isRecurringType } from '../../types';
@@ -30,6 +30,24 @@ export function useAiBrief({
   const [aiBrief, setAiBrief] = useState<AiBriefData | null>(null);
   const [aiBriefTextLoading, setAiBriefTextLoading] = useState(false);
   const aiSummaryInFlightRef = useRef(false);
+  const purchaseStateKey = allPurchases
+    .map((purchase) => [
+      purchase.id,
+      purchase.updatedAt,
+      purchase.discardedAt,
+      purchase.discontinuedAt,
+      purchase.renewalDecisionFor,
+    ].join(':'))
+    .join('|');
+  const spendHistoryStateKey = spendHistoryPurchases
+    .map((purchase) => `${purchase.id}:${purchase.updatedAt}`)
+    .join('|');
+
+  // 삭제·유지 안 함·복원 등으로 원본 목록이 바뀌면 이전 분석 결과를 그대로 보여주지 않는다.
+  // 사용자가 다시 펼치면 반드시 현재 서버 상태로 새 분석을 만든다.
+  useEffect(() => {
+    setAiBrief(null);
+  }, [purchaseStateKey, spendHistoryStateKey]);
   const monthlyEquivalent = (purchase: Purchase) => purchase.scheduleType === 'FIXED_DAY'
     ? purchase.amount!
     : (purchase.amount! * 30) / (purchase.intervalDays || 30);

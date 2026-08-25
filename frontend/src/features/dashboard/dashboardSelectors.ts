@@ -53,7 +53,8 @@ export function selectPurchaseSignals(allPurchases: Purchase[], pendingItems: Pe
       isRecurringType(purchase.type)
       && !purchase.isOneTime
       && purchase.amount !== null
-      && (purchase.discontinuedAt !== null || missedRoundsFor(purchase) >= MISSED_ROUNDS_REVIEW_THRESHOLD),
+      && purchase.discontinuedAt === null
+      && missedRoundsFor(purchase) >= MISSED_ROUNDS_REVIEW_THRESHOLD,
     )
     .map((purchase) => ({
       id: purchase.id,
@@ -64,14 +65,19 @@ export function selectPurchaseSignals(allPurchases: Purchase[], pendingItems: Pe
           ? purchase.amount!
           : (purchase.amount! * 30) / (purchase.intervalDays || 30),
       ),
-      isExplicit: purchase.discontinuedAt !== null,
+      isExplicit: false,
       missedRounds: missedRoundsFor(purchase),
     }));
   const needsConfirmationItems = purchases.filter((purchase) =>
     isRecurringType(purchase.type)
     && !purchase.isOneTime
     && purchase.discontinuedAt === null
-    && missedRoundsFor(purchase) >= 1,
+    && (
+      missedRoundsFor(purchase) >= 1
+      || (purchase.paymentDDay >= 0
+        && purchase.paymentDDay <= 7
+        && purchase.renewalDecisionFor !== purchase.deadline)
+    ),
   );
   const pendingPriceChangeByPurchaseId = new Map(
     pendingItems
@@ -89,7 +95,9 @@ export function selectPurchaseSignals(allPurchases: Purchase[], pendingItems: Pe
       .map(({ id }) => id),
   ]);
   const reviewIds = new Set(reviewCandidates.map(({ id }) => id));
-  const recurringPurchases = purchases.filter((purchase) => isRecurringType(purchase.type));
+  const recurringPurchases = purchases.filter((purchase) =>
+    isRecurringType(purchase.type) && purchase.discontinuedAt === null,
+  );
   return {
     reviewCandidates,
     savingsEstimate: reviewCandidates.reduce((sum, item) => sum + item.monthly, 0),

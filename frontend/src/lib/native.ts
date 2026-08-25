@@ -158,6 +158,17 @@ export function setupPushNotificationOpenHandler(navigate: (to: string) => void)
   return () => { handle.then((h) => h.remove()); };
 }
 
+/** 백그라운드 알림 액션이 서버 상태를 바꾼 뒤 앱으로 돌아오면 열린 화면의 데이터를 갱신한다. */
+export function setupNativeAppResumeHandler(): () => void {
+  if (!isNative) return () => {};
+
+  const handle = App.addListener('appStateChange', ({ isActive }) => {
+    if (isActive) window.dispatchEvent(new Event('remindue:data-refresh'));
+  });
+
+  return () => { handle.then((h) => h.remove()); };
+}
+
 /**
  * 앱 시작 시 최대한 일찍 호출해야 한다 — capacitor.config.ts의 readyTimeout(10초) 안에 이 호출이
  * 도달하지 못하면 플러그인이 "이번 번들이 문제 있다"고 판단해 자동으로 이전 번들로 롤백한다.

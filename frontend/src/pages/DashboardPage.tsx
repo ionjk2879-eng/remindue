@@ -731,11 +731,7 @@ export default function DashboardPage() {
     fxCardSettings,
   });
 
-  /**
-   * "확인 필요" 패널의 대상 — 1회차 이상 "유지하기"가 안 눌렸고 아직 "유지 안 함"으로도 표시되지
-   * 않은 정기배송/구독. reviewCandidates(3회차 이상, 절약 후보 확정)보다 범위가 넓다 — 1~2회차
-   * 미확인은 여기엔 포함되지만 아직 절약 후보로 올리진 않는다(전체확인/유지 안 함 버튼의 대상).
-   */
+  /** "확인 필요" 패널의 대상 — 결제 7일 전부터 선택하지 않은 항목과 이미 지난 미응답 항목. */
   /**
    * "가격 인상" 타일 상세용 구독/정기배송 3분류. 우선순위는 가격 변동 감지(이메일 매칭 또는
    * "유지하기" 회차 갱신) > 절약 제안(미사용 의심) > 정상 — 둘 다 해당돼도 하나의 상태로만 표시한다.
@@ -1294,7 +1290,11 @@ export default function DashboardPage() {
               <li key={p.id}>
                 <span className="confirm-needed-section__name">
                   {p.itemName}
-                  <span className="confirm-needed-section__rounds">{missedRoundsFor(p)}회차 미확인</span>
+                  <span className="confirm-needed-section__rounds">
+                    {missedRoundsFor(p) > 0
+                      ? `${missedRoundsFor(p)}회차 미응답 · 아직 유지 여부를 선택하지 않음`
+                      : `${p.paymentDDay === 0 ? '오늘' : `${p.paymentDDay}일 후`} 예정 · 유지 여부 미선택`}
+                  </span>
                 </span>
                 <span className="confirm-needed-section__actions">
                   <button type="button" className="btn-text" onClick={() => handleMarkDelivered(p.id)}>

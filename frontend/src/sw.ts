@@ -98,7 +98,14 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: notifData.actionToken }),
-      }).catch(() => {})
+      })
+        .then((response) => {
+          if (!response.ok) return;
+          return self.clients.matchAll({ type: 'window' }).then((clients) => {
+            clients.forEach((client) => client.postMessage({ type: 'purchase-data-changed' }));
+          });
+        })
+        .catch(() => {})
     );
     return;
   }

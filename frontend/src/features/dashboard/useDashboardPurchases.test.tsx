@@ -32,4 +32,18 @@ describe('useDashboardPurchases', () => {
     expect(result.current.spendHistoryPurchases[0]).toEqual(updated);
     expect(JSON.parse(localStorage.getItem('purchases_cache_tester') ?? '[]')).toEqual([updated]);
   });
+
+  it('refreshes purchases when a notification action changes server data', async () => {
+    const { result } = renderHook(() => useDashboardPurchases('tester'));
+    await waitFor(() => expect(result.current.purchasesLoaded).toBe(true));
+
+    const delivered = { ...item, lastDeliveredDate: '2026-08-25' } as Purchase;
+    vi.mocked(fetchPurchases).mockResolvedValue([delivered]);
+    vi.mocked(fetchPurchasesForSpendHistory).mockResolvedValue([delivered]);
+
+    act(() => window.dispatchEvent(new Event('remindue:data-refresh')));
+
+    await waitFor(() => expect(result.current.purchases[0]).toEqual(delivered));
+    expect(result.current.spendHistoryPurchases[0]).toEqual(delivered);
+  });
 });

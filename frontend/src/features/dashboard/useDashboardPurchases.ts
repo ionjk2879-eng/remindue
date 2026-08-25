@@ -76,6 +76,30 @@ export function useDashboardPurchases(nickname: string | null) {
     void loadAcceptedShares();
   }, [load, loadAcceptedShares, loadSpendHistory]);
 
+  useEffect(() => {
+    const refresh = () => {
+      void load().catch((error) => console.error('구매 목록 갱신 실패', error));
+      void loadSpendHistory().catch((error) => console.error('지출 내역 갱신 실패', error));
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    const onServiceWorkerMessage = (event: MessageEvent<{ type?: string }>) => {
+      if (event.data?.type === 'purchase-data-changed') refresh();
+    };
+
+    window.addEventListener('focus', refresh);
+    window.addEventListener('remindue:data-refresh', refresh);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    navigator.serviceWorker?.addEventListener('message', onServiceWorkerMessage);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('remindue:data-refresh', refresh);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      navigator.serviceWorker?.removeEventListener('message', onServiceWorkerMessage);
+    };
+  }, [load, loadSpendHistory]);
+
   return {
     purchases,
     setPurchases,

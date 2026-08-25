@@ -2675,6 +2675,13 @@ button.summary-board__tile:hover {
   background: var(--surface);
 }
 
+.arrival-check-section__list li > div:first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .arrival-check-section__list strong,
 .arrival-check-section__list li > div:first-child > span {
   display: block;
@@ -2683,6 +2690,8 @@ button.summary-board__tile:hover {
 .arrival-check-section__list strong {
   font-size: 0.9rem;
   color: var(--ink);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .arrival-check-section__list li > div:first-child > span {
@@ -5218,6 +5227,14 @@ button.summary-board__tile:hover {
 
 .arrival-modal__choices .btn {
   width: 100%;
+}
+
+.arrival-batch-item,
+.arrival-batch-item .schedule-radio {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* ─── 네이티브 앱 전용 (Capacitor) ───────────────────────────────────────── */
