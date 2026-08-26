@@ -70,7 +70,7 @@
     "BILLING_SUSPENDED": "true",
     // Google OAuth 클라이언트 ID — Google Cloud Console > API 및 서비스 > 사용자 인증 정보에서 발급.
     // GOOGLE_CLIENT_SECRET은 비밀값이므로 `wrangler secret put GOOGLE_CLIENT_SECRET`으로 별도 관리.
-    "GOOGLE_CLIENT_ID": ""
+    "GOOGLE_CLIENT_ID": "852611135637-98kjhvtkkokqjn2k319bvg7p1etagd6s.apps.googleusercontent.com"
   },
   "env": {
     "dev": {
@@ -105,7 +105,7 @@
         "KAKAOPAY_SUBSCRIPTION_CID": "TCSUBSCRIP",
         "ENVIRONMENT": "development",
         "BILLING_SUSPENDED": "true",
-        "GOOGLE_CLIENT_ID": ""
+        "GOOGLE_CLIENT_ID": "852611135637-98kjhvtkkokqjn2k319bvg7p1etagd6s.apps.googleusercontent.com"
       }
     }
   }
