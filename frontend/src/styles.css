@@ -634,6 +634,18 @@ select option {
   background: var(--danger-bg);
 }
 
+.btn-google {
+  background: var(--paper-card);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  gap: 10px;
+  font-weight: 500;
+}
+
+.btn-google:hover {
+  background: var(--paper-secondary);
+}
+
 .btn-sm {
   padding: 6px 12px;
   font-size: 0.8rem;

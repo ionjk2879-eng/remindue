@@ -26,6 +26,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const GoogleAuthSuccessPage = lazy(() => import('./pages/GoogleAuthSuccessPage'));
 const BillingSuccessPage = lazy(() => import('./pages/BillingSuccessPage'));
 const BillingAuthSuccessPage = lazy(() => import('./pages/BillingAuthSuccessPage'));
 const BillingFailPage = lazy(() => import('./pages/BillingFailPage'));
@@ -144,6 +145,7 @@ export default function App() {
                 </RequireAuth>
               }
             />
+            <Route path="/auth/google/success" element={<GoogleAuthSuccessPage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route
               path="/billing/success"

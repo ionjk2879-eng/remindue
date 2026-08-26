@@ -6,6 +6,7 @@ import pushRoutes from './routes/push';
 import pendingPurchaseRoutes from './routes/pending-purchases';
 import billingRoutes from './routes/billing';
 import billingKakaoRoutes from './routes/billing-kakao';
+import googleAuthRoutes from './routes/auth-google';
 import settingsRoutes from './routes/settings';
 import sharingRoutes from './routes/sharing';
 import devRoutes from './routes/dev';
@@ -75,6 +76,7 @@ app.get('/downloads/:filename', async (c) => {
 });
 
 app.route('/api/auth', authRoutes);
+app.route('/api/auth', googleAuthRoutes);
 app.route('/api/purchases', purchaseRoutes);
 app.route('/api/push', pushRoutes);
 app.route('/api/pending-purchases', pendingPurchaseRoutes);

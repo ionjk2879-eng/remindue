@@ -67,7 +67,10 @@
     "ENVIRONMENT": "production",
     // 휴업 기간 중 신규 결제를 차단한다. "true"이면 billing/billing-kakao 라우트가 503을 반환하고
     // 자동갱신 크론도 건너뛴다. 제거하거나 다른 값으로 바꾸면 결제가 다시 활성화된다.
-    "BILLING_SUSPENDED": "true"
+    "BILLING_SUSPENDED": "true",
+    // Google OAuth 클라이언트 ID — Google Cloud Console > API 및 서비스 > 사용자 인증 정보에서 발급.
+    // GOOGLE_CLIENT_SECRET은 비밀값이므로 `wrangler secret put GOOGLE_CLIENT_SECRET`으로 별도 관리.
+    "GOOGLE_CLIENT_ID": ""
   },
   "env": {
     "dev": {
@@ -101,7 +104,8 @@
         "KAKAOPAY_CID": "TC0ONETIME",
         "KAKAOPAY_SUBSCRIPTION_CID": "TCSUBSCRIP",
         "ENVIRONMENT": "development",
-        "BILLING_SUSPENDED": "true"
+        "BILLING_SUSPENDED": "true",
+        "GOOGLE_CLIENT_ID": ""
       }
     }
   }
