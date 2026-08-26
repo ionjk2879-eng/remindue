@@ -560,4 +560,10 @@ export interface Env {
    * 관리. 없으면 Frankfurter + 고정 스프레드 근사치로 폴백한다.
    */
   KOREA_EXIM_API_KEY?: string;
+  /**
+   * "true"로 설정하면 결제/구독 관련 API 라우트 전체를 503으로 차단한다.
+   * 휴업 등으로 신규 결제를 일시 중단할 때 이 값을 "true"로 설정하고 배포한다.
+   * 제거하거나 다른 값으로 바꾸면 결제가 다시 활성화된다.
+   */
+  BILLING_SUSPENDED?: string;
 }

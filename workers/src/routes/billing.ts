@@ -22,6 +22,14 @@ import { logger } from '../lib/logger';
 import type { BillingPlan, BillingStatusResponse, Env, PaymentRow, SubscriptionRow, UserRow } from '../types';
 
 const billing = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
+
+billing.use('*', async (c, next) => {
+  if (c.env.BILLING_SUSPENDED === 'true') {
+    return c.json({ message: '현재 신규 결제가 일시 중단되어 있습니다.' }, 503);
+  }
+  return next();
+});
+
 billing.use('*', authMiddleware);
 
 async function getUserByEmail(db: D1Database, email: string): Promise<UserRow> {

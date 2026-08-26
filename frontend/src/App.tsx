@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -31,6 +31,31 @@ const BillingAuthSuccessPage = lazy(() => import('./pages/BillingAuthSuccessPage
 const BillingFailPage = lazy(() => import('./pages/BillingFailPage'));
 const TicketDesignPreviewPage = lazy(() => import('./pages/TicketDesignPreviewPage'));
 const FxRecalculationAdminPage = lazy(() => import('./pages/FxRecalculationAdminPage'));
+
+const APP_SUSPENDED = import.meta.env.VITE_APP_SUSPENDED === 'true';
+
+function ServiceSuspendedPage() {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', textAlign: 'center' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Remindue</h1>
+        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          서비스를 일시 중단 중이에요.<br />
+          재개 시 별도로 안내드릴게요.
+        </p>
+        <div style={{ display: 'flex', gap: '1.25rem', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+          <Link to="/terms" style={{ color: 'var(--text-secondary)' }}>이용약관</Link>
+          <Link to="/privacy" style={{ color: 'var(--text-secondary)' }}>개인정보처리방침</Link>
+        </div>
+      </div>
+      <footer style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', lineHeight: 1.8, paddingBottom: '1.5rem' }}>
+        <p>상호명 지오스트컴퍼니 &nbsp;|&nbsp; 사업자 등록번호 467-27-02116 &nbsp;|&nbsp; 대표자 심주현</p>
+        <p>전화 010-7682-2879 &nbsp;|&nbsp; 주소 대전광역시 서구 도안북로136</p>
+        <span>© Remindue</span>
+      </footer>
+    </div>
+  );
+}
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated, isInitializing } = useAuth();
@@ -68,6 +93,23 @@ function Layout() {
 }
 
 export default function App() {
+  if (APP_SUSPENDED) {
+    return (
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* 이용약관·개인정보처리방침은 중단 중에도 법적으로 접근 가능해야 한다. */}
+            <Route element={<Layout />}>
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            </Route>
+            <Route path="*" element={<ServiceSuspendedPage />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    );
+  }
+
   return (
     <AuthProvider>
       <BrowserRouter>

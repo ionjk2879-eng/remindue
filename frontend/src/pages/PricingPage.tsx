@@ -50,10 +50,31 @@ function NativePricingInfo() {
   );
 }
 
+const BILLING_SUSPENDED = import.meta.env.VITE_BILLING_SUSPENDED === 'true';
+
+function BillingSuspendedNotice() {
+  return (
+    <div className="pricing-page">
+      <div className="pricing-header">
+        <h1>Remindue <span className="accent">Premium</span></h1>
+        <p className="pricing-header__subtitle">현재 신규 구독을 일시 중단 중이에요</p>
+      </div>
+      <div className="settings-section" style={{ textAlign: 'center', padding: '2rem' }}>
+        <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)' }}>
+          서비스 준비 중으로 현재 프리미엄 구독을 받지 않고 있어요.<br />
+          재개 시 별도로 안내드릴게요.
+        </p>
+        <Link to="/dashboard" className="btn btn-outline">대시보드로 돌아가기</Link>
+      </div>
+    </div>
+  );
+}
+
 export default function PricingPage() {
   const { isPremium, isAuthenticated, billingStatus } = useAuth();
   const navigate = useNavigate();
 
+  if (BILLING_SUSPENDED) return <BillingSuspendedNotice />;
   if (isNative) return <NativePricingInfo />;
   const [purchaseCount, setPurchaseCount] = useState<number | null>(null);
   const [loadingPlan, setLoadingPlan] = useState<BillingPlan | null>(null);

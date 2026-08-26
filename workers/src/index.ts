@@ -200,27 +200,34 @@ export default {
         .catch((err) => notifyCronFailure(env, 'rate-limit-cleanup', err))
     );
 
-    // 정기결제 자동 갱신은 매일 확인한다(요일 무관 — 만료가 임박한 구독마다 날짜가 다르므로).
-    // 갱신을 먼저 끝낸 뒤에 만료 스윕을 돌려야, 방금 갱신된 사용자가 스윕에 잘못 걸리지 않는다.
-    // 갱신이 실패해도(.catch) 스윕은 별개 작업이니 .finally로 그대로 이어서 돌린다 — 안 그러면
-    // 갱신 크론에서 예상 못 한 에러가 나는 날엔 무관한 사용자의 만료 스윕까지 통째로 안 도는
-    // 문제가 생긴다.
-    ctx.waitUntil(
-      runBillingRenewals(env)
-        .then((result) => {
-          console.log(
-            `[billing-renewal] 완료 — 시도 ${result.attempted}건, 갱신 ${result.renewed}건, 실패 ${result.failed}건, 다운그레이드 ${result.downgraded}건`
-          );
-        })
-        .catch((err) => notifyCronFailure(env, 'billing-renewal', err))
-        .finally(() =>
-          runPremiumExpirySweep(env)
-            .then((result) => {
-              console.log(`[premium-expiry-sweep] 완료 — 만료 처리 ${result.demoted}명`);
-            })
-            .catch((err) => notifyCronFailure(env, 'premium-expiry-sweep', err))
-        )
-    );
+    // BILLING_SUSPENDED 중에는 새 청구를 시도하지 않는다 — 만료 스윕은 청구 없이 is_premium만
+    // 내리는 작업이라 중단 여부와 관계없이 항상 실행한다(이미 만료된 구독의 상태를 정리).
+    if (env.BILLING_SUSPENDED !== 'true') {
+      ctx.waitUntil(
+        runBillingRenewals(env)
+          .then((result) => {
+            console.log(
+              `[billing-renewal] 완료 — 시도 ${result.attempted}건, 갱신 ${result.renewed}건, 실패 ${result.failed}건, 다운그레이드 ${result.downgraded}건`
+            );
+          })
+          .catch((err) => notifyCronFailure(env, 'billing-renewal', err))
+          .finally(() =>
+            runPremiumExpirySweep(env)
+              .then((result) => {
+                console.log(`[premium-expiry-sweep] 완료 — 만료 처리 ${result.demoted}명`);
+              })
+              .catch((err) => notifyCronFailure(env, 'premium-expiry-sweep', err))
+          )
+      );
+    } else {
+      ctx.waitUntil(
+        runPremiumExpirySweep(env)
+          .then((result) => {
+            console.log(`[premium-expiry-sweep] 완료 — 만료 처리 ${result.demoted}명`);
+          })
+          .catch((err) => notifyCronFailure(env, 'premium-expiry-sweep', err))
+      );
+    }
   },
   // Cloudflare Email Routing 라우팅 규칙(액션: "Send to a Worker")이 이 Worker로 넘겨주는 메일.
   // add-{forwarding_token}@{도메인}으로 온 메일만 처리하고, 그 외 형식/미확인 토큰/주문확인이

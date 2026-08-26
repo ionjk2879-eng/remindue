@@ -24,6 +24,13 @@ import type { BillingPlan, Env, PaymentRow, UserRow } from '../types';
 
 const billingKakao = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 
+billingKakao.use('*', async (c, next) => {
+  if (c.env.BILLING_SUSPENDED === 'true') {
+    return c.json({ message: '현재 신규 결제가 일시 중단되어 있습니다.' }, 503);
+  }
+  return next();
+});
+
 /** 심사 통과 후 CID를 실 가맹점 코드로 바꾸는 걸 잊었는지 프로덕션에서 계속 확인한다. */
 function warnIfTestCidInProduction(env: Env, route: string, cid: string): void {
   if (env.ENVIRONMENT === 'production' && KAKAOPAY_PUBLIC_TEST_CIDS.has(cid)) {

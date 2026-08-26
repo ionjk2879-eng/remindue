@@ -40,7 +40,7 @@ export default function Header() {
       </Link>
 
       <div className="site-header__right">
-        {isAuthenticated && (
+        {isAuthenticated && !import.meta.env.VITE_BILLING_SUSPENDED && (
           <Link to="/pricing" className="site-header__link site-header__link--premium" onClick={closeMenu}>
             {isPremium ? '⭐ 프리미엄' : '✨ 프리미엄'}
           </Link>
