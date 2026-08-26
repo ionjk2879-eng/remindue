@@ -8,7 +8,13 @@ export default function GoogleAuthSuccessPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    refreshSession()
+    // 백엔드가 CHIPS 파티션 우회를 위해 해시로 리프레시 토큰을 전달한다.
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const rt = hash.get('rt') ?? undefined;
+    // 토큰을 추출한 즉시 해시를 제거해 브라우저 히스토리에 남지 않게 한다.
+    if (rt) window.history.replaceState(null, '', window.location.pathname);
+
+    refreshSession(rt)
       .then((session) => {
         setAuth(session.accessToken, session.nickname, session.isPremium, session.hasSeenOnboarding);
         navigate('/dashboard', { replace: true });

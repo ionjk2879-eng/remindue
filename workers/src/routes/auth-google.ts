@@ -131,6 +131,9 @@ googleAuth.get('/google/callback', async (c) => {
     );
 
     const secure = new URL(c.req.url).protocol === 'https:';
+    // 쿠키도 설정하지만(일부 브라우저에서 동작할 수 있음), 주된 인증은
+    // 프론트엔드가 해시 토큰을 받아 cross-site POST로 교환하는 방식을 사용한다.
+    // (CHIPS 파티셔닝 때문에 이 쿠키는 remindue.kr에서 전송되지 않을 수 있다)
     setCookie(c, REFRESH_COOKIE, refreshToken, {
       httpOnly: true,
       secure,
@@ -141,7 +144,10 @@ googleAuth.get('/google/callback', async (c) => {
     });
 
     logger.info('auth.google.success', { userId: user.id });
-    return c.redirect(`${frontendUrl}/auth/google/success`);
+    // 리프레시 토큰을 해시 프래그먼트로 전달 — 서버 로그에 남지 않는다.
+    // GoogleAuthSuccessPage가 이를 추출해 /api/auth/refresh에 body로 POST하면
+    // 쿠키가 remindue.kr 파티션으로 올바르게 설정된다.
+    return c.redirect(`${frontendUrl}/auth/google/success#rt=${encodeURIComponent(refreshToken)}`);
 
   } catch (err) {
     logger.error('auth.google.error', { error: err instanceof Error ? err.message : String(err) });

@@ -15,7 +15,7 @@ export function setAccessToken(token: string | null) {
 
 export const apiClient = axios.create({ baseURL, withCredentials: true });
 
-export async function refreshSession(): Promise<AuthResponse> {
+export async function refreshSession(bootstrapToken?: string): Promise<AuthResponse> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       if (isNative) {
@@ -31,10 +31,12 @@ export async function refreshSession(): Promise<AuthResponse> {
         if (data.refreshToken) await saveNativeRefreshToken(data.refreshToken);
         return data;
       }
-      // 웹: 쿠키 기반
+      // 웹: bootstrapToken이 있으면 바디로 전달(Google OAuth 콜백 직후 CHIPS 우회),
+      // 없으면 쿠키 기반
+      const body = bootstrapToken ? { refreshToken: bootstrapToken } : {};
       const { data } = await axios.post<AuthResponse>(
         `${baseURL}/auth/refresh`,
-        {},
+        body,
         { withCredentials: true }
       );
       setAccessToken(data.accessToken);
