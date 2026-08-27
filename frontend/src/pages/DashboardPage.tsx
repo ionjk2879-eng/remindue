@@ -1138,7 +1138,7 @@ export default function DashboardPage() {
         <div className="spending-detail specific-spend-calculator">
           <div className="spending-detail__section">
             <p className="spending-detail__heading">🧮 특정 지출 계산기</p>
-            <p className="spending-detail__hint">계산할 달을 고른 뒤, 그달에 구매·결제한 기록 중 필요한 항목만 선택하세요. 삭제한 기록은 표시되지 않습니다.</p>
+            <p className="spending-detail__hint">계산할 달을 고른 뒤, 그달에 구매·결제한 기록 중 필요한 항목만 선택하세요.</p>
 
             <label className="specific-spend-calculator__month">
               <span>계산할 달</span>
