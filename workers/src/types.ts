@@ -448,8 +448,9 @@ export interface PurchaseRequestBody {
   originalCurrency?: string | null;
   exchangeRate?: number | null;
   /** 재구독 연결 — 같은 이름의 "지난 항목" id를 넘기면 그 항목의 마지막 회차 다음 번호로 이
-   *  새 항목의 회차가 이어진다(스케줄/결제일 자체는 이 요청의 값을 그대로 씀). 신규 등록에서만
-   *  의미 있고, PUT(수정)에서는 무시된다. */
+   *  항목의 회차가 이어진다(스케줄/결제일 자체는 이 요청의 값을 그대로 씀). POST(신규 등록)와
+   *  PUT(수정) 둘 다에서 쓰인다 — PUT에서 넘기면 원래 수정 시 회차를 보존하던
+   *  recomputeRoundOffsetForEdit 대신 이 값으로 오프셋을 다시 계산한다. */
   linkedPastPurchaseId?: number | null;
 }
 

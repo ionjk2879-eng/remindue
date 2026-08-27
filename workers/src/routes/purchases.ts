@@ -83,8 +83,8 @@ async function resumePurchaseSchedule(db: D1Database, existing: PurchaseRow): Pr
 }
 
 /**
- * linkedPastPurchaseId(재구독 연결, POST /purchases 전용)가 실제로 이 사용자의 같은 이름·같은
- * 종류 "지난 항목"을 가리킬 때만 회차를 이어붙일 오프셋을 계산한다. 소유자가 아니거나, 이름·
+ * linkedPastPurchaseId(재구독 연결, POST·PUT /purchases 공용)가 실제로 이 사용자의 같은 이름·
+ * 같은 종류 "지난 항목"을 가리킬 때만 회차를 이어붙일 오프셋을 계산한다. 소유자가 아니거나, 이름·
  * 종류가 다르거나, 그 사이에 이미 "유지하기"로 복귀해 더 이상 지난 항목이 아니면 조용히 0(회차
  * 1부터 시작)으로 되돌아간다 — 이 링크는 회차 번호를 보기 좋게 이어주는 부가 기능일 뿐이라,
  * 어긋난다고 등록 자체를 막을 이유는 없다.
@@ -355,22 +355,28 @@ purchases.put('/:id', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   const id = Number(c.req.param('id'));
   const existing = await getOwnedPurchase(c.env.DB, user.id, id);
-  const validated = validatePurchaseRequest(await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({})));
+  const rawBody = await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({} as Partial<PurchaseRequestBody>));
+  const validated = validatePurchaseRequest(rawBody);
   const { body, evidence } = await applyPaymentDateExchangeRate(validated, user, c.env.KOREA_EXIM_API_KEY);
 
-  const deliveryRoundOffset = recomputeRoundOffsetForEdit(existing, {
-    type: body.type,
-    base_date: body.baseDate,
-    warranty_months: body.warrantyMonths ?? null,
-    return_deadline_days: body.returnDeadlineDays ?? null,
-    interval_days: body.intervalDays ?? null,
-    schedule_type: body.scheduleType ?? 'INTERVAL',
-    fixed_day_of_month: body.fixedDayOfMonth ?? null,
-    fixed_day_interval_months: body.fixedDayIntervalMonths ?? 1,
-    is_one_time: body.isOneTime ? 1 : 0,
-    expected_delivery_date: body.expectedDeliveryDate ?? null,
-    arrival_offset_days: body.arrivalOffsetDays ?? null,
-  });
+  // 재구독 연결 — 수정 화면에서 "지난 항목 재구독"을 체크했을 때만 온다. 있으면 회차를 그
+  // 지난 항목에 이어붙이고(스케줄 보존용 recomputeRoundOffsetForEdit는 건너뛴다), 없으면
+  // 기존처럼 이번 수정으로 스케줄이 바뀌어도 "현재 표시 회차"를 그대로 유지한다.
+  const deliveryRoundOffset = rawBody.linkedPastPurchaseId != null
+    ? await resolveLinkedPastPurchaseOffset(c.env.DB, user.id, body.type, body.itemName, rawBody.linkedPastPurchaseId)
+    : recomputeRoundOffsetForEdit(existing, {
+      type: body.type,
+      base_date: body.baseDate,
+      warranty_months: body.warrantyMonths ?? null,
+      return_deadline_days: body.returnDeadlineDays ?? null,
+      interval_days: body.intervalDays ?? null,
+      schedule_type: body.scheduleType ?? 'INTERVAL',
+      fixed_day_of_month: body.fixedDayOfMonth ?? null,
+      fixed_day_interval_months: body.fixedDayIntervalMonths ?? 1,
+      is_one_time: body.isOneTime ? 1 : 0,
+      expected_delivery_date: body.expectedDeliveryDate ?? null,
+      arrival_offset_days: body.arrivalOffsetDays ?? null,
+    });
 
   await c.env.DB.prepare(
     `UPDATE purchases

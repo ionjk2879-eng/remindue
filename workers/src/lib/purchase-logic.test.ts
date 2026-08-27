@@ -364,6 +364,7 @@ describe('lastReachedRound — 재구독 시 회차를 이어붙일 기준점', 
       ...row('SUBSCRIPTION', { base_date: '2026-01-01', interval_days: 30 }),
       discontinued_at: '2026-06-01 00:00:00',
       discontinued_round: 5,
+      discarded_at: null,
     };
     expect(lastReachedRound(stopped)).toBe(5);
   });
@@ -373,15 +374,29 @@ describe('lastReachedRound — 재구독 시 회차를 이어붙일 기준점', 
       ...row('SUBSCRIPTION', { base_date: '2026-01-01', interval_days: 30 }),
       discontinued_at: '2026-06-01 00:00:00',
       discontinued_round: null,
+      discarded_at: null,
     };
     expect(lastReachedRound(stopped)).toBe(computeDeadlineAt(stopped, '2026-06-01').deliveryRound);
   });
 
-  it('명시적 중단이 아니면(미확인 만료 등) 오늘 기준 현재 회차를 쓴다', () => {
+  it('"삭제"됐으면(유지 안 함 아님) 삭제 시점 기준으로 얼려서 쓴다 — 오늘 날짜로 계속 불어나지 않는다', () => {
+    const discarded = {
+      ...row('SUBSCRIPTION', { base_date: '2026-07-09', schedule_type: 'FIXED_DAY', fixed_day_of_month: 9 }),
+      discontinued_at: null,
+      discontinued_round: null,
+      discarded_at: '2026-08-07 12:49:28',
+    };
+    // 삭제 시점(8/7)엔 아직 8/9 회차(2회차)가 안 지나 있었다 — 오늘(9/1) 기준으로 다시 계산하면
+    // 9/9 회차(3회차)까지 넘어가 버려 삭제 이후 흐른 시간만큼 회차가 잘못 불어난다.
+    expect(lastReachedRound(discarded)).toBe(2);
+  });
+
+  it('명시적 중단·삭제가 아니면(미확인 만료 등) 오늘 기준 현재 회차를 쓴다', () => {
     const lapsed = {
       ...row('SUBSCRIPTION', { base_date: '2026-01-01', interval_days: 30 }),
       discontinued_at: null,
       discontinued_round: null,
+      discarded_at: null,
     };
     expect(lastReachedRound(lapsed)).toBe(computeDeadline(lapsed).deliveryRound);
   });

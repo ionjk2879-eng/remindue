@@ -39,11 +39,11 @@ describe('dashboardMetrics', () => {
     expect(calculateSelectedSpend([general], [], 2026, 8)).toBe(0);
   });
 
-  it('limits calculator records to the selected month and excludes deleted purchases', () => {
+  it('limits calculator records to the selected month, keeping discarded ones (spend still counts)', () => {
     const july = { ...general, id: 2, baseDate: '2026-07-10' } as Purchase;
     const deleted = { ...general, id: 3, discardedAt: '2026-08-20T00:00:00.000Z' } as Purchase;
 
-    expect(selectCalculatorPurchases([general, july, deleted], 2026, 8).map(({ id }) => id)).toEqual([1]);
+    expect(selectCalculatorPurchases([general, july, deleted], 2026, 8).map(({ id }) => id)).toEqual([1, 3]);
   });
 
   it('uses the recorded amount for a selected recurring payment month', () => {

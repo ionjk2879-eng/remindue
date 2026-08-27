@@ -221,6 +221,19 @@ export default function DashboardPage() {
   const handleEditClick = (p: Purchase) => {
     setErrorMessage(null);
     beginEdit(p);
+    // 이미 등록된 활성 항목도 나중에 같은 이름의 "지난 항목"이 생기면(예: 재구독 시점엔
+    // 체크박스를 놓쳤거나, 이 기능이 생기기 전에 등록한 항목이라면) 수정 화면에서 뒤늦게
+    // 연결할 수 있게 자신을 제외하고 같은 이름·같은 종류의 지난 항목을 찾아둔다.
+    const pastMatch = isRecurringType(p.type)
+      ? purchases.find((other) =>
+          other.id !== p.id
+          && other.type === p.type
+          && other.itemName.trim().toLowerCase() === p.itemName.trim().toLowerCase()
+          && isPastItem(other)
+        )
+      : undefined;
+    setSuggestedPastPurchaseId(pastMatch?.id ?? null);
+    setLinkPastPurchase(false);
     // 폼이 접혀있던 상태였다면 이 시점엔 아직 DOM에 없다 — 다음 페인트 이후로 미뤄서
     // itemNameInputRef가 실제로 붙은 뒤에 스크롤/포커스한다.
   };
