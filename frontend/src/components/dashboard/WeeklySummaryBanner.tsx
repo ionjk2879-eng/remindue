@@ -21,7 +21,7 @@ export default function WeeklySummaryBanner({ deliveries, subscriptions }: {
   if (deliveries.length === 0 && subscriptions.length === 0) return null;
   return (
     <div className="weekly-summary-banner">
-      <p className="weekly-summary-banner__today">📅 오늘은 <span className="mono">{formatKoreanDateWithWeekday(today)}</span>이에요</p>
+      <p className="weekly-summary-banner__today">📅 오늘은 {formatKoreanDateWithWeekday(today)}이에요</p>
       {deliveries.length > 0 && (
         <section className="weekly-summary-banner__section" aria-labelledby="weekly-delivery-title">
           <span id="weekly-delivery-title" className="weekly-summary-banner__tag">
