@@ -39,7 +39,7 @@ export interface PastItemInput {
 
 export function isPastItem(item: PastItemInput): boolean {
   return (!isRecurringType(item.type) && item.dDay < 0)
-    || (isRecurringType(item.type) && !item.isOneTime && item.discontinuedAt !== null)
+    || (isRecurringType(item.type) && item.discontinuedAt !== null)
     || (item.discardedAt != null);
 }
 

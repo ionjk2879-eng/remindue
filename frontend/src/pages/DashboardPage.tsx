@@ -1520,6 +1520,7 @@ export default function DashboardPage() {
             needsAttention={needsAttentionBadge} onPageChange={setPurchasesPage}
             onDisableNotifications={handleDisableDeadlineNotifications} onEdit={handleEditClick}
             onArchive={handleArchive} onDiscard={handleDiscard} onDelete={handleDelete}
+            onDiscontinue={handleDiscontinue}
           />
         </>
       )}

@@ -29,6 +29,7 @@ interface Props {
   onArchive: (id: number) => void;
   onDiscard: (id: number) => void;
   onDelete: (id: number) => void;
+  onDiscontinue: (id: number) => void;
 }
 
 export default function ActivePurchaseList(props: Props) {
@@ -52,6 +53,7 @@ export default function ActivePurchaseList(props: Props) {
           <div className="ticket-card__actions">
             {props.deadlineNotificationsEnabled === true && purchase.type === 'GENERAL' && purchase.deadlineNotificationsDisabledAt === null && <button className="btn-text" onClick={() => props.onDisableNotifications(purchase.id)}>기한 알림 끄기</button>}
             {isRecurringType(purchase.type) && !purchase.isOneTime && purchase.paymentDDay <= 0 && isFullyConfirmed(purchase) && <span className="confirm-badge">✓ 확인완료</span>}
+            {isRecurringType(purchase.type) && purchase.isOneTime && purchase.discontinuedAt === null && <button className="btn-text" onClick={() => props.onDiscontinue(purchase.id)}>유지 안 함</button>}
             <button className="btn-text" onClick={() => props.onEdit(purchase)}>수정</button>
             {props.isPremium && <button className="btn-text" onClick={() => props.onArchive(purchase.id)}>보관</button>}
             <button className="btn-text" onClick={() => props.onDiscard(purchase.id)}>삭제</button>
