@@ -274,6 +274,22 @@ export function computeDeadlineAt(row: DeadlineInput, referenceDate: string): De
 }
 
 /**
+ * 항목 수정(PUT)으로 시작일/스케줄이 바뀌어도 "현재 표시 회차"가 그대로 유지되도록
+ * delivery_round_offset을 다시 계산한다. 안 그러면 실제 결제일이 바뀌어 시작일을 정직하게
+ * 고쳤을 뿐인데 회차 번호가 뚝 떨어져 보인다(예: 15회차 항목의 시작일을 최근 결제일로
+ * 갱신했더니 갑자기 "2회차"로 보이는 문제) — resumePurchaseSchedule(routes/purchases.ts)과
+ * 같은 오프셋 보정 원리를 그대로 쓴다. 회차 개념이 없는 타입(GENERAL)이나 1회성 항목은
+ * deliveryRound가 애초에 null이거나 항상 1이라 그대로 0을 반환한다.
+ */
+export function recomputeRoundOffsetForEdit(existing: DeadlineInput, updated: DeadlineInput): number {
+  const previousRound = computeDeadline(existing).deliveryRound;
+  if (previousRound === null) return 0;
+  const rawNewRound = computeDeadline({ ...updated, delivery_round_offset: 0 }).deliveryRound;
+  if (rawNewRound === null) return 0;
+  return rawNewRound - previousRound;
+}
+
+/**
  * RECURRING_DELIVERY 전용 — 결제일(deadline)로부터 도착예정일을 추정한다. 실제 정기배송
  * 회차별 상세정보(결제일/도착예정일 캡처 다수)를 역산한 결과 "결제일 + N영업일"(토·일·공휴일
  * 제외하고 세기) 규칙이 대체공휴일이 낀 회차까지 정확히 들어맞았다 — 결제일 자체는 공휴일이어도
