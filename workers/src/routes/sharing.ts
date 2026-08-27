@@ -1,4 +1,4 @@
-// 가족/구성원 공유(프리미엄) — 소유자(프리미엄 구독자)가 이메일로 초대하면 shared_access에
+// 가족/구성원 공유 — 소유자가 이메일로 초대하면 shared_access에
 // pending 행이 생기고, 초대받은 사람이 그 이메일로 로그인해서 수락하면 accepted로 바뀐다.
 // 수락 후에는 초대받은 사람이 소유자의 활성 항목을 읽기 전용으로 볼 수 있다(수정/삭제 불가).
 // 별도 초대 토큰/링크 없이 "이메일 일치"만으로 식별하는 단순한 설계 — 아직 가입 전인 이메일도
@@ -8,7 +8,7 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
 import { buildShareAcceptedEmailHtml, buildShareInviteEmailHtml, sendDigestEmail } from '../lib/email';
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, PaymentRequiredError } from '../lib/errors';
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../lib/errors';
 import type { Env, PurchaseRow, SharedAccessResponse, SharedAccessRow, UserRow } from '../types';
 import { isPastItem } from '../../../shared/domain-policy';
 
@@ -33,12 +33,8 @@ async function getInvite(db: D1Database, id: number): Promise<SharedAccessRow> {
   return row;
 }
 
-/** 프리미엄 구독자만 구성원을 초대할 수 있다. */
 sharing.post('/invite', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
-  if (user.is_premium !== 1) {
-    throw new PaymentRequiredError('구성원 초대는 프리미엄 전용 기능이에요.');
-  }
 
   const body = await c.req.json<{ email?: string }>().catch(() => ({}) as { email?: string });
   const email = body.email?.trim().toLowerCase();
@@ -86,7 +82,7 @@ sharing.get('/sent', async (c) => {
   return c.json(response);
 });
 
-/** 내가 초대받은(내 이메일로 온) 초대 목록 — 소유자 닉네임을 보여준다. 프리미엄 여부와 무관하게 누구나 볼 수 있다. */
+/** 내가 초대받은(내 이메일로 온) 초대 목록 — 소유자 닉네임을 보여준다. */
 sharing.get('/received', async (c) => {
   const email = c.get('userEmail');
   const { results } = await c.env.DB.prepare(

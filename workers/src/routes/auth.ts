@@ -8,7 +8,7 @@ import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { BadRequestError, ConflictError } from '../lib/errors';
 import { assertNotLocked, clearAttempts, clientIp, recordAttempt } from '../lib/rate-limit';
 import type { AuthResponse, Env, UserRow } from '../types';
-import { FREE_NOTIFICATION_DAYS } from '../../../shared/domain-policy';
+import { DEFAULT_NOTIFICATION_DAYS } from '../../../shared/domain-policy';
 
 const ACCESS_TOKEN_EXPIRATION_SECONDS = 60 * 60; // 1시간 — application.yml의 access-token-expiration-ms와 동일
 const REFRESH_TOKEN_EXPIRATION_SECONDS = 60 * 60 * 24 * 30;
@@ -100,7 +100,6 @@ async function issueSession(c: AuthContext, user: UserRow, opts: SessionOptions 
   const response: AuthResponse = {
     accessToken,
     nickname: user.nickname,
-    isPremium: user.is_premium === 1,
     hasSeenOnboarding: user.has_seen_onboarding === 1,
   };
   if (native) response.refreshToken = refreshToken;
@@ -162,8 +161,8 @@ auth.post('/signup', async (c) => {
           passwordHash,
           nickname,
           generateForwardingToken(),
-          FREE_NOTIFICATION_DAYS.join(','),
-          FREE_NOTIFICATION_DAYS.join(','),
+          DEFAULT_NOTIFICATION_DAYS.join(','),
+          DEFAULT_NOTIFICATION_DAYS.join(','),
         )
         .run();
       inserted = true;

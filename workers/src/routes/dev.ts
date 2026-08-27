@@ -11,7 +11,6 @@ import { runWeeklyDigest } from '../lib/weekly-digest';
 import { runDailyDigest } from '../lib/digest';
 import { runConfirmationNudge } from '../lib/confirmation-nudge';
 import { runArrivalConfirm } from '../lib/arrival-confirm';
-import { runBillingRenewals, runPremiumExpirySweep } from '../lib/billing-renewal';
 import { sendPush } from '../lib/push';
 import type { Env, PushSubscriptionRow, UserRow } from '../types';
 
@@ -146,21 +145,6 @@ dev.post('/run-arrival-confirm', async (c) => {
 
   const result = await runArrivalConfirm(c.env);
   return c.json(result);
-});
-
-/**
- * 정기결제 자동 갱신 크론(runBillingRenewals + runPremiumExpirySweep)을 매일 크론을
- * 기다리지 않고 즉시 실행한다. current_period_end를 과거로 만들어둔 테스트 구독을
- * 실제로 재청구해서 갱신/실패 경로를 바로 확인할 때 쓴다.
- */
-dev.post('/run-billing-renewal', async (c) => {
-  if (c.env.ENVIRONMENT !== 'development') {
-    throw new NotFoundError('Not Found');
-  }
-
-  const renewalResult = await runBillingRenewals(c.env);
-  const sweepResult = await runPremiumExpirySweep(c.env);
-  return c.json({ ...renewalResult, ...sweepResult });
 });
 
 export default dev;

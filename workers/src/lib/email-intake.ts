@@ -49,8 +49,10 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
     return;
   }
 
-  // 실제 등록 개수 제한은 확인(POST /purchases) 시점에 FREE_PLAN_MAX_PURCHASES로도 걸리지만,
-  // AI 토큰 비용 절감을 위해 무료 플랜은 이메일 처리 자체를 월 FREE_PLAN_MONTHLY_EMAIL_LIMIT건으로 제한한다.
+  // 등록 개수 제한은 더 이상 없지만(모든 기능 무료 개방), AI 토큰 비용 절감을 위해 is_premium=0
+  // 계정은 이메일 처리 자체를 월 FREE_PLAN_MONTHLY_EMAIL_LIMIT건으로 제한한다. 신규 가입은 항상
+  // is_premium=0이라 사실상 모든 계정에 적용된다 — 필요하면 DB에서 수동으로 is_premium=1로 올려
+  // 이 제한을 벗어날 수 있다(CLAUDE.md 참고).
   if (user.is_premium === 0) {
     const now = new Date();
     const currentMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -96,7 +98,6 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
     user.id,
     'email',
     extracted,
-    user.is_premium === 1,
     user.fx_card_issuer as FxCardIssuer | null,
     user.fx_card_brand as FxCardBrand | null,
     env.KOREA_EXIM_API_KEY

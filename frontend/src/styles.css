@@ -536,13 +536,8 @@ select option {
   color: var(--ink);
 }
 
-.site-header__link--premium {
-  color: var(--type-general);
-  font-weight: 700;
-}
-
 /* 좁은 화면에서는 FAQ/문의/설정/로그아웃/테마토글을 한 줄에 다 욱여넣는 대신 햄버거
-   드롭다운 하나로 접는다 — 프리미엄 CTA와 로그인 버튼만 항상 보이게 남겨둔다. */
+   드롭다운 하나로 접는다 — CTA와 로그인 버튼만 항상 보이게 남겨둔다. */
 @media (max-width: 640px) {
   .site-header {
     padding: 12px 16px;
@@ -792,22 +787,6 @@ select option {
   padding: 8px 10px;
 }
 
-.premium-upsell {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--safe-teal);
-  background: var(--safe-bg);
-  border: 1px dashed var(--safe-teal);
-  border-radius: 6px;
-  padding: 8px 10px;
-}
-
-.premium-upsell a {
-  color: var(--safe-teal);
-  font-weight: 700;
-  text-decoration: underline;
-}
-
 .auth-switch {
   margin-top: 20px;
   font-size: 0.85rem;
@@ -843,42 +822,6 @@ select option {
 .dashboard-header h1 {
   font-size: 1.3rem;
   letter-spacing: -0.01em;
-}
-
-.premium-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-right: 6px;
-  border-radius: 50%;
-  background: var(--type-general);
-  color: var(--badge-text);
-  font-size: 0.66rem;
-  font-weight: 800;
-  vertical-align: middle;
-  cursor: default;
-  box-shadow: 0 1px 3px rgba(var(--shadow-rgb), 0.25);
-}
-
-.plan-counter {
-  flex: 0 0 auto;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--ink-soft);
-  background: var(--paper-card);
-  border: 1px solid var(--hairline);
-  border-radius: 999px;
-  padding: 4px 12px;
-  white-space: nowrap;
-  text-decoration: none;
-  transition: border-color 0.15s ease, color 0.15s ease;
-}
-
-a.plan-counter:hover {
-  color: var(--ink);
-  border-color: var(--ink-soft);
 }
 
 /* --------------------------------------------------------------------------
@@ -2553,7 +2496,7 @@ button.summary-board__tile:hover {
 }
 
 /* --------------------------------------------------------------------------
-   Weekly summary banner ("이번 주 배송 예정" — 프리미엄 알림 기능)
+   Weekly summary banner ("이번 주 배송 예정")
    -------------------------------------------------------------------------- */
 
 .weekly-summary-banner {
@@ -4116,129 +4059,8 @@ button.summary-board__tile:hover {
 }
 
 /* --------------------------------------------------------------------------
-   Pricing page
+   Pricing table (재사용: 설정 > 해외결제 재계산 관리자 페이지)
    -------------------------------------------------------------------------- */
-
-.pricing-page {
-  max-width: 780px;
-  margin: 0 auto;
-  padding: 40px 20px 80px;
-}
-
-.pricing-header {
-  text-align: center;
-  margin-bottom: 32px;
-}
-
-.pricing-header h1 {
-  font-size: 1.5rem;
-  letter-spacing: -0.01em;
-}
-
-.pricing-header__subtitle {
-  margin-top: 6px;
-  color: var(--ink-soft);
-  font-size: 0.95rem;
-}
-
-.pricing-header__limit-notice {
-  display: inline-block;
-  margin-top: 16px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--stamp-amber);
-  background: var(--amber-bg);
-  border: 1.5px dashed var(--stamp-amber);
-  border-radius: 999px;
-  padding: 6px 16px;
-}
-
-.pricing-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-bottom: 36px;
-}
-
-.pricing-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 6px;
-  background: var(--paper-card);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-rest);
-  padding: 24px 16px 20px;
-}
-
-.pricing-card--recommended {
-  border-color: var(--type-general);
-  box-shadow: var(--shadow-lift);
-}
-
-.pricing-card__star {
-  position: absolute;
-  top: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: var(--type-general);
-  background: var(--type-general-bg);
-  border: 1px solid var(--type-general-border);
-  border-radius: 999px;
-  padding: 3px 10px;
-  white-space: nowrap;
-}
-
-.pricing-card__title {
-  font-size: 0.86rem;
-  font-weight: 700;
-  color: var(--ink-soft);
-  margin-top: 6px;
-}
-
-.pricing-card__price {
-  font-size: 1.6rem;
-  font-weight: 800;
-  color: var(--ink);
-}
-
-.pricing-card__unit {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--ink-soft);
-  margin-left: 2px;
-}
-
-.pricing-card__badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--safe-teal);
-  background: var(--safe-bg);
-  border: 1px solid var(--safe-teal);
-  border-radius: 999px;
-  padding: 2px 10px;
-}
-
-.pricing-card__note {
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-  margin: 4px 0 10px;
-}
-
-.pricing-card__btn {
-  width: 100%;
-  margin-top: auto;
-}
-
-.pricing-card__btn-kakao {
-  width: 100%;
-  margin-top: 8px;
-}
 
 .pricing-table {
   width: 100%;
@@ -4695,22 +4517,6 @@ button.summary-board__tile:hover {
 }
 
 /* --------------------------------------------------------------------------
-   Pricing page — payment notice
-   -------------------------------------------------------------------------- */
-
-.pricing-page__payment-notice {
-  text-align: center;
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-  margin-bottom: 24px;
-}
-
-.pricing-page__payment-notice a {
-  color: var(--safe-teal);
-  font-weight: 700;
-}
-
-/* --------------------------------------------------------------------------
    Site footer
    -------------------------------------------------------------------------- */
 
@@ -4968,11 +4774,6 @@ button.summary-board__tile:hover {
   margin-bottom: 4px;
 }
 
-.faq-pricing-table {
-  margin: 8px 0 0;
-  font-size: 0.82rem;
-}
-
 /* --------------------------------------------------------------------------
    Responsive
    -------------------------------------------------------------------------- */
@@ -5073,10 +4874,6 @@ button.summary-board__tile:hover {
   .ticket-card__stub {
     flex: 0 0 auto;
     padding: 14px;
-  }
-
-  .pricing-cards {
-    grid-template-columns: 1fr;
   }
 
   /* 비교표: 셀 패딩·글씨 축소로 좁은 화면에서 열 여백 확보 */
@@ -5338,45 +5135,6 @@ body.is-native .page {
   padding-bottom: calc(64px + var(--safe-bottom));
 }
 
-
-/* 네이티브 앱 — 결제 유도 안내 화면 */
-.native-pricing-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 48px 32px;
-  gap: 12px;
-}
-
-.native-pricing-info__icon {
-  font-size: 2.5rem;
-  margin-bottom: 8px;
-}
-
-.native-pricing-info h2 {
-  font-size: 1.2rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.native-pricing-info p {
-  font-size: 0.92rem;
-  color: var(--ink-soft);
-  line-height: 1.6;
-  margin: 0;
-}
-
-.native-pricing-info__url {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--ink);
-  background: var(--paper);
-  padding: 10px 20px;
-  border-radius: 8px;
-  border: 1px solid var(--hairline);
-}
 
 /* 네이티브 앱 상단 헤더 */
 .native-header {

@@ -31,7 +31,7 @@ export default function GoogleAuthSuccessPage() {
     )
       .then(({ data }) => {
         setAccessToken(data.accessToken);
-        setAuth(data.accessToken, data.nickname, data.isPremium, data.hasSeenOnboarding);
+        setAuth(data.accessToken, data.nickname, data.hasSeenOnboarding);
         navigate('/dashboard', { replace: true });
       })
       .catch(() => {

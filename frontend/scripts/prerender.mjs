@@ -1,6 +1,6 @@
 // 빌드 후 각 공개 페이지를 dist/{path}/index.html 로 프리렌더링한다.
 // Cloudflare Workers Assets는 요청 경로와 일치하는 정적 파일이 있으면 SPA fallback보다
-// 먼저 그 파일을 서빙하므로, /pricing → dist/pricing/index.html 이 존재하면 JS 실행 없이
+// 먼저 그 파일을 서빙하므로, /privacy → dist/privacy/index.html 이 존재하면 JS 실행 없이
 // 즉시 HTML을 반환한다. 검색엔진 크롤러와 최초 방문자 모두 혜택을 받는다.
 //
 // /dashboard 등 로그인 필요 페이지는 그대로 클라이언트 라우팅에 맡긴다
@@ -24,7 +24,6 @@ globalThis.localStorage = {
 /** url → 출력 파일 경로 (dist/ 기준 상대경로) */
 const ROUTES = [
   { url: '/',        outFile: 'dist/index.html' },
-  { url: '/pricing', outFile: 'dist/pricing/index.html' },
   { url: '/privacy', outFile: 'dist/privacy/index.html' },
   { url: '/terms',   outFile: 'dist/terms/index.html' },
   { url: '/faq',     outFile: 'dist/faq/index.html' },

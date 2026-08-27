@@ -111,9 +111,6 @@ push.post('/test', async (c) => {
     WEEKLY_SUMMARY: { title: '📊 Remindue 주간 요약', body: '이번 주 도착·결제 예정 항목을 한눈에 확인해보세요.' },
   } as const;
   const testKind = typeof kind === 'string' && kind in testMessages ? kind as keyof typeof testMessages : null;
-  if (testKind === 'WEEKLY_SUMMARY' && user.is_premium !== 1) {
-    throw new BadRequestError('주간 요약 알림은 프리미엄 플랜에서 사용할 수 있습니다.');
-  }
   const { results: subscriptions } = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?')
     .bind(user.id)
     .all<PushSubscriptionRow>();

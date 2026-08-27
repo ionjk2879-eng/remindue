@@ -4,8 +4,6 @@ import authRoutes from './routes/auth';
 import purchaseRoutes from './routes/purchases';
 import pushRoutes from './routes/push';
 import pendingPurchaseRoutes from './routes/pending-purchases';
-import billingRoutes from './routes/billing';
-import billingKakaoRoutes from './routes/billing-kakao';
 import googleAuthRoutes from './routes/auth-google';
 import settingsRoutes from './routes/settings';
 import sharingRoutes from './routes/sharing';
@@ -19,7 +17,6 @@ import { runDailyDigest } from './lib/digest';
 import { runWeeklyDigest } from './lib/weekly-digest';
 import { runConfirmationNudge } from './lib/confirmation-nudge';
 import { rollOverUnansweredArrivals, runArrivalConfirm } from './lib/arrival-confirm';
-import { runBillingRenewals, runPremiumExpirySweep } from './lib/billing-renewal';
 import { handleIncomingEmail } from './lib/email-intake';
 import { notifyCronFailure } from './lib/cron-alert';
 import type { Env } from './types';
@@ -80,10 +77,6 @@ app.route('/api/auth', googleAuthRoutes);
 app.route('/api/purchases', purchaseRoutes);
 app.route('/api/push', pushRoutes);
 app.route('/api/pending-purchases', pendingPurchaseRoutes);
-app.route('/api/billing', billingRoutes);
-// billing.ts가 authMiddleware를 `/api/billing/*`에 걸어두므로, 여기에 마운트하면 로그인 세션
-// 없이 도착하는 카카오페이 리다이렉트 콜백까지 그 미들웨어에 걸린다 — 겹치지 않는 경로로 둔다.
-app.route('/api/kakao-billing', billingKakaoRoutes);
 app.route('/api/settings', settingsRoutes);
 app.route('/api/sharing', sharingRoutes);
 app.route('/api/dev', devRoutes);
@@ -201,35 +194,6 @@ export default {
         })
         .catch((err) => notifyCronFailure(env, 'rate-limit-cleanup', err))
     );
-
-    // BILLING_SUSPENDED 중에는 새 청구를 시도하지 않는다 — 만료 스윕은 청구 없이 is_premium만
-    // 내리는 작업이라 중단 여부와 관계없이 항상 실행한다(이미 만료된 구독의 상태를 정리).
-    if (env.BILLING_SUSPENDED !== 'true') {
-      ctx.waitUntil(
-        runBillingRenewals(env)
-          .then((result) => {
-            console.log(
-              `[billing-renewal] 완료 — 시도 ${result.attempted}건, 갱신 ${result.renewed}건, 실패 ${result.failed}건, 다운그레이드 ${result.downgraded}건`
-            );
-          })
-          .catch((err) => notifyCronFailure(env, 'billing-renewal', err))
-          .finally(() =>
-            runPremiumExpirySweep(env)
-              .then((result) => {
-                console.log(`[premium-expiry-sweep] 완료 — 만료 처리 ${result.demoted}명`);
-              })
-              .catch((err) => notifyCronFailure(env, 'premium-expiry-sweep', err))
-          )
-      );
-    } else {
-      ctx.waitUntil(
-        runPremiumExpirySweep(env)
-          .then((result) => {
-            console.log(`[premium-expiry-sweep] 완료 — 만료 처리 ${result.demoted}명`);
-          })
-          .catch((err) => notifyCronFailure(env, 'premium-expiry-sweep', err))
-      );
-    }
   },
   // Cloudflare Email Routing 라우팅 규칙(액션: "Send to a Worker")이 이 Worker로 넘겨주는 메일.
   // add-{forwarding_token}@{도메인}으로 온 메일만 처리하고, 그 외 형식/미확인 토큰/주문확인이

@@ -4,7 +4,7 @@ import { signJwt } from '../lib/jwt';
 import { generateForwardingToken } from './auth';
 import { logger } from '../lib/logger';
 import type { Env, UserRow } from '../types';
-import { FREE_NOTIFICATION_DAYS } from '../../../shared/domain-policy';
+import { DEFAULT_NOTIFICATION_DAYS } from '../../../shared/domain-policy';
 
 const REFRESH_TOKEN_EXPIRATION_SECONDS = 60 * 60 * 24 * 30;
 const REFRESH_COOKIE = 'remindue_refresh';
@@ -99,8 +99,8 @@ googleAuth.get('/google/callback', async (c) => {
               `google:${crypto.randomUUID()}`,
               googleUser.name || googleUser.email.split('@')[0],
               generateForwardingToken(),
-              FREE_NOTIFICATION_DAYS.join(','),
-              FREE_NOTIFICATION_DAYS.join(','),
+              DEFAULT_NOTIFICATION_DAYS.join(','),
+              DEFAULT_NOTIFICATION_DAYS.join(','),
               googleUser.id,
             ).run();
             inserted = true;

@@ -271,43 +271,8 @@ function buildSimpleEmailHtml(params: {
 }
 
 /**
- * 정기결제 자동 갱신 청구 실패 안내 메일. willRetryTomorrow가 true면 "내일 자동으로 한 번 더
- * 시도합니다"(연속 실패 횟수가 다운그레이드 임계치 미만), false면 "프리미엄이 해지됐습니다"
- * (임계치를 넘겨 자동 갱신을 껐을 때)로 문구가 갈린다.
- */
-export function buildRenewalFailedEmailHtml(nickname: string, planLabel: string, willRetryTomorrow: boolean, dashboardUrl: string): string {
-  const message = willRetryTomorrow
-    ? `등록하신 카드로 ${escapeHtml(planLabel)} 자동 결제를 시도했지만 실패했어요. 내일 다시 한 번 자동으로 시도할게요 — 카드 한도/잔액을 확인해주세요.`
-    : `등록하신 카드로 ${escapeHtml(planLabel)} 자동 결제가 여러 번 실패해서 자동 갱신을 중단했어요. 프리미엄 혜택은 남은 기간이 끝나면 해지됩니다. 계속 이용하시려면 대시보드에서 다시 결제해주세요.`;
-
-  return buildSimpleEmailHtml({
-    nickname,
-    headingPlain: '',
-    headingHighlight: '정기결제 자동 갱신에 실패했어요',
-    message,
-    ctaLabel: '대시보드에서 확인하기',
-    ctaUrl: dashboardUrl,
-  });
-}
-
-/** 정기결제 해지 확인 메일 — 자동 결제는 끊겼지만 premiumExpiresAt까지는 프리미엄이 남아있다는 걸 명확히 알린다. */
-export function buildSubscriptionCanceledEmailHtml(nickname: string, planLabel: string, premiumExpiresAt: string | null, dashboardUrl: string): string {
-  const expiresClause = premiumExpiresAt
-    ? `프리미엄 혜택은 결제하신 기간이 끝나는 ${escapeHtml(premiumExpiresAt.slice(0, 10))}까지는 그대로 유지돼요.`
-    : '프리미엄 혜택은 남은 기간까지는 그대로 유지돼요.';
-  return buildSimpleEmailHtml({
-    nickname,
-    headingPlain: '',
-    headingHighlight: `${escapeHtml(planLabel)} 정기결제를 해지했어요`,
-    message: `다음 결제일부터는 자동 결제가 되지 않아요. ${expiresClause}`,
-    ctaLabel: '대시보드에서 확인하기',
-    ctaUrl: dashboardUrl,
-  });
-}
-
-/**
  * "확인 필요" 알림 메일 — 여러 단계를 한 메일에 같이 담을 수 있다(confirmation-nudge.ts):
- * advance(다음 결제·배송이 N일 후 예정, 예고 — N은 무료 3일 고정/프리미엄 커스텀) /
+ * advance(다음 결제·배송이 N일 후 예정, 예고 — N은 누구나 커스텀 가능) /
  * followUp(예정일이 하루 지났는데도 미확인) / reviewFlagged(일주일 지났는데도 여전히 미확인,
  * 확정 톤). 전부 비어있지 않을 수도, 일부만 있을 수도 있다. followUp은 확인 안 했다고
  * "사용 안 함"이라 단정하지 않고, 계속 쓰는 중이면 그냥 눌러달라는 요청으로 문구를 둔다

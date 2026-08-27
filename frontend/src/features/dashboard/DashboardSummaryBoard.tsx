@@ -1,8 +1,7 @@
-import { Link } from 'react-router-dom';
 import type { Dispatch, SetStateAction } from 'react';
 interface Props {
  currentMonthNum:number; monthlySpendEstimate:number; yearlySpendEstimate:number; weeklyPaymentCount:number;
- recurringDeliveryCount:number; subscriptionCount:number; isPremium:boolean; priceChangeCount:number;
+ recurringDeliveryCount:number; subscriptionCount:number; priceChangeCount:number;
  savingsEstimate:number; calculatorSelectedCount:number; calculatorAmount:number;
  showSpendingDetail:boolean; showYearlyDetail:boolean; showRecurringDeliveryDetail:boolean;
  showSubscriptionDetail:boolean; showPriceStatusDetail:boolean; showSavingsDetail:boolean;
@@ -12,7 +11,7 @@ interface Props {
 }
 export default function DashboardSummaryBoard(p:Props) {
  const {currentMonthNum,monthlySpendEstimate,yearlySpendEstimate,weeklyPaymentCount,recurringDeliveryCount,
- subscriptionCount,isPremium,priceChangeCount,savingsEstimate,calculatorSelectedCount,calculatorAmount,
+ subscriptionCount,priceChangeCount,savingsEstimate,calculatorSelectedCount,calculatorAmount,
  showSpendingDetail,showYearlyDetail,showRecurringDeliveryDetail,showSubscriptionDetail,showPriceStatusDetail,
  showSavingsDetail,showSpecificSpendCalculator}=p;
  const setShowSpendingDetail:Dispatch<SetStateAction<boolean>>=()=>p.toggleSpending(); const setShowYearlyDetail:Dispatch<SetStateAction<boolean>>=()=>p.toggleYearly();
@@ -99,32 +98,22 @@ export default function DashboardSummaryBoard(p:Props) {
       </button>
       {/* 인상 감지/절약 제안 둘 다 "평소엔 숨겨져 있다가 있을 때만 뜨는" 방식이면 사용자가 그런
           기능이 있는지조차 모르기 쉬워서, 값이 0이어도(비어있어도) 상시 표시한다. */}
-      {isPremium ? (
-        <button
-          type="button"
-          className="summary-board__tile summary-board__tile--price-change summary-board__tile--clickable"
-          onClick={() => setShowPriceStatusDetail((v) => !v)}
-          aria-expanded={showPriceStatusDetail}
-        >
-          <span className="summary-board__icon" aria-hidden="true">⚠</span>
-          <div className="summary-board__text">
-            <span className="summary-board__label">가격 변동 감지</span>
-            <span className="summary-board__value mono">
-              {priceChangeCount}
-              <span className="summary-board__unit">건</span>
-            </span>
-          </div>
-          <span className="summary-board__chevron" aria-hidden="true">{showPriceStatusDetail ? '▲' : '▾'}</span>
-        </button>
-      ) : (
-        <Link to="/pricing" className="summary-board__tile summary-board__tile--price-change summary-board__tile--clickable">
-          <span className="summary-board__icon" aria-hidden="true">⚠</span>
-          <div className="summary-board__text">
-            <span className="summary-board__label">가격 변동 감지</span>
-            <span className="summary-board__ai-cta">🔒 프리미엄 전용</span>
-          </div>
-        </Link>
-      )}
+      <button
+        type="button"
+        className="summary-board__tile summary-board__tile--price-change summary-board__tile--clickable"
+        onClick={() => setShowPriceStatusDetail((v) => !v)}
+        aria-expanded={showPriceStatusDetail}
+      >
+        <span className="summary-board__icon" aria-hidden="true">⚠</span>
+        <div className="summary-board__text">
+          <span className="summary-board__label">가격 변동 감지</span>
+          <span className="summary-board__value mono">
+            {priceChangeCount}
+            <span className="summary-board__unit">건</span>
+          </span>
+        </div>
+        <span className="summary-board__chevron" aria-hidden="true">{showPriceStatusDetail ? '▲' : '▾'}</span>
+      </button>
       <button
         type="button"
         className="summary-board__tile summary-board__tile--savings summary-board__tile--clickable"

@@ -1,5 +1,5 @@
 // Cron Trigger(매일 1회)로 실행되는 D-day 다이제스트 발송 로직.
-// "매일 보내면 스팸"이라 D-day가 그 사용자의 알림 시점(기본 7/3/0, 프리미엄은 커스텀
+// "매일 보내면 스팸"이라 D-day가 그 사용자의 알림 시점(기본 7/3/0, 누구나 커스텀
 // 가능 — effectiveNotificationDays 참고)에 정확히 걸린 항목이 있는 사용자에게만,
 // 항목별로 따로가 아니라 사용자당 1통(이메일)/1묶음(푸시)으로 묶어서 보낸다.
 // 이메일은 email_notifications_enabled 플래그를 따르고, 푸시는 구독 자체가
@@ -20,7 +20,6 @@ interface PurchaseWithUser extends PurchaseRow {
   user_email: string;
   user_nickname: string;
   user_email_notifications_enabled: number;
-  user_is_premium: number;
   user_notification_days: string;
 }
 
@@ -49,7 +48,7 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
   const { results } = await env.DB.prepare(
     `SELECT p.*, u.email AS user_email, u.nickname AS user_nickname,
             u.email_notifications_enabled AS user_email_notifications_enabled,
-            u.is_premium AS user_is_premium, u.notification_days AS user_notification_days
+            u.notification_days AS user_notification_days
        FROM purchases p
        JOIN users u ON u.id = p.user_id
       WHERE p.type = 'GENERAL'
@@ -63,7 +62,7 @@ export async function runDailyDigest(env: Env): Promise<DigestRunResult> {
   const itemsByUserId = new Map<number, UserDigestBucket>();
 
   for (const row of results) {
-    const targetDays = effectiveNotificationDays(row.user_is_premium === 1, row.user_notification_days);
+    const targetDays = effectiveNotificationDays(row.user_notification_days);
 
     // GENERAL은 반품기한/A·S보증 인스턴스가 각각 독립적으로 D-day를 맞을 수 있어(예: 반품기한은
     // 지난주에 이미 지났고 보증만료만 이번에 D-7) 행당 여러 DigestItem이 나올 수 있다.

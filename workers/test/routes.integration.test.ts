@@ -88,14 +88,14 @@ describe('Worker route integration', () => {
     expect(response.status).toBe(401);
   });
 
-  it('blocks a free user from inviting a member', async () => {
+  it('lets any user invite a member', async () => {
     seedUser(db, 'free@example.com');
     const request = await authorizedRequest('free@example.com', '/api/sharing/invite', {
       method: 'POST',
       body: JSON.stringify({ email: 'member@example.com' }),
     });
     const response = await app.fetch(request, testEnv(db));
-    expect(response.status).toBe(402);
+    expect(response.status).toBe(200);
   });
 
   it('returns only the owner active items in an accepted shared list', async () => {
@@ -120,7 +120,7 @@ describe('Worker route integration', () => {
     expect(body.map((item) => item.itemName)).toEqual(['active']);
   });
 
-  it('enforces the five-item free-plan limit when creating through the API', async () => {
+  it('allows registering past the old five-item free-plan limit', async () => {
     const userId = seedUser(db, 'free@example.com');
     for (let index = 0; index < 5; index += 1) seedPurchase(db, userId, `item-${index}`);
 
@@ -129,8 +129,8 @@ describe('Worker route integration', () => {
       body: JSON.stringify({ type: 'GENERAL', itemName: 'sixth item', baseDate: '2026-08-03', returnDeadlineDays: 7 }),
     });
     const response = await app.fetch(request, testEnv(db));
-    expect(response.status).toBe(402);
-    expect(await db.prepare('SELECT COUNT(*) AS count FROM purchases WHERE user_id = ?').bind(userId).first<number>('count')).toBe(5);
+    expect(response.status).toBe(200);
+    expect(await db.prepare('SELECT COUNT(*) AS count FROM purchases WHERE user_id = ?').bind(userId).first<number>('count')).toBe(6);
   });
 
   it('previews and applies legacy foreign-payment recalculation with audit evidence', async () => {

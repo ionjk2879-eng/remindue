@@ -18,7 +18,6 @@
 import { addBusinessDays, addDays, addMonths, daysBetween, formatDateOnly, nextFixedDayEveryNMonths, parseDateOnly, subtractBusinessDays, todayDateOnly } from './date';
 import { isNonBusinessDay, isNonDeliveryDay } from './kr-holidays';
 import { isRecurringType, usesArrivalDate, type PurchaseRow, type PurchaseType } from '../types';
-export { FREE_PLAN_MAX_PURCHASES } from '../../../shared/domain-policy';
 
 export const DEFAULT_WARRANTY_MONTHS = 12;
 export const DEFAULT_RETURN_DEADLINE_DAYS = 7;

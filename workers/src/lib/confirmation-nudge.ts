@@ -29,14 +29,10 @@ import { effectiveNotificationDays } from './notification-prefs';
 import { recordConfirmedPaymentCycle } from './recurring-fx';
 import type { Env, NativePushTokenRow, PurchaseRow, PushSubscriptionRow } from '../types';
 
-/** 유지 여부는 비용이 발생하기 전날에 먼저 묻고, 미응답이면 당일 한 번만 재알림한다. */
-const RENEWAL_DAY_DDAY = 0;
-
 interface RecurringPurchaseWithUser extends PurchaseRow {
   user_email: string;
   user_nickname: string;
   user_email_notifications_enabled: number;
-  user_is_premium: number;
   user_renewal_notification_days: string;
 }
 
@@ -127,7 +123,7 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
   const { results } = await env.DB.prepare(
     `SELECT p.*, u.email AS user_email, u.nickname AS user_nickname,
             u.email_notifications_enabled AS user_email_notifications_enabled,
-            u.is_premium AS user_is_premium, u.renewal_notification_days AS user_renewal_notification_days
+            u.renewal_notification_days AS user_renewal_notification_days
        FROM purchases p
        JOIN users u ON u.id = p.user_id
       WHERE p.type IN ('RECURRING_DELIVERY', 'SUBSCRIPTION')
@@ -158,10 +154,7 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
     }
 
     const missedRounds = missedRoundsFor(deliveryRound, row.delivery_confirm_count, dDay);
-    // 무료는 당일 한 번만 안내한다. 프리미엄은 전날에 먼저 묻고, 미응답일 때만 당일 재알림한다.
-    const renewalDays = row.user_is_premium === 1
-      ? effectiveNotificationDays(true, row.user_renewal_notification_days)
-      : [RENEWAL_DAY_DDAY];
+    const renewalDays = effectiveNotificationDays(row.user_renewal_notification_days);
     const shouldAskForRenewal = renewalDays.includes(dDay) && row.renewal_decision_for !== deadline;
     if (shouldAskForRenewal) {
       const items = sameDayItemsByUserId.get(row.user_id) ?? [];
@@ -171,13 +164,12 @@ export async function runConfirmationNudge(env: Env): Promise<ConfirmationNudgeR
     }
 
     // 다음 일정은 자동으로 미래 회차로 넘어가므로, 직전 회차의 날짜로 다음 날/일주일 뒤를 판정한다.
-    // 하루 뒤 재알림(followUp)은 프리미엄 전용이다 — 무료는 당일 확인 + 절약검토, 이 2단계뿐.
     const previousDeadline = computePreviousScheduleDeadline(row);
     if (previousDeadline === null) continue;
     if (row.renewal_decision_for === previousDeadline) continue;
     if (missedRounds < 1) continue;
     const daysSincePreviousDeadline = computeDDay(previousDeadline);
-    const isFollowUpDay = daysSincePreviousDeadline === -1 && row.user_is_premium === 1;
+    const isFollowUpDay = daysSincePreviousDeadline === -1;
     const isReviewDay = daysSincePreviousDeadline === -7;
     if (!isFollowUpDay && !isReviewDay) continue;
 
