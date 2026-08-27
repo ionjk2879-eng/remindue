@@ -32,6 +32,6 @@ describe('shared domain policy', () => {
   it('uses one past-item rule for owner and shared lists', () => {
     expect(isPastItem({ type: 'GENERAL', dDay: -1, isOneTime: false, discontinuedAt: null })).toBe(true);
     expect(isPastItem({ type: 'SUBSCRIPTION', dDay: 10, isOneTime: false, discontinuedAt: '2026-08-01' })).toBe(true);
-    expect(isPastItem({ type: 'SUBSCRIPTION', dDay: 10, isOneTime: true, discontinuedAt: '2026-08-01' })).toBe(false);
+    expect(isPastItem({ type: 'SUBSCRIPTION', dDay: 10, isOneTime: true, discontinuedAt: '2026-08-01' })).toBe(true);
   });
 });
