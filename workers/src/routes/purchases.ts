@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
 import { getPaymentHistoryByPurchaseIds, recordConfirmedPaymentCycle } from '../lib/recurring-fx';
-import { computeDDay, computeDeadline, computeDeadlineAt, InvalidPurchaseOperationError, confirmReceiptToday } from '../lib/purchase-logic';
+import { computeDDay, computeDeadline, computeDeadlineAt, InvalidPurchaseOperationError, confirmReceiptToday, recomputeRoundOffsetForEdit } from '../lib/purchase-logic';
 import {
   convertToKrw,
   sanitizeBrandDomain,
@@ -316,12 +316,26 @@ purchases.put('/:id', async (c) => {
   const validated = validatePurchaseRequest(await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({})));
   const { body, evidence } = await applyPaymentDateExchangeRate(validated, user, c.env.KOREA_EXIM_API_KEY);
 
+  const deliveryRoundOffset = recomputeRoundOffsetForEdit(existing, {
+    type: body.type,
+    base_date: body.baseDate,
+    warranty_months: body.warrantyMonths ?? null,
+    return_deadline_days: body.returnDeadlineDays ?? null,
+    interval_days: body.intervalDays ?? null,
+    schedule_type: body.scheduleType ?? 'INTERVAL',
+    fixed_day_of_month: body.fixedDayOfMonth ?? null,
+    fixed_day_interval_months: body.fixedDayIntervalMonths ?? 1,
+    is_one_time: body.isOneTime ? 1 : 0,
+    expected_delivery_date: body.expectedDeliveryDate ?? null,
+    arrival_offset_days: body.arrivalOffsetDays ?? null,
+  });
+
   await c.env.DB.prepare(
     `UPDATE purchases
         SET type = ?, item_name = ?, base_date = ?, amount = ?, memo = ?,
             warranty_months = ?, return_deadline_days = ?, interval_days = ?,
             schedule_type = ?, fixed_day_of_month = ?, fixed_day_interval_months = ?, is_one_time = ?, expected_delivery_date = ?,
-            arrival_offset_days = ?,
+            arrival_offset_days = ?, delivery_round_offset = ?,
             category = ?, category_tags = ?, brand = ?, brand_domain = ?,
             original_amount = ?, original_currency = ?, exchange_rate = ?,
             updated_at = datetime('now')
@@ -342,6 +356,7 @@ purchases.put('/:id', async (c) => {
       body.isOneTime ? 1 : 0,
       body.expectedDeliveryDate,
       body.arrivalOffsetDays,
+      deliveryRoundOffset,
       body.category,
       JSON.stringify(body.categoryTags),
       body.brand,
