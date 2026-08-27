@@ -88,13 +88,17 @@ import {
   currentCycleDeadline,
   occurrencesInMonth,
 } from '../components/dashboard/dashboardUtils';
+import { isPastItem } from '../../../shared/domain-policy';
 
 
 /**
- * "지난 항목" 판정 — GENERAL은 dDay<0(반품기한·A/S보증 다 지남)이면 해당된다. 정기배송/구독은
- * computeDeadline이 매일 오늘 기준으로 다음 회차를 다시 계산해서 dDay가 사실상 음수로 남지
- * 않으므로(자동으로 다음 회차로 넘어감), dDay만으로는 "갱신 안 됨"을 못 잡아낸다 —
- * discontinuedAt("유지 안 함")이 유일하게 믿을 수 있는 신호다.
+ * "지난 항목" 판정(shared/domain-policy.ts isPastItem) — GENERAL은 dDay<0(반품기한·A/S보증
+ * 다 지남)이면 해당된다. 정기배송/구독은 computeDeadline이 매일 오늘 기준으로 다음 회차를
+ * 다시 계산해서 dDay가 사실상 음수로 남지 않으므로(자동으로 다음 회차로 넘어감), dDay만으로는
+ * "갱신 안 됨"을 못 잡아낸다 — discontinuedAt("유지 안 함")이나 1회성 항목의 dDay<0(더 이상
+ * 다음 회차가 없음), 또는 pastDueUnconfirmed(마지막 회차가 결제일로부터 1주일까지도 미확인 —
+ * "유지하기"를 안 눌렀다고 결제 당일 바로 지난 항목으로 보내는 게 아니라 알림 사이클이 전부
+ * 끝날 때까지는 기다린다)가 신호다.
  */
 export default function DashboardPage() {
   /** 월별/연간 지출 집계 전용(활성+보관+삭제 전부 포함) — 카드로 렌더링하지 않는다. */
@@ -568,13 +572,14 @@ export default function DashboardPage() {
    * 마감 등)에 따로 노출되고 있어서 여기서는 대상에서 뺀다.
    */
   /** 메인 요약 보드 — 활성 항목 기준. purchases는 archived 제외만 서버에서 걸러져 오고
-   *  discardedAt(삭제)은 "지난 항목" 탭에 두려고 그대로 포함돼 있으므로 여기서 따로 걸러낸다. */
-  const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY' && p.discontinuedAt === null && p.discardedAt === null).length;
-  const subscriptionCount = purchases.filter((p) => p.type === 'SUBSCRIPTION' && p.discontinuedAt === null && p.discardedAt === null).length;
+   *  "지난 항목"(isPastItem — 삭제·유지 안 함·1회성 기간 종료·마지막까지 미확인)은 그대로
+   *  포함돼 있으므로 여기서 따로 걸러낸다. */
+  const recurringDeliveryCount = purchases.filter((p) => p.type === 'RECURRING_DELIVERY' && !isPastItem(p)).length;
+  const subscriptionCount = purchases.filter((p) => p.type === 'SUBSCRIPTION' && !isPastItem(p)).length;
   /** "정기배송"/"정기구독" 타일 상세 — 아래 목록과 달리 날짜순이 아니라 카테고리별로 묶어서 보여준다.
-   *  삭제한 항목은 지난 항목 탭으로 옮겨갔으니 여기서도 제외한다. */
-  const recurringDeliveryGroups = groupByCategory(purchases.filter((p) => p.type === 'RECURRING_DELIVERY' && p.discardedAt === null));
-  const subscriptionGroups = groupByCategory(purchases.filter((p) => p.type === 'SUBSCRIPTION' && p.discardedAt === null));
+   *  지난 항목으로 옮겨간 것들은 여기서도 제외한다. */
+  const recurringDeliveryGroups = groupByCategory(purchases.filter((p) => p.type === 'RECURRING_DELIVERY' && !isPastItem(p)));
+  const subscriptionGroups = groupByCategory(purchases.filter((p) => p.type === 'SUBSCRIPTION' && !isPastItem(p)));
 
   /** N일마다 항목은 30일 기준 월 환산액으로, 매월 특정일 고정 항목은 금액을 그대로 더한다. */
   const monthlyEquivalent = (p: Purchase): number =>

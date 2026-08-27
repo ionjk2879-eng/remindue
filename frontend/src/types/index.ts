@@ -93,6 +93,9 @@ export interface Purchase {
    *  그 외(카드 목록 등) 조회에서는 항상 빈 배열이다. */
   paymentHistory: { cycleDate: string; amount: number }[];
   createdAt: string;
+  /** 정기배송·구독 전용 — 마지막 회차가 결제일로부터 1주일까지도 미확인 상태로 남아있으면
+   *  true(서버 계산). isPastItem이 "지난 항목" 분류에 쓴다. */
+  pastDueUnconfirmed: boolean;
 }
 
 export interface PurchaseInput {

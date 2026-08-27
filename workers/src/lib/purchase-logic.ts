@@ -370,6 +370,41 @@ export function computeDDay(deadline: string): number {
   return daysBetween(todayDateOnly(), deadline);
 }
 
+/**
+ * 정기배송·구독에서 "확인 안 된 회차 수". frontend dashboardModel.tsx의 동명 함수와 계산식이
+ * 동일하다(프론트/워커 분리라 공유 불가 — 이건 워커 내부 mapper.ts/confirmation-nudge.ts가
+ * 공유하는 워커 쪽 유일한 구현).
+ */
+export function missedRoundsFor(deliveryRound: number | null, deliveryConfirmCount: number, dDay: number): number {
+  if (deliveryRound === null) return 0;
+  const confirmableRounds = dDay <= 0 ? deliveryRound : deliveryRound - 1;
+  return Math.max(0, confirmableRounds - deliveryConfirmCount);
+}
+
+/**
+ * 마지막 회차가 결제일로부터 1주일(confirmation-nudge.ts의 "절약 검토 대상" 알림 시점)까지도
+ * 미확인 상태로 남아있는지 — true면 대시보드/내 목록/정기구독 현황에서 "지난 항목"으로 취급한다
+ * (shared/domain-policy.ts isPastItem). "유지하기"를 안 눌렀다고 결제 당일 바로 지난 항목으로
+ * 보내는 게 아니라, 알림 사이클(당일→D+1→D+7)이 전부 끝날 때까지는 정상 노출한다 — 확인만
+ * 하면(delivery_confirm_count가 올라가면) missedRounds가 0으로 돌아가 자동으로 다시 활성화된다.
+ * 1회성 항목·이미 "유지 안 함"으로 명시한 항목은 여기서 다루지 않는다(isPastItem에서 별도 처리).
+ */
+export function isPastDueUnconfirmed(row: DeadlineInput & { delivery_confirm_count: number; renewal_decision_for: string | null; discontinued_at: string | null }): boolean {
+  if (row.type !== 'RECURRING_DELIVERY' && row.type !== 'SUBSCRIPTION') return false;
+  if (row.is_one_time === 1 || row.discontinued_at !== null) return false;
+
+  const { deliveryRound } = computeDeadline(row);
+  const dDay = computeDDay(computeDeadline(row).deadline);
+  const missedRounds = missedRoundsFor(deliveryRound, row.delivery_confirm_count, dDay);
+  if (missedRounds < 1) return false;
+
+  const previousDeadline = computePreviousScheduleDeadline(row);
+  if (previousDeadline === null) return false;
+  if (row.renewal_decision_for === previousDeadline) return false;
+
+  return computeDDay(previousDeadline) <= -7;
+}
+
 /** frontend StampBadge.tsx의 getVariant와 동일한 구간 — CSV/PDF 내보내기의 "상태" 열에도 같은 어휘를 쓴다. */
 export function computeStatusLabel(dDay: number): string {
   if (dDay < 0) return '지남';

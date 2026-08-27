@@ -20,7 +20,7 @@
 // 명시하지 않는 한 "사용 안 함"이라 단정하지 않는다(DashboardPage.tsx의 missedRoundsFor와 동일한
 // 원칙 — 그쪽은 프론트 표시용, 이건 서버 알림 발송용으로 같은 계산을 그대로 복제해서 쓴다).
 
-import { computeDDay, computeDeadline, computePreviousScheduleDeadline } from './purchase-logic';
+import { computeDDay, computeDeadline, computePreviousScheduleDeadline, missedRoundsFor } from './purchase-logic';
 import { buildConfirmationNudgeEmailHtml, sendDigestEmail } from './email';
 import { sendPush } from './push';
 import { makeFcmSender } from './fcm';
@@ -34,13 +34,6 @@ interface RecurringPurchaseWithUser extends PurchaseRow {
   user_nickname: string;
   user_email_notifications_enabled: number;
   user_renewal_notification_days: string;
-}
-
-/** DashboardPage.tsx의 missedRoundsFor와 동일한 계산 — 서버에는 그 함수가 없어 여기서 복제한다. */
-function missedRoundsFor(deliveryRound: number | null, deliveryConfirmCount: number, dDay: number): number {
-  if (deliveryRound === null) return 0;
-  const confirmableRounds = dDay <= 0 ? deliveryRound : deliveryRound - 1;
-  return Math.max(0, confirmableRounds - deliveryConfirmCount);
 }
 
 interface UserNudgeBucket {

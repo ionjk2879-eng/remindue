@@ -1,4 +1,4 @@
-import { computeDDay, computeDeadline, computeDeadlines, estimateArrivalRange } from './purchase-logic';
+import { computeDDay, computeDeadline, computeDeadlines, estimateArrivalRange, isPastDueUnconfirmed } from './purchase-logic';
 import type { PaymentHistoryEntry, PendingPurchaseResponse, PendingPurchaseRow, PurchaseResponse, PurchaseRow } from '../types';
 
 function parseCategoryTags(value: string | null, primary: PurchaseRow['category']): PurchaseResponse['categoryTags'] {
@@ -82,6 +82,7 @@ export function toPurchaseResponse(row: PurchaseRow, paymentHistory: PaymentHist
     priceChangePreviousAmount: row.price_change_previous_amount,
     paymentHistory,
     createdAt: row.created_at,
+    pastDueUnconfirmed: isPastDueUnconfirmed(row),
   };
 }
 

@@ -32,6 +32,26 @@ describe('dashboardSelectors', () => {
     expect(selected.pagedPurchases.map(({ id }) => id)).toEqual([7]);
   });
 
+  it('sends a one-time recurring item to overdue once its single deadline passes, even without a discontinue click', () => {
+    const purchases = [
+      purchase(1, { type: 'SUBSCRIPTION', isOneTime: true, dDay: -1 }),
+      purchase(2, { type: 'SUBSCRIPTION', isOneTime: true, dDay: 5 }),
+    ];
+    const selected = selectPurchaseList(purchases, 'ALL', 'ALL', 1);
+    expect(selected.overdueItems.map(({ id }) => id)).toEqual([1]);
+    expect(selected.activeItems.map(({ id }) => id)).toEqual([2]);
+  });
+
+  it('sends an ongoing recurring item to overdue once the last round goes unconfirmed through the full nudge cycle', () => {
+    const purchases = [
+      purchase(1, { type: 'SUBSCRIPTION', dDay: 20, pastDueUnconfirmed: true }),
+      purchase(2, { type: 'SUBSCRIPTION', dDay: 20, pastDueUnconfirmed: false }),
+    ];
+    const selected = selectPurchaseList(purchases, 'ALL', 'ALL', 1);
+    expect(selected.overdueItems.map(({ id }) => id)).toEqual([1]);
+    expect(selected.activeItems.map(({ id }) => id)).toEqual([2]);
+  });
+
   it('sorts overdue/discarded items by most recently updated first', () => {
     const purchases = [
       purchase(1, { dDay: -1, updatedAt: '2026-08-01T00:00:00Z' }),
