@@ -214,8 +214,13 @@ auth.post('/refresh', async (c) => {
   requireAllowedOrigin(c);
   const body = await c.req.json<{ refreshToken?: string; native?: boolean }>().catch(() => ({}) as { refreshToken?: string; native?: boolean });
   const native = body.native ?? false;
-  // 쿠키 우선, 없으면 네이티브 앱이 바디로 전달한 토큰 사용
-  const token = getCookie(c, REFRESH_COOKIE) ?? body.refreshToken;
+  // 바디 토큰 우선, 없으면 쿠키 — 네이티브 앱과 Google OAuth 콜백 직후(GoogleAuthSuccessPage)는
+  // 정확한 토큰을 명시적으로 바디에 담아 보낸다. 예전에는 쿠키를 우선했는데, AuthContext가 마운트
+  // 시 동시에 쏘는 쿠키 기반 refresh 요청과 경쟁하면서 — 리프레시 토큰이 1회용(claim 즉시 폐기)이라
+  // 둘 중 늦게 도착한 쪽이 이미 폐기된 쿠키를 물고 401을 받는 레이스가 있었다. GoogleAuthSuccessPage가
+  // "로그인 성공적으로 끝났는데도 이 401 때문에 실패 화면으로 튕기는" 버그의 원인이었다 — 바디에
+  // 명시적 토큰이 있으면 그걸 우선해서 이 경쟁 자체를 없앤다.
+  const token = body.refreshToken ?? getCookie(c, REFRESH_COOKIE);
   if (!token) return c.json({ message: '세션이 없습니다' }, 401);
   const payload = await verifyJwt(token, c.env.JWT_SECRET);
   if (payload?.type !== 'refresh' || !payload.jti) {
