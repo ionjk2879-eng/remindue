@@ -18,7 +18,6 @@ import { logger, maskEmail } from './logger';
 // 신규 토큰은 영문 소문자지만, 기존 계정에는 마이그레이션에서 발급한 16진수 토큰이
 // 남아 있을 수 있다. 숫자를 막으면 그 계정의 정상 수신 주소를 조용히 버리게 된다.
 const TO_LOCAL_PART_PATTERN = /^([a-z0-9]+)$/i;
-const FREE_PLAN_MONTHLY_EMAIL_LIMIT = 10;
 
 function extractForwardingToken(toAddress: string): string | null {
   const localPart = toAddress.split('@')[0] ?? '';
@@ -47,26 +46,6 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
   if (!user) {
     logger.warn('email.intake.unknown_recipient');
     return;
-  }
-
-  // 등록 개수 제한은 더 이상 없지만(모든 기능 무료 개방), AI 토큰 비용 절감을 위해 is_premium=0
-  // 계정은 이메일 처리 자체를 월 FREE_PLAN_MONTHLY_EMAIL_LIMIT건으로 제한한다. 신규 가입은 항상
-  // is_premium=0이라 사실상 모든 계정에 적용된다 — 필요하면 DB에서 수동으로 is_premium=1로 올려
-  // 이 제한을 벗어날 수 있다(CLAUDE.md 참고).
-  if (user.is_premium === 0) {
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-    if (user.free_email_month === currentMonth && user.free_email_count >= FREE_PLAN_MONTHLY_EMAIL_LIMIT) {
-      logger.info('email.intake.free_limit_exceeded', { recipient: maskEmail(user.email) });
-      return;
-    }
-    if (user.free_email_month === currentMonth) {
-      await env.DB.prepare('UPDATE users SET free_email_count = free_email_count + 1 WHERE id = ?')
-        .bind(user.id).run();
-    } else {
-      await env.DB.prepare('UPDATE users SET free_email_month = ?, free_email_count = 1 WHERE id = ?')
-        .bind(currentMonth, user.id).run();
-    }
   }
 
   const parsed = await PostalMime.parse(message.raw);
