@@ -133,6 +133,50 @@ describe('Worker route integration', () => {
     expect(await db.prepare('SELECT COUNT(*) AS count FROM purchases WHERE user_id = ?').bind(userId).first<number>('count')).toBe(6);
   });
 
+  it('links round numbering to a past item when linkedPastPurchaseId is a valid past match', async () => {
+    const userId = seedUser(db, 'resub@example.com');
+    const pastId = db.raw.prepare(
+      `INSERT INTO purchases
+        (user_id, type, item_name, base_date, amount, schedule_type, interval_days, discontinued_at, discontinued_round)
+       VALUES (?, 'SUBSCRIPTION', 'Claude Pro', '2026-01-01', 20000, 'INTERVAL', 30, '2026-06-01 00:00:00', 5)`
+    ).run(userId).lastInsertRowid;
+
+    const request = await authorizedRequest('resub@example.com', '/api/purchases', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'SUBSCRIPTION', itemName: 'Claude Pro', baseDate: '2026-08-03',
+        scheduleType: 'INTERVAL', intervalDays: 30, linkedPastPurchaseId: Number(pastId),
+      }),
+    });
+    const response = await app.fetch(request, testEnv(db));
+    expect(response.status).toBe(200);
+    const created = await response.json<{ deliveryRound: number | null }>();
+    // 지난 항목이 5회차에서 멈췄으니 새 항목은 6회차부터 이어진다.
+    expect(created.deliveryRound).toBe(6);
+  });
+
+  it('ignores linkedPastPurchaseId when it does not belong to the user (no round offset applied)', async () => {
+    const otherUserId = seedUser(db, 'owner2@example.com');
+    seedUser(db, 'resub2@example.com');
+    const otherUsersPastId = db.raw.prepare(
+      `INSERT INTO purchases
+        (user_id, type, item_name, base_date, amount, schedule_type, interval_days, discontinued_at, discontinued_round)
+       VALUES (?, 'SUBSCRIPTION', 'Naver Plus', '2026-01-01', 5000, 'INTERVAL', 30, '2026-06-01 00:00:00', 3)`
+    ).run(otherUserId).lastInsertRowid;
+
+    const request = await authorizedRequest('resub2@example.com', '/api/purchases', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'SUBSCRIPTION', itemName: 'Naver Plus', baseDate: '2026-08-03',
+        scheduleType: 'INTERVAL', intervalDays: 30, linkedPastPurchaseId: Number(otherUsersPastId),
+      }),
+    });
+    const response = await app.fetch(request, testEnv(db));
+    expect(response.status).toBe(200);
+    const created = await response.json<{ deliveryRound: number | null }>();
+    expect(created.deliveryRound).toBe(1);
+  });
+
   it('previews and applies legacy foreign-payment recalculation with audit evidence', async () => {
     const userId = seedUser(db, 'fx@example.com');
     seedPurchase(db, userId, 'legacy USD purchase', { baseDate: '2026-07-01' });

@@ -31,6 +31,7 @@ export default function PurchaseForm({
     fixedDayIntervalMonths, setFixedDayIntervalMonths, arrivalOffsetDays, setArrivalOffsetDays,
     isOneTime, setIsOneTime, category, setCategory, brand, originalAmount, setOriginalAmount,
     originalCurrency, setOriginalCurrency, setExchangeRate, itemNameInputRef,
+    suggestedPastPurchaseId, linkPastPurchase, setLinkPastPurchase,
   } = form;
 
   return (
@@ -314,6 +315,19 @@ export default function PurchaseForm({
               <small>항목은 목록에 남기고, 다음 회차의 유지 확인과 예상 지출은 만들지 않아요.</small>
             </span>
           </label>
+          {suggestedPastPurchaseId !== null && (
+            <label className="one-time-toggle">
+              <input
+                type="checkbox"
+                checked={linkPastPurchase}
+                onChange={(e) => setLinkPastPurchase(e.target.checked)}
+              />
+              <span>
+                <strong>지난 항목 재구독</strong>
+                <small>같은 이름의 지난 항목이 있어요. 체크하면 회차 번호가 그 항목에 이어서 매겨져요(결제일은 이번에 새로 입력한 값 그대로 써요).</small>
+              </span>
+            </label>
+          )}
         </div>
       )}
 

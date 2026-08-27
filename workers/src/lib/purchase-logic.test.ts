@@ -12,6 +12,7 @@ import {
   confirmReceiptToday,
   isPastDueUnconfirmed,
   isValidArrivalDaysAgo,
+  lastReachedRound,
   recomputeRoundOffsetForEdit,
   resolveArrivalDate,
 } from './purchase-logic';
@@ -351,5 +352,37 @@ describe('recomputeRoundOffsetForEdit — 항목 수정으로 시작일/스케�
   it('스케줄이 안 바뀌면 오프셋도 그대로(무변화)', () => {
     const existing = { ...row('RECURRING_DELIVERY', { base_date: '2026-01-01', interval_days: 14 }), delivery_round_offset: 3 };
     expect(recomputeRoundOffsetForEdit(existing, existing)).toBe(3);
+  });
+});
+
+describe('lastReachedRound — 재구독 시 회차를 이어붙일 기준점', () => {
+  beforeEach(() => vi.setSystemTime(new Date('2026-09-01T03:00:00.000Z')));
+  afterEach(() => vi.useRealTimers());
+
+  it('"유지 안 함"으로 명시 중단됐으면 그 순간 얼려둔 discontinued_round를 쓴다', () => {
+    const stopped = {
+      ...row('SUBSCRIPTION', { base_date: '2026-01-01', interval_days: 30 }),
+      discontinued_at: '2026-06-01 00:00:00',
+      discontinued_round: 5,
+    };
+    expect(lastReachedRound(stopped)).toBe(5);
+  });
+
+  it('discontinued_round이 비어 있으면 중단 시점 기준으로 재계산한다', () => {
+    const stopped = {
+      ...row('SUBSCRIPTION', { base_date: '2026-01-01', interval_days: 30 }),
+      discontinued_at: '2026-06-01 00:00:00',
+      discontinued_round: null,
+    };
+    expect(lastReachedRound(stopped)).toBe(computeDeadlineAt(stopped, '2026-06-01').deliveryRound);
+  });
+
+  it('명시적 중단이 아니면(미확인 만료 등) 오늘 기준 현재 회차를 쓴다', () => {
+    const lapsed = {
+      ...row('SUBSCRIPTION', { base_date: '2026-01-01', interval_days: 30 }),
+      discontinued_at: null,
+      discontinued_round: null,
+    };
+    expect(lastReachedRound(lapsed)).toBe(computeDeadline(lapsed).deliveryRound);
   });
 });

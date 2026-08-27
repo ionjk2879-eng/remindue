@@ -290,6 +290,20 @@ export function recomputeRoundOffsetForEdit(existing: DeadlineInput, updated: De
 }
 
 /**
+ * "지난 항목"이 된 정기 항목이 마지막으로 도달한 회차 — 재구독 시 새로 등록되는 항목의 회차를
+ * 이어붙이는 기준점(routes/purchases.ts POST /purchases의 linkedPastPurchaseId). 명시적으로
+ * "유지 안 함"을 눌러 지난 항목이 됐으면 그 순간 얼려둔 discontinued_round(없으면 그 시점 기준
+ * 재계산)를 쓰고, 그 외(미확인 만료·삭제·1회성 만료처럼 명시적 중단이 아닌 경우)는 오늘 기준
+ * 현재 회차를 그대로 쓴다.
+ */
+export function lastReachedRound(row: DeadlineInput & { discontinued_at: string | null; discontinued_round: number | null }): number {
+  if (row.discontinued_at !== null) {
+    return row.discontinued_round ?? computeDeadlineAt(row, row.discontinued_at.slice(0, 10)).deliveryRound ?? 0;
+  }
+  return computeDeadline(row).deliveryRound ?? 0;
+}
+
+/**
  * RECURRING_DELIVERY 전용 — 결제일(deadline)로부터 도착예정일을 추정한다. 실제 정기배송
  * 회차별 상세정보(결제일/도착예정일 캡처 다수)를 역산한 결과 "결제일 + N영업일"(토·일·공휴일
  * 제외하고 세기) 규칙이 대체공휴일이 낀 회차까지 정확히 들어맞았다 — 결제일 자체는 공휴일이어도

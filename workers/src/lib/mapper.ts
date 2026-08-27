@@ -108,6 +108,7 @@ export function toPendingPurchaseResponse(row: PendingPurchaseRow): PendingPurch
     categoryTags: parseCategoryTags(row.category_tags, row.category),
     matchedPurchaseId: row.matched_purchase_id,
     previousAmount: row.previous_amount,
+    matchedPastPurchaseId: row.matched_past_purchase_id,
     brand: row.brand,
     brandDomain: row.brand_domain,
     originalAmount: row.original_amount,

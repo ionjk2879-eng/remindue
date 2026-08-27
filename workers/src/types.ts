@@ -228,6 +228,9 @@ export interface PendingPurchaseRow {
   matched_purchase_id: number | null;
   /** matched_purchase_id가 있을 때 그 항목의 "변경 전" 금액. 그 외 NULL. */
   previous_amount: number | null;
+  /** 같은 상품명의 "지난 항목"(유지 안 함/미확인 만료/삭제/1회성 만료)이 있을 때만 그 항목의
+   *  id — 재구독 여부를 사용자에게 물어보는 용도. 그 외 NULL. */
+  matched_past_purchase_id: number | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. NULL이면 미감지. */
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
@@ -270,6 +273,9 @@ export interface PendingPurchaseResponse {
   matchedPurchaseId: number | null;
   /** matchedPurchaseId가 있을 때 그 항목의 "변경 전" 금액. 그 외 null. */
   previousAmount: number | null;
+  /** 같은 상품명의 "지난 항목"이 있을 때만 그 항목의 id — 재구독 여부를 사용자에게 물어보는
+   *  용도. 그 외 null. */
+  matchedPastPurchaseId: number | null;
   /** 판매처/브랜드명. AI 이메일 추출 시 자동 감지. null이면 미감지. */
   brand: string | null;
   /** brand의 공식 도메인(로고 표시용). AI가 확신할 때만 채움. */
@@ -441,6 +447,10 @@ export interface PurchaseRequestBody {
   originalAmount?: number | null;
   originalCurrency?: string | null;
   exchangeRate?: number | null;
+  /** 재구독 연결 — 같은 이름의 "지난 항목" id를 넘기면 그 항목의 마지막 회차 다음 번호로 이
+   *  새 항목의 회차가 이어진다(스케줄/결제일 자체는 이 요청의 값을 그대로 씀). 신규 등록에서만
+   *  의미 있고, PUT(수정)에서는 무시된다. */
+  linkedPastPurchaseId?: number | null;
 }
 
 export type SharedAccessStatus = 'pending' | 'accepted';
