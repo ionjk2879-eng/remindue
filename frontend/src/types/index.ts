@@ -124,7 +124,6 @@ export interface PurchaseInput {
 export interface AuthResponse {
   accessToken: string;
   nickname: string;
-  isPremium: boolean;
   hasSeenOnboarding: boolean;
   /** 네이티브 앱 전용 — preferences에 저장해 쿠키 없이 세션 복원에 쓴다. */
   refreshToken?: string;
@@ -182,24 +181,6 @@ export interface PendingPurchase {
 export interface PendingPurchasesResponse {
   forwardingEmail: string;
   items: PendingPurchase[];
-}
-
-export type BillingPlan = 'ONE_TIME' | 'MONTHLY' | 'ANNUAL';
-
-export interface BillingStatus {
-  isPremium: boolean;
-  plan: BillingPlan | null;
-  premiumExpiresAt: string | null;
-  autoRenew: boolean;
-  premiumSince: string | null;
-  paymentCount: number;
-}
-
-export interface CheckoutResponse {
-  orderId: string;
-  amount: number;
-  orderName: string;
-  customerKey: string;
 }
 
 export type SharedAccessStatus = 'pending' | 'accepted';

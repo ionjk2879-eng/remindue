@@ -7,7 +7,6 @@ import { AuthProvider } from './context/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import LandingPage from './pages/LandingPage';
-import PricingPage from './pages/PricingPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsPage from './pages/TermsPage';
 import FaqPage from './pages/FaqPage';
@@ -15,7 +14,6 @@ import InstallGuidePage from './pages/InstallGuidePage';
 
 const PAGE_MAP = {
   '/': LandingPage,
-  '/pricing': PricingPage,
   '/privacy': PrivacyPolicyPage,
   '/terms': TermsPage,
   '/faq': FaqPage,

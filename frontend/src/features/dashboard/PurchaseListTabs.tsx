@@ -4,7 +4,6 @@ interface Props {
   view: PurchaseListView;
   overdueCount: number;
   hasAcceptedShares: boolean;
-  canExport: boolean;
   exporting: boolean;
   onChange: (view: PurchaseListView) => void;
   onSelectShared: () => void;
@@ -12,7 +11,7 @@ interface Props {
 }
 
 export default function PurchaseListTabs({
-  view, overdueCount, hasAcceptedShares, canExport, exporting,
+  view, overdueCount, hasAcceptedShares, exporting,
   onChange, onSelectShared, onExport,
 }: Props) {
   return (
@@ -23,7 +22,7 @@ export default function PurchaseListTabs({
       </button>
       <button type="button" className={`view-tabs__btn${view === 'ARCHIVED' ? ' view-tabs__btn--active' : ''}`} onClick={() => onChange('ARCHIVED')}>보관함</button>
       {hasAcceptedShares && <button type="button" className={`view-tabs__btn${view === 'SHARED' ? ' view-tabs__btn--active' : ''}`} onClick={onSelectShared}>공유받은 목록</button>}
-      {canExport && view === 'ACTIVE' && (
+      {view === 'ACTIVE' && (
         <div className="view-tabs__export">
           <button type="button" className="btn-text" disabled={exporting} onClick={() => onExport('csv')}>CSV 내보내기</button>
           <button type="button" className="btn-text" disabled={exporting} onClick={() => onExport('pdf')}>PDF 내보내기</button>

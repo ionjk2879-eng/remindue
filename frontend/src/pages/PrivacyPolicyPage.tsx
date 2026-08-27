@@ -1,4 +1,4 @@
-const EFFECTIVE_DATE = '2026-07-19';
+const EFFECTIVE_DATE = '2026-08-27';
 const CONTACT_EMAIL = 'ionjk2879@gmail.com';
 
 export default function PrivacyPolicyPage() {
@@ -39,11 +39,6 @@ export default function PrivacyPolicyPage() {
               <td>이용자가 지정 주소로 메일 전달</td>
             </tr>
             <tr>
-              <td>결제(프리미엄)</td>
-              <td>결제 플랜, 결제 금액, 결제 일시, 결제 성공/실패 여부</td>
-              <td>토스페이먼츠 결제 시스템 연동 (카드번호 등 결제수단 정보 자체는 서비스가 저장하지 않음)</td>
-            </tr>
-            <tr>
               <td>웹 푸시 알림</td>
               <td>브라우저 푸시 구독 정보(endpoint, 암호화 키)</td>
               <td>이용자의 알림 수신 동의 시 브라우저가 생성</td>
@@ -68,7 +63,6 @@ export default function PrivacyPolicyPage() {
           <li>회원 식별 및 로그인, 계정 관리</li>
           <li>등록한 항목의 기한(D-day) 계산 및 알림(이메일·웹 푸시) 발송</li>
           <li>전달받은 주문확인 메일에서 상품명·날짜를 추출해 "확인 대기" 목록에 자동 등록</li>
-          <li>프리미엄 결제 처리 및 구독 상태 관리</li>
           <li>구성원 공유 초대 및 수락 처리</li>
           <li>서비스 장애 대응 및 부정 이용 방지</li>
         </ul>
@@ -80,28 +74,6 @@ export default function PrivacyPolicyPage() {
           원칙적으로 회원탈퇴 시 이용자의 개인정보를 지체 없이 파기합니다. 설정 화면의 "회원탈퇴"를 통해 언제든 직접 탈퇴할 수 있으며, 탈퇴 시
           등록 항목·알림 구독·공유 정보를 포함한 개인정보가 즉시 삭제됩니다.
         </p>
-        <p>
-          다만 「전자상거래 등에서의 소비자보호에 관한 법률」 시행령 제6조에 따라 아래 기록은 계정과 분리하여 명시된 기간 동안 의무적으로
-          보관하며, 이 기간 동안은 탈퇴 후에도 삭제되지 않습니다.
-        </p>
-        <table className="legal-table">
-          <thead>
-            <tr>
-              <th>보관 항목</th>
-              <th>보관 기간</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>계약 또는 청약철회 등에 관한 기록(구독 계약·해지 내역)</td>
-              <td>5년</td>
-            </tr>
-            <tr>
-              <td>대금결제 및 재화 등의 공급에 관한 기록(결제 내역)</td>
-              <td>5년</td>
-            </tr>
-          </tbody>
-        </table>
       </section>
 
       <section className="legal-section">
@@ -127,10 +99,6 @@ export default function PrivacyPolicyPage() {
             <tr>
               <td>Anthropic (Claude API)</td>
               <td>전달받은 주문확인 메일에서 상품명·날짜 추출 — 처리 후 메일 원본은 저장하지 않음</td>
-            </tr>
-            <tr>
-              <td>토스페이먼츠</td>
-              <td>프리미엄 결제 승인 및 정기결제(빌링) 처리</td>
             </tr>
             <tr>
               <td>Resend</td>

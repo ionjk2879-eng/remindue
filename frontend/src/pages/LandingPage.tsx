@@ -387,9 +387,6 @@ export default function LandingPage() {
         <Link to="/signup" className="btn landing__cta">
           무료로 시작하기
         </Link>
-        <Link to="/pricing" className="landing__pricing-link">
-          요금제 보기
-        </Link>
 
         <div className="landing__preview">
           <img
@@ -489,10 +486,6 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
-        <p className="landing__disclaimer">
-          무료 요금제와 프리미엄 요금제는 이용 가능한 기능에 차이가 있을 수 있어요.{' '}
-          <Link to="/pricing">요금제 비교하기</Link>
-        </p>
       </div>
 
       <div className="landing__features">

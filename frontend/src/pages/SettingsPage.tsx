@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   fetchNotificationDays,
@@ -16,12 +16,11 @@ import { deleteAccount } from '../api/auth';
 import { ensurePushSubscription, sendTestPush, type PushTestKind } from '../api/push';
 import { useAuth } from '../context/AuthContext';
 import Skeleton from '../components/Skeleton';
-import SubscriptionStatus from '../components/SubscriptionStatus';
 import type { SharedAccess } from '../types';
 import { getNotificationPermission } from '../lib/push';
 import { isNative, getNativePushPermissionStatus, registerNativePush, type NativePushPermissionStatus } from '../lib/native';
 import { registerNativePushToken } from '../api/push';
-import { FREE_NOTIFICATION_DAYS, NOTIFICATION_DAY_OPTIONS } from '../../../shared/domain-policy';
+import { NOTIFICATION_DAY_OPTIONS } from '../../../shared/domain-policy';
 import {
   applyFxRecalculation,
   fetchLatestFxRecalculation,
@@ -48,7 +47,7 @@ function formatDayLabel(day: number): string {
 }
 
 export default function SettingsPage() {
-  const { nickname, isPremium, billingStatus, logout, updateNickname } = useAuth();
+  const { nickname, logout, updateNickname } = useAuth();
   const navigate = useNavigate();
 
   const [nicknameInput, setNicknameInput] = useState('');
@@ -108,9 +107,6 @@ export default function SettingsPage() {
     setSharingLoaded(true);
   };
 
-  // billingStatus는 AuthContext가 로그인 시점에 한 번 가져와 캐싱해둔 값을 그대로 재사용한다 —
-  // 여기서 따로 /billing/status를 다시 부르지 않는다. 결제/해지 직후에는 각 처리 함수가
-  // refreshPremium()으로 context를 갱신한다.
   useEffect(() => {
     loadNotificationDays();
     loadFxCard();
@@ -349,68 +345,38 @@ export default function SettingsPage() {
       </section>
 
       <section className="settings-section">
-        <div className="settings-section__header">
-          <h2>구독 관리</h2>
-          {billingStatus !== null && (
-            isPremium && billingStatus.plan && (billingStatus.plan === 'MONTHLY' || billingStatus.plan === 'ANNUAL') ? (
-              !billingStatus.autoRenew && <Link to="/pricing" className="btn btn-sm">다시 구독하기</Link>
-            ) : (
-              <Link to="/pricing" className="btn btn-sm">프리미엄 구독하기</Link>
-            )
-          )}
-        </div>
-        <SubscriptionStatus />
-        {billingStatus !== null && !isPremium && <p className="settings-section__hint">현재 무료 플랜이에요.</p>}
-      </section>
-
-      <section className="settings-section">
         <h2>기한 예정 알림</h2>
-        {isPremium ? (
-          selectedDays === null ? (
-            <div className="skeleton-block">
-              <Skeleton width="80%" />
-              <Skeleton width="50%" />
-            </div>
-          ) : (
-            <>
-              <p className="settings-section__hint">
-                반품 기한·A/S 보증이 며칠 남았을 때 요약 알림을 받을지 골라주세요. AI가 주문 정보를 읽어도 실제 반품 기한·A/S 기간까지 정확히 알아내는 데는 한계가 있어, 미입력 항목은 반품 1주·A/S 1년을 기본값으로 적용합니다. 꼭 실제 조건을 확인해 수정해 주세요.
-              </p>
-              <div className="notification-day-options">
-                <label
-                  className={`notification-day-option${selectedDays.length === 0 ? ' notification-day-option--active' : ''}`}
-                >
-                  <input type="checkbox" checked={selectedDays.length === 0} onChange={toggleNoNotificationDays} />
-                  없음
-                </label>
-                {NOTIFICATION_DAY_OPTIONS.map((day) => (
-                  <label
-                    key={day}
-                    className={`notification-day-option${selectedDays.includes(day) ? ' notification-day-option--active' : ''}`}
-                  >
-                    <input type="checkbox" checked={selectedDays.includes(day)} onChange={() => toggleDay(day)} />
-                    {formatDayLabel(day)}
-                  </label>
-                ))}
-              </div>
-              <button className="btn btn-sm" onClick={handleSaveDays} disabled={savingDays}>
-                {savingDays ? '저장 중...' : '저장'}
-              </button>
-              {daysMessage && <p className="settings-section__message">{daysMessage}</p>}
-            </>
-          )
+        {selectedDays === null ? (
+          <div className="skeleton-block">
+            <Skeleton width="80%" />
+            <Skeleton width="50%" />
+          </div>
         ) : (
           <>
-            <p className="settings-section__hint">무료 플랜의 기본 예정 알림이에요.</p>
-            <div className="notification-day-options" aria-label="무료 기한 예정 알림 시점">
-              {FREE_NOTIFICATION_DAYS.map((day) => (
-                <label key={day} className="notification-day-option notification-day-option--active">
-                  <input type="checkbox" checked readOnly />
+            <p className="settings-section__hint">
+              반품 기한·A/S 보증이 며칠 남았을 때 요약 알림을 받을지 골라주세요. AI가 주문 정보를 읽어도 실제 반품 기한·A/S 기간까지 정확히 알아내는 데는 한계가 있어, 미입력 항목은 반품 1주·A/S 1년을 기본값으로 적용합니다. 꼭 실제 조건을 확인해 수정해 주세요.
+            </p>
+            <div className="notification-day-options">
+              <label
+                className={`notification-day-option${selectedDays.length === 0 ? ' notification-day-option--active' : ''}`}
+              >
+                <input type="checkbox" checked={selectedDays.length === 0} onChange={toggleNoNotificationDays} />
+                없음
+              </label>
+              {NOTIFICATION_DAY_OPTIONS.map((day) => (
+                <label
+                  key={day}
+                  className={`notification-day-option${selectedDays.includes(day) ? ' notification-day-option--active' : ''}`}
+                >
+                  <input type="checkbox" checked={selectedDays.includes(day)} onChange={() => toggleDay(day)} />
                   {formatDayLabel(day)}
                 </label>
               ))}
             </div>
-            <p className="settings-section__hint"><Link to="/pricing">프리미엄으로 업그레이드하면 원하는 시점을 고를 수 있어요 →</Link></p>
+            <button className="btn btn-sm" onClick={handleSaveDays} disabled={savingDays}>
+              {savingDays ? '저장 중...' : '저장'}
+            </button>
+            {daysMessage && <p className="settings-section__message">{daysMessage}</p>}
           </>
         )}
       </section>
@@ -418,34 +384,27 @@ export default function SettingsPage() {
       <section className="settings-section">
         <h2>정기배송·구독 유지 확인</h2>
         <p className="settings-section__hint">이미 등록된 정기배송·구독의 다음 배송·결제 회차를 기준으로 안내해요. 설정한 D-n일마다 “다음 회차까지 며칠 남았어요. 계속 유지할까요?”라고 묻고, 유지·중단을 선택하면 그 회차의 추가 확인은 멈춰요. 반품·A/S 기한 알림과는 별도 설정입니다.</p>
-        {isPremium ? (
-          renewalSelectedDays === null ? (
-            <div className="skeleton-block"><Skeleton width="80%" /></div>
-          ) : (
-            <>
-              <div className="notification-day-options" aria-label="정기배송과 구독 유지 확인 알림">
-                {NOTIFICATION_DAY_OPTIONS.map((day) => (
-                  <label
-                    key={day}
-                    className={`notification-day-option${renewalSelectedDays.includes(day) ? ' notification-day-option--active' : ''}`}
-                  >
-                    <input type="checkbox" checked={renewalSelectedDays.includes(day)} onChange={() => toggleRenewalDay(day)} />
-                    {formatDayLabel(day)}
-                  </label>
-                ))}
-                <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미응답 시 D+7 절약 검토</label>
-              </div>
-              <button className="btn btn-sm" onClick={handleSaveRenewalDays} disabled={savingRenewalDays || renewalSelectedDays.length === 0}>
-                {savingRenewalDays ? '저장 중...' : '저장'}
-              </button>
-              {renewalDaysMessage && <p className="settings-section__message">{renewalDaysMessage}</p>}
-            </>
-          )
+        {renewalSelectedDays === null ? (
+          <div className="skeleton-block"><Skeleton width="80%" /></div>
         ) : (
-          <div className="notification-day-options" aria-label="무료 정기배송과 구독 유지 확인 알림">
-            <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />예정일 당일</label>
-            <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미응답 시 D+7 절약 검토</label>
-          </div>
+          <>
+            <div className="notification-day-options" aria-label="정기배송과 구독 유지 확인 알림">
+              {NOTIFICATION_DAY_OPTIONS.map((day) => (
+                <label
+                  key={day}
+                  className={`notification-day-option${renewalSelectedDays.includes(day) ? ' notification-day-option--active' : ''}`}
+                >
+                  <input type="checkbox" checked={renewalSelectedDays.includes(day)} onChange={() => toggleRenewalDay(day)} />
+                  {formatDayLabel(day)}
+                </label>
+              ))}
+              <label className="notification-day-option notification-day-option--active"><input type="checkbox" checked readOnly />미응답 시 D+7 절약 검토</label>
+            </div>
+            <button className="btn btn-sm" onClick={handleSaveRenewalDays} disabled={savingRenewalDays || renewalSelectedDays.length === 0}>
+              {savingRenewalDays ? '저장 중...' : '저장'}
+            </button>
+            {renewalDaysMessage && <p className="settings-section__message">{renewalDaysMessage}</p>}
+          </>
         )}
       </section>
 
@@ -576,7 +535,7 @@ export default function SettingsPage() {
             ['DEADLINE', '기한 예정 알림'],
             ['RENEWAL', '정기배송·구독 유지 확인'],
             ['ARRIVAL', '배송 수령 확인'],
-            ...(isPremium ? ([['WEEKLY_SUMMARY', '주간 요약']] as const) : []),
+            ['WEEKLY_SUMMARY', '주간 요약'],
           ] as const).map(([kind, label]) => (
             <button key={kind} className="btn btn-sm" onClick={() => handleSendTestPush(kind)} disabled={sendingTestPush !== null}>
               {sendingTestPush === kind ? '발송 중...' : `${label} 테스트`}
@@ -588,49 +547,41 @@ export default function SettingsPage() {
 
       <section className="settings-section">
         <h2>구성원 공유</h2>
-        {isPremium ? (
-          <>
-            <p className="settings-section__hint">이메일로 초대하면 초대받은 사람이 회원님의 목록을 읽기 전용으로 볼 수 있어요.</p>
-            <form className="invite-form" onSubmit={handleInvite}>
-              <input
-                type="email"
-                placeholder="초대할 이메일"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                required
-              />
-              <button type="submit" className="btn btn-sm" disabled={inviting}>
-                {inviting ? '초대 중...' : '초대하기'}
-              </button>
-            </form>
-            {inviteError && <p className="form-error">{inviteError}</p>}
+        <p className="settings-section__hint">이메일로 초대하면 초대받은 사람이 회원님의 목록을 읽기 전용으로 볼 수 있어요.</p>
+        <form className="invite-form" onSubmit={handleInvite}>
+          <input
+            type="email"
+            placeholder="초대할 이메일"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            required
+          />
+          <button type="submit" className="btn btn-sm" disabled={inviting}>
+            {inviting ? '초대 중...' : '초대하기'}
+          </button>
+        </form>
+        {inviteError && <p className="form-error">{inviteError}</p>}
 
-            {!sharingLoaded && (
-              <div className="skeleton-block">
-                <Skeleton width="70%" />
-              </div>
-            )}
+        {!sharingLoaded && (
+          <div className="skeleton-block">
+            <Skeleton width="70%" />
+          </div>
+        )}
 
-            {sharingLoaded && sentInvites.length > 0 && (
-              <ul className="invite-list">
-                {sentInvites.map((invite) => (
-                  <li key={invite.id}>
-                    <span>{invite.counterpart}</span>
-                    <span className={`invite-status invite-status--${invite.status}`}>
-                      {invite.status === 'accepted' ? '수락됨' : '대기중'}
-                    </span>
-                    <button type="button" className="btn-text" onClick={() => handleRevoke(invite.id)}>
-                      취소
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        ) : (
-          <p className="settings-section__hint">
-            구성원 초대는 프리미엄 전용이에요. <Link to="/pricing">업그레이드하기 →</Link>
-          </p>
+        {sharingLoaded && sentInvites.length > 0 && (
+          <ul className="invite-list">
+            {sentInvites.map((invite) => (
+              <li key={invite.id}>
+                <span>{invite.counterpart}</span>
+                <span className={`invite-status invite-status--${invite.status}`}>
+                  {invite.status === 'accepted' ? '수락됨' : '대기중'}
+                </span>
+                <button type="button" className="btn-text" onClick={() => handleRevoke(invite.id)}>
+                  취소
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
 
         {receivedInvites.length > 0 && (
@@ -662,9 +613,8 @@ export default function SettingsPage() {
       <section className="settings-section settings-section--danger">
         <h2>회원탈퇴</h2>
         <p className="settings-section__hint">
-          탈퇴하면 등록된 항목, 알림 구독, 공유 정보가 모두 삭제되고 되돌릴 수 없어요. 단, 결제·구독 기록은
-          전자상거래법에 따라 계정과 분리되어 5년간 보관됩니다.
-          {isPremium && ' 진행 중인 정기결제가 있다면 먼저 위에서 해지해주세요.'}
+          탈퇴하면 등록된 항목, 알림 구독, 공유 정보가 모두 삭제되고 되돌릴 수 없어요. 단, 과거 결제·구독
+          기록이 있다면 전자상거래법에 따라 계정과 분리되어 5년간 보관됩니다.
         </p>
         <form className="withdraw-form" onSubmit={handleWithdraw}>
           <input

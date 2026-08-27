@@ -19,7 +19,6 @@ interface Props {
   totalPages: number;
   currentYear: number;
   currentMonth: number;
-  isPremium: boolean;
   deadlineNotificationsEnabled: boolean | null;
   pendingPriceChanges: Map<number, PendingPurchase>;
   needsAttention: (purchase: Purchase) => boolean;
@@ -55,7 +54,7 @@ export default function ActivePurchaseList(props: Props) {
             {isRecurringType(purchase.type) && !purchase.isOneTime && purchase.paymentDDay <= 0 && isFullyConfirmed(purchase) && <span className="confirm-badge">✓ 확인완료</span>}
             {isRecurringType(purchase.type) && purchase.isOneTime && purchase.discontinuedAt === null && <button className="btn-text" onClick={() => props.onDiscontinue(purchase.id)}>유지 안 함</button>}
             <button className="btn-text" onClick={() => props.onEdit(purchase)}>수정</button>
-            {props.isPremium && <button className="btn-text" onClick={() => props.onArchive(purchase.id)}>보관</button>}
+            <button className="btn-text" onClick={() => props.onArchive(purchase.id)}>보관</button>
             <button className="btn-text" onClick={() => props.onDiscard(purchase.id)}>삭제</button>
             <button className="btn-text" onClick={() => props.onDelete(purchase.id)}>취소</button>
           </div>

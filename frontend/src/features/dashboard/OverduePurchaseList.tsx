@@ -13,7 +13,6 @@ interface Props {
   pendingPriceChanges: Map<number, PendingPurchase>;
   currentYear: number;
   currentMonth: number;
-  isPremium: boolean;
   needsAttention: (purchase: Purchase) => boolean;
   onDiscardAll: () => void;
   onResume: (id: number) => void;
@@ -58,7 +57,7 @@ export default function OverduePurchaseList(props: Props) {
               : <>
                   {isRecurringType(purchase.type) && purchase.discontinuedAt !== null && <button className="btn-text" onClick={() => props.onResume(purchase.id)}>유지하기(재개)</button>}
                   <button className="btn-text" onClick={() => props.onEdit(purchase)}>수정</button>
-                  {props.isPremium && <button className="btn-text" onClick={() => props.onArchive(purchase.id)}>보관</button>}
+                  <button className="btn-text" onClick={() => props.onArchive(purchase.id)}>보관</button>
                   <button className="btn-text" onClick={() => props.onDiscard(purchase.id)}>삭제</button>
                   <button className="btn-text" onClick={() => props.onDelete(purchase.id)}>취소</button>
                 </>

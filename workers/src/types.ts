@@ -406,7 +406,6 @@ export interface PushSubscriptionRequestBody {
 export interface AuthResponse {
   accessToken: string;
   nickname: string;
-  isPremium: boolean;
   hasSeenOnboarding: boolean;
   /** 네이티브 앱 전용 — 쿠키 없이 preferences에 저장해 세션을 복원하는 데 쓴다. */
   refreshToken?: string;
@@ -436,51 +435,6 @@ export interface PurchaseRequestBody {
   originalAmount?: number | null;
   originalCurrency?: string | null;
   exchangeRate?: number | null;
-}
-
-export type BillingPlan = 'ONE_TIME' | 'MONTHLY' | 'ANNUAL';
-export type SubscriptionStatus = 'ACTIVE' | 'CANCELED' | 'PAST_DUE' | 'EXPIRED';
-export type PaymentStatus = 'PENDING' | 'CONFIRMED' | 'FAILED';
-
-// D1 row shape (snake_case columns from migrations/0011_add_billing_tables.sql)
-export interface SubscriptionRow {
-  id: number;
-  user_id: number;
-  plan: BillingPlan;
-  status: SubscriptionStatus;
-  auto_renew: number;
-  toss_billing_key: string | null;
-  kakao_sid: string | null;
-  current_period_end: string;
-  failed_charge_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PaymentRow {
-  id: number;
-  user_id: number;
-  subscription_id: number | null;
-  order_id: string;
-  payment_key: string | null;
-  plan: BillingPlan;
-  amount: number;
-  status: PaymentStatus;
-  failure_reason: string | null;
-  created_at: string;
-  confirmed_at: string | null;
-  pg_provider: 'TOSS' | 'KAKAOPAY';
-}
-
-export interface BillingStatusResponse {
-  isPremium: boolean;
-  plan: BillingPlan | null;
-  premiumExpiresAt: string | null;
-  autoRenew: boolean;
-  /** 최초 결제 승인 시각(datetime). 결제 이력이 없는 계정(결제 연동 이전부터 프리미엄이었던 계정 등)은 null. */
-  premiumSince: string | null;
-  /** 성공한 결제(CONFIRMED) 총 횟수 — "몇 회차"에 쓴다. */
-  paymentCount: number;
 }
 
 export type SharedAccessStatus = 'pending' | 'accepted';
@@ -522,22 +476,6 @@ export interface Env {
   VAPID_SUBJECT: string;
   /** Claude API 키. 이메일 포워딩으로 들어온 주문확인 메일 파싱에 사용(claude-haiku-4-5). */
   ANTHROPIC_API_KEY: string;
-  /**
-   * 토스페이먼츠 시크릿 키(Basic Auth 아이디로 사용, 서버 전용) — 결제 승인/빌링키 발급/자동결제
-   * 청구 API 호출에 쓴다. 프론트엔드용 client key(VITE_TOSS_CLIENT_KEY)는 비밀이 아니라 여기
-   * Env에 넣지 않고 frontend/.env.dev · .env.production에 별도로 둔다.
-   */
-  TOSS_SECRET_KEY: string;
-  /**
-   * 카카오페이 개발자센터에서 발급받는 Secret Key(dev/live) — 구 Admin Key 방식은 폐지되어
-   * `Authorization: SECRET_KEY {값}` 헤더로 쓴다. 테스트 중에는 카카오페이가 공개한 테스트
-   * CID(KAKAOPAY_CID=TC0ONETIME)와 함께 각자 발급받은 개발용 Secret Key(dev)를 쓰면 된다.
-   */
-  KAKAOPAY_SECRET_KEY: string;
-  /** 단건결제 가맹점 코드. 심사 전 테스트 단계에서는 카카오페이 공개 테스트 CID `TC0ONETIME`을 쓴다. */
-  KAKAOPAY_CID: string;
-  /** 정기결제 가맹점 코드 — 단건과 별도로 발급된다. 심사 전 테스트 단계에서는 공개 테스트 CID `TCSUBSCRIP`을 쓴다. */
-  KAKAOPAY_SUBSCRIPTION_CID: string;
   /** 이메일 포워딩 수신 주소에 쓰는 도메인(add-{token}@{도메인}). Cloudflare Email Routing이 붙어있는 도메인. */
   FORWARDING_EMAIL_DOMAIN: string;
   /** 운영자 이메일 — 관리자 전용 라우트(routes/fx-recalculation.ts)와 크론 실패 알림(lib/cron-alert.ts)에서 이 이메일과 비교/발송한다. */
@@ -562,12 +500,6 @@ export interface Env {
    * 관리. 없으면 Frankfurter + 고정 스프레드 근사치로 폴백한다.
    */
   KOREA_EXIM_API_KEY?: string;
-  /**
-   * "true"로 설정하면 결제/구독 관련 API 라우트 전체를 503으로 차단한다.
-   * 휴업 등으로 신규 결제를 일시 중단할 때 이 값을 "true"로 설정하고 배포한다.
-   * 제거하거나 다른 값으로 바꾸면 결제가 다시 활성화된다.
-   */
-  BILLING_SUSPENDED?: string;
   /** Google OAuth 클라이언트 ID — Google Cloud Console에서 발급. 비밀값 아님(wrangler.jsonc vars). */
   GOOGLE_CLIENT_ID: string;
   /** Google OAuth 클라이언트 시크릿 — `wrangler secret put GOOGLE_CLIENT_SECRET`으로 관리. */

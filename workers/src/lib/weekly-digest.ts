@@ -19,7 +19,6 @@ interface PurchaseWithUser extends PurchaseRow {
   user_email: string;
   user_nickname: string;
   user_email_notifications_enabled: number;
-  user_is_premium: number;
 }
 
 interface UserWeeklyBucket {
@@ -58,8 +57,7 @@ function buildPushContent(deliveries: WeeklyItem[], subscriptions: WeeklyItem[])
 export async function runWeeklyDigest(env: Env): Promise<WeeklyDigestRunResult> {
   const { results } = await env.DB.prepare(
     `SELECT p.*, u.email AS user_email, u.nickname AS user_nickname,
-            u.email_notifications_enabled AS user_email_notifications_enabled,
-            u.is_premium AS user_is_premium
+            u.email_notifications_enabled AS user_email_notifications_enabled
        FROM purchases p
        JOIN users u ON u.id = p.user_id
       WHERE p.type IN ('GENERAL', 'RECURRING_DELIVERY', 'SUBSCRIPTION')
@@ -87,8 +85,6 @@ export async function runWeeklyDigest(env: Env): Promise<WeeklyDigestRunResult> 
   };
 
   for (const row of results) {
-    if (row.user_is_premium !== 1) continue;
-
     if (row.type === 'GENERAL') {
       if (!row.expected_delivery_date) continue;
       const dDay = computeDDay(row.expected_delivery_date);

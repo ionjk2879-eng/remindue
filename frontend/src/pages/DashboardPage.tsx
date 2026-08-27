@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import axios from 'axios';
 import { confirmArrival, confirmArrivalBatch, confirmArrivalForPurchase, confirmRecurringBatch, snoozeArrivalForPurchase } from '../api/push';
 import {
   createPurchase,
@@ -24,10 +23,8 @@ import {
   type PurchaseCategory,
   type PurchaseType,
 } from '../types';
-import { FREE_PLAN_MAX_PURCHASES } from '../../../shared/domain-policy';
 import { useAuth } from '../context/AuthContext';
 import StampBadge from '../components/StampBadge';
-import PremiumBadge from '../components/PremiumBadge';
 import PushPermissionBanner from '../components/PushPermissionBanner';
 import OnboardingOverlay from '../components/OnboardingOverlay';
 import Pagination from '../components/Pagination';
@@ -106,7 +103,6 @@ export default function DashboardPage() {
   /** GENERAL 전용 — 체크하면 A/S 보증(개월) 필드가 추가로 노출되고 반품기한과 함께 등록된다. */
   /** RECURRING_DELIVERY 전용 — 결제일로부터 보통 영업일 며칠 후 도착하는지. 비워두면 도착예정을 표시하지 않는다. */
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showPremiumUpsell, setShowPremiumUpsell] = useState(false);
   const { forwardingEmail, setForwardingEmail, pendingItems, setPendingItems, refreshPending: loadPending } = usePendingPurchases();
   const [addressCopied, setAddressCopied] = useState(false);
   const [confirmAllMessage, setConfirmAllMessage] = useState<string | null>(null);
@@ -136,7 +132,7 @@ export default function DashboardPage() {
   const [showPriceStatusDetail, setShowPriceStatusDetail] = useState(false);
   const [showRecurringDeliveryDetail, setShowRecurringDeliveryDetail] = useState(false);
   const [showSubscriptionDetail, setShowSubscriptionDetail] = useState(false);
-  const { nickname, isPremium, premiumSince, paymentCount, hasSeenOnboarding, completeOnboarding } = useAuth();
+  const { nickname, hasSeenOnboarding, completeOnboarding } = useAuth();
   const purchaseForm = usePurchaseForm();
   const {
     purchases, setPurchases, spendHistoryPurchases, archivedPurchases, acceptedShares,
@@ -453,7 +449,6 @@ export default function DashboardPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-    setShowPremiumUpsell(false);
     const input = {
       type,
       itemName,
@@ -495,14 +490,9 @@ export default function DashboardPage() {
       }
       resetForm();
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 402) {
-        setErrorMessage(err.response.data?.message ?? '무료 플랜 등록 개수를 초과했습니다.');
-        setShowPremiumUpsell(true);
-      } else {
-        setErrorMessage(
-          editingId !== null ? '수정하지 못했습니다. 입력값을 확인해주세요.' : '등록하지 못했습니다. 입력값을 확인해주세요.'
-        );
-      }
+      setErrorMessage(
+        editingId !== null ? '수정하지 못했습니다. 입력값을 확인해주세요.' : '등록하지 못했습니다. 입력값을 확인해주세요.'
+      );
       console.error(err);
     }
   };
@@ -553,7 +543,7 @@ export default function DashboardPage() {
     arrivalSnoozedCount,
   } = useMemo(() => selectWeeklyDashboard(purchases), [purchases]);
 
-  /** 프리미엄 알림 기능(주간 요약) — 이번 주(오늘부터 7일 이내) 예정인 정기배송·구독 결제. */
+  /** 주간 요약 — 이번 주(오늘부터 7일 이내) 예정인 정기배송·구독 결제. */
   /**
    * "배송 예정" — GENERAL은 실제 도착일(expectedDeliveryDate)을 추적해 정확한 날짜로 보여준다.
    * RECURRING_DELIVERY는 정확한 도착일을 알 방법이 없으므로(스토어가 준 값도 실측 아님) 결제일
@@ -811,14 +801,8 @@ export default function DashboardPage() {
       />
       <div className="dashboard-header">
         <h1>
-          {isPremium && <PremiumBadge premiumSince={premiumSince} paymentCount={paymentCount} />}
           {nickname}님의 <span className="accent">챙길 목록</span>
         </h1>
-        {!isPremium && (
-          <Link to="/pricing" className="plan-counter mono">
-            {purchases.length}/{FREE_PLAN_MAX_PURCHASES}개 등록됨
-          </Link>
-        )}
       </div>
 
       <PushPermissionBanner />
@@ -827,7 +811,7 @@ export default function DashboardPage() {
         <DashboardSummaryBoard
           currentMonthNum={currentMonthNum} monthlySpendEstimate={monthlySpendEstimate} yearlySpendEstimate={yearlySpendEstimate}
           weeklyPaymentCount={weeklyPaymentCount} recurringDeliveryCount={recurringDeliveryCount} subscriptionCount={subscriptionCount}
-          isPremium={isPremium} priceChangeCount={priceChangeCount} savingsEstimate={savingsEstimate}
+          priceChangeCount={priceChangeCount} savingsEstimate={savingsEstimate}
           calculatorSelectedCount={calculatorSelectedItems.length} calculatorAmount={calculatorAmount}
           showSpendingDetail={showSpendingDetail} showYearlyDetail={showYearlyDetail}
           showRecurringDeliveryDetail={showRecurringDeliveryDetail} showSubscriptionDetail={showSubscriptionDetail}
@@ -1277,14 +1261,13 @@ export default function DashboardPage() {
       <AiBriefPanel
         loaded={purchasesLoaded}
         purchaseCount={purchases.length}
-        isPremium={isPremium}
         brief={aiBrief}
         loading={aiBriefTextLoading}
         onAnalyze={handleAiSummary}
         onCollapse={() => setAiBrief(null)}
       />
 
-      {isPremium && (weeklyDeliveries.length > 0 || weeklySubscriptions.length > 0) && (
+      {(weeklyDeliveries.length > 0 || weeklySubscriptions.length > 0) && (
         <WeeklySummaryBanner deliveries={weeklyDeliveries} subscriptions={weeklySubscriptions} />
       )}
 
@@ -1428,7 +1411,6 @@ export default function DashboardPage() {
         onSubmit={handleSubmit}
         onCancel={handleCancelEdit}
         errorMessage={errorMessage}
-        showPremiumUpsell={showPremiumUpsell}
       />
       )}
 
@@ -1443,7 +1425,6 @@ export default function DashboardPage() {
         view={view}
         overdueCount={overdueItems.length}
         hasAcceptedShares={acceptedShares.length > 0}
-        canExport={isPremium}
         exporting={exporting}
         onChange={setView}
         onSelectShared={handleSelectSharedView}
@@ -1515,7 +1496,7 @@ export default function DashboardPage() {
           <ActivePurchaseList
             allCount={purchases.length} activeCount={nonOverduePurchases.length} filteredCount={displayedPurchases.length}
             purchases={pagedPurchases} page={safePurchasesPage} totalPages={purchasesTotalPages}
-            currentYear={currentYearNum} currentMonth={currentMonthNum} isPremium={isPremium}
+            currentYear={currentYearNum} currentMonth={currentMonthNum}
             deadlineNotificationsEnabled={deadlineNotificationsEnabled} pendingPriceChanges={pendingPriceChangeByPurchaseId}
             needsAttention={needsAttentionBadge} onPageChange={setPurchasesPage}
             onDisableNotifications={handleDisableDeadlineNotifications} onEdit={handleEditClick}
@@ -1528,7 +1509,7 @@ export default function DashboardPage() {
       {view === 'OVERDUE' && (
         <OverduePurchaseList
           purchases={overdueItems} pendingPriceChanges={pendingPriceChangeByPurchaseId}
-          currentYear={currentYearNum} currentMonth={currentMonthNum} isPremium={isPremium}
+          currentYear={currentYearNum} currentMonth={currentMonthNum}
           needsAttention={needsAttentionBadge} onDiscardAll={handleDiscardAll} onResume={handleResume}
           onEdit={handleEditClick} onArchive={handleArchive} onDiscard={handleDiscard} onUndiscard={handleUndiscard} onDelete={handleDelete}
         />

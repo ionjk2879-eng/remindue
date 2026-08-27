@@ -1,10 +1,8 @@
-import { Link } from 'react-router-dom';
 import type { AiBriefData } from './useAiBrief';
 
 interface AiBriefPanelProps {
   loaded: boolean;
   purchaseCount: number;
-  isPremium: boolean;
   brief: AiBriefData | null;
   loading: boolean;
   onAnalyze: () => void;
@@ -14,7 +12,6 @@ interface AiBriefPanelProps {
 export default function AiBriefPanel({
   loaded: purchasesLoaded,
   purchaseCount,
-  isPremium,
   brief: aiBrief,
   loading: aiBriefTextLoading,
   onAnalyze: handleAiSummary,
@@ -24,20 +21,7 @@ export default function AiBriefPanel({
   const setAiBrief = (value: null) => { if (value === null) onCollapse(); };
   return (
     <>
-    {purchasesLoaded && purchases.length > 0 && !isPremium && (
-      <Link
-        to="/pricing"
-        className="ai-summary-section summary-board__tile summary-board__tile--ai-summary summary-board__tile--clickable"
-      >
-        <span className="summary-board__icon" aria-hidden="true">🤖</span>
-        <div className="summary-board__text">
-          <span className="summary-board__label">AI 소비 매니저</span>
-          <span className="summary-board__ai-cta">🔒 프리미엄으로 업그레이드하면 이용할 수 있어요</span>
-        </div>
-      </Link>
-    )}
-
-    {purchasesLoaded && purchases.length > 0 && isPremium && (
+    {purchasesLoaded && purchases.length > 0 && (
       <div
         className="ai-summary-section summary-board__tile summary-board__tile--ai-summary summary-board__tile--clickable"
       >

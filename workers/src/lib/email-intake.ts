@@ -18,7 +18,6 @@ import { logger, maskEmail } from './logger';
 // 신규 토큰은 영문 소문자지만, 기존 계정에는 마이그레이션에서 발급한 16진수 토큰이
 // 남아 있을 수 있다. 숫자를 막으면 그 계정의 정상 수신 주소를 조용히 버리게 된다.
 const TO_LOCAL_PART_PATTERN = /^([a-z0-9]+)$/i;
-const FREE_PLAN_MONTHLY_EMAIL_LIMIT = 10;
 
 function extractForwardingToken(toAddress: string): string | null {
   const localPart = toAddress.split('@')[0] ?? '';
@@ -47,24 +46,6 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
   if (!user) {
     logger.warn('email.intake.unknown_recipient');
     return;
-  }
-
-  // 실제 등록 개수 제한은 확인(POST /purchases) 시점에 FREE_PLAN_MAX_PURCHASES로도 걸리지만,
-  // AI 토큰 비용 절감을 위해 무료 플랜은 이메일 처리 자체를 월 FREE_PLAN_MONTHLY_EMAIL_LIMIT건으로 제한한다.
-  if (user.is_premium === 0) {
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-    if (user.free_email_month === currentMonth && user.free_email_count >= FREE_PLAN_MONTHLY_EMAIL_LIMIT) {
-      logger.info('email.intake.free_limit_exceeded', { recipient: maskEmail(user.email) });
-      return;
-    }
-    if (user.free_email_month === currentMonth) {
-      await env.DB.prepare('UPDATE users SET free_email_count = free_email_count + 1 WHERE id = ?')
-        .bind(user.id).run();
-    } else {
-      await env.DB.prepare('UPDATE users SET free_email_month = ?, free_email_count = 1 WHERE id = ?')
-        .bind(currentMonth, user.id).run();
-    }
   }
 
   const parsed = await PostalMime.parse(message.raw);
@@ -96,7 +77,6 @@ export async function handleIncomingEmail(message: ForwardableEmailMessage, env:
     user.id,
     'email',
     extracted,
-    user.is_premium === 1,
     user.fx_card_issuer as FxCardIssuer | null,
     user.fx_card_brand as FxCardBrand | null,
     env.KOREA_EXIM_API_KEY

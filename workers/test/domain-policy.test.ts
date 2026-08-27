@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  FREE_NOTIFICATION_DAYS,
-  FREE_PLAN_MAX_PURCHASES,
-  PUBLIC_DOMAIN_CONFIG,
+  PURCHASE_TYPES,
   formatNotificationDays,
   isPastItem,
   isRecurringType,
@@ -10,17 +8,15 @@ import {
 import configRoutes from '../src/routes/config';
 
 describe('shared domain policy', () => {
-  it('publishes the free-plan limits used by domain logic', () => {
-    expect(PUBLIC_DOMAIN_CONFIG.plans.free.maxPurchases).toBe(FREE_PLAN_MAX_PURCHASES);
-    expect(PUBLIC_DOMAIN_CONFIG.plans.free.notificationDays).toBe(FREE_NOTIFICATION_DAYS);
-    expect(formatNotificationDays(FREE_NOTIFICATION_DAYS)).toBe('7/3/0');
+  it('formats notification days as a slash-joined string', () => {
+    expect(formatNotificationDays([7, 3, 0])).toBe('7/3/0');
   });
 
-  it('exposes the policy through the public config endpoint', async () => {
+  it('exposes the purchase types through the public config endpoint', async () => {
     const response = await configRoutes.request('/domain');
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(PUBLIC_DOMAIN_CONFIG);
+    expect(await response.json()).toEqual({ purchaseTypes: PURCHASE_TYPES });
   });
 
   it('classifies recurring purchase types in one place', () => {

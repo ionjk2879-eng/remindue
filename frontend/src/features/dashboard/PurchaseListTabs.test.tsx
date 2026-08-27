@@ -7,7 +7,7 @@ describe('PurchaseListTabs', () => {
     const onChange = vi.fn();
     const onExport = vi.fn();
     render(<PurchaseListTabs
-      view="ACTIVE" overdueCount={2} hasAcceptedShares canExport exporting={false}
+      view="ACTIVE" overdueCount={2} hasAcceptedShares exporting={false}
       onChange={onChange} onSelectShared={() => onChange('SHARED')} onExport={onExport}
     />);
 

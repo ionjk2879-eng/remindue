@@ -91,122 +91,47 @@ backend/     Spring Boot — logic reference only, not deployed (Phase 0 origin)
   existing ones.
 - `npm run typecheck` before considering backend work done.
 
-## Premium plan (`users.is_premium`)
+## Premium plan — removed (2026-08-27)
 
-Signup creates new users with `is_premium = 0` (free plan) — see `routes/auth.ts`.
-These are gated on `isPremium`, all checked at the call site (not inside
-`purchase-logic.ts`):
-1. **Unlimited registration** — free is capped at `FREE_PLAN_MAX_PURCHASES` (5,
-   in `lib/purchase-logic.ts`); `routes/purchases.ts`'s `POST /` 402s past that.
-   Note: email auto-registration (below) is *not* gated — free users can forward
-   unlimited mail into `pending_purchases`, they just can't confirm past 5 actual
-   registered items.
-2. **Weekly recurring-delivery summary** — email/push + in-app banner, gated in
-   `lib/weekly-digest.ts` and `DashboardPage.tsx`.
-3. **Custom notification days** — see `## Notification preferences` below.
-4. **CSV/PDF export** — see `## Data export` below.
-5. **Family/member sharing** — see `## Sharing` below.
-6. **Archive (이력 보관)** — see `## Archive` below.
-7. **Custom confirmation-nudge advance days** — see `## Confirmation nudges` below.
-8. **AI 소비 매니저** — the dashboard's AI spending-brief tile (`handleAiSummary`
-   in `DashboardPage.tsx`, `POST /api/ai-summary/spending-summary` in
-   `routes/ai-summary.ts`). Free users see a locked tile linking to `/pricing`
-   instead of a clickable button; the backend route independently checks
-   `is_premium` too (throws `PaymentRequiredError`) since the frontend gate alone
-   isn't enough for a directly-called API.
-9. **가격 인상 감지 (price-increase detection)** — comparing an email-extracted
-   price against the matching active item's stored price
-   (`findMatchingActivePurchase` in `lib/pending-purchase-intake.ts`) only runs
-   for premium users; `insertPendingPurchase` takes an `isPremium` param and
-   free users' pending rows always get `matched_purchase_id = null`. Note this
-   is narrower than "email auto-registration" itself (#1 above) — extraction,
-   FX conversion, brand/category detection all stay free-tier; only the
-   price-comparison step is gated.
+Remindue used to have a paid premium tier (billing-managed via
+`users.is_premium`/`premium_expires_at`), gating unlimited registration,
+weekly summary, custom notification days, CSV/PDF export, family sharing,
+archive, and AI 소비 매니저. **All of that gating has been removed** — the
+business registration behind it was closed, so the app can no longer legally
+process payments, and it's now a free, single-operator app. Every feature
+listed above is unconditionally available to everyone; there is no more
+free/premium distinction anywhere in the code.
 
-(A "놓친 배송 감지" / missed-delivery-detection feature used to be premium
-benefit #2 — it compared computed delivery rounds against
-`delivery_confirm_count` and flagged a mismatch as "possibly missed." It was
-removed (not just hidden) because that comparison false-positived often enough
-(late/early real deliveries, confirm-button not clicked promptly) to be
-actively misleading. `delivery_confirm_count` itself is still tracked — the
-"이번 회차 수령 확인" button still increments it — just nothing computes a
-"missed count" from it anymore. If this comes back, don't resurrect
-`computeMissedConfirmations` verbatim; it's gone from `purchase-logic.ts` for
-a reason.)
+`users.is_premium` / `premium_expires_at` / `toss_customer_key` /
+`confirmation_advance_days` columns still physically exist in D1 (left alone
+deliberately — see `## Account deletion` below for why destructive schema
+changes on billing-adjacent tables are risky) but nothing reads them for
+gating anymore. Don't resurrect a premium check against them without asking
+first — the whole point of this pass was to open everything up.
 
-Premium is now billing-managed (see `## Billing` below) via `users.premium_expires_at`.
-`is_premium` is still the fast read-path every route checks, but the source of
-truth is `premium_expires_at` — a daily cron keeps `is_premium` in sync with it.
-Accounts with `premium_expires_at IS NULL` (pre-billing accounts, or anyone
-flipped on manually) are never touched by billing logic — that's still a valid
-manual-override escape hatch for support/testing:
+## Billing — removed (2026-08-27)
 
-```bash
-cd workers
-npx wrangler d1 execute remindue-db --remote --command "UPDATE users SET is_premium = 1 WHERE email = 'someone@example.com';"
-```
+Remindue used to integrate Toss Payments and KakaoPay for a paid premium
+subscription (`routes/billing.ts`, `routes/billing-kakao.ts`,
+`lib/billing-plans.ts`, `lib/billing-renewal.ts`, `lib/kakaopay.ts`,
+`lib/toss.ts`, and the `PricingPage`/`Billing*Page` frontend pages/routes) —
+all of it has been deleted. The business registration behind the payment
+processing was closed, so new checkouts can no longer legally happen, and the
+app has no premium tier left to sell (see `## Premium plan` above).
 
-Drop `--remote` to do the same against the local dev database instead. Leaving
-`premium_expires_at` NULL when doing this keeps the account outside billing's
-reach permanently (the expiry sweep only demotes rows where it's set and past).
+The `subscriptions` and `payments` D1 tables (from
+`migrations/0011_add_billing_tables.sql`) are **left in place, untouched** —
+they hold historical payment records subject to a 5-year retention
+requirement under 전자상거래법 (see `## Account deletion` below for the full
+legal reasoning and a past incident with destructive migrations on these
+exact tables). If you're tempted to drop them, don't — that's a data-retention
+decision, not a code-cleanup one.
 
-## Billing (Toss Payments)
-
-Three plans, all defined in one place — `workers/src/lib/billing-plans.ts`
-(`PLAN_CONFIG`) — so the checkout route and the renewal cron can't drift apart
-on price: **1회성**(2,200원/30일, no auto-renew), **월 정기결제**(1,900원/월),
-**연 정기결제**(19,000원/년). Amounts are always server-decided; the client
-never gets to say what it's paying — `routes/billing.ts`'s `/confirm` only
-uses the client-echoed `amount` to *check against* what was stored server-side
-at checkout time.
-
-- **One-time flow**: `POST /billing/checkout` stores an order (server-picked
-  amount + a fresh `orderId`) → frontend opens Toss's payment widget → Toss
-  redirects to `/billing/success?paymentKey&orderId&amount` → frontend calls
-  `POST /billing/confirm`, which verifies the amount against the stored order,
-  calls Toss's confirm API, and extends `premium_expires_at`.
-- **Recurring flow** (월/연): frontend opens Toss's billing-auth widget (card
-  registration) → Toss redirects to `/billing/auth-success?authKey&customerKey`
-  → frontend calls `POST /billing/billing-key/issue`, which exchanges
-  `authKey` for a `billingKey`, charges the first cycle immediately, and
-  stores the `billingKey` on a `subscriptions` row with `auto_renew=1`.
-- **Auto-renewal**: Toss does **not** auto-charge billing keys on its own —
-  `lib/billing-renewal.ts`'s `runBillingRenewals()` runs inside the existing
-  daily cron (`scheduled()` in `index.ts`, same trigger as the digest jobs)
-  and charges any `ACTIVE`/`auto_renew=1` subscription whose
-  `current_period_end` is within a day of now. 3 consecutive failures
-  auto-downgrades (`auto_renew=0`, status `PAST_DUE`) and emails the user;
-  fewer than 3 just retries the next day (same cron tick). Right after,
-  `runPremiumExpirySweep()` demotes `is_premium` for anyone whose
-  `premium_expires_at` has passed and who isn't mid-retry.
-- **Idempotency**: `payments.order_id` is unique and generated server-side
-  before ever talking to Toss; `/confirm` and `/billing-key/issue` both check
-  for an already-`CONFIRMED` row before re-calling Toss, so a duplicate
-  redirect/click can't double-charge or double-extend premium.
-- **No webhook yet** (scoped out of MVP) — the redirect-confirm round trip
-  closes the loop for the normal case; the only gap is a user closing the tab
-  between paying and the redirect landing, which would leave Toss showing a
-  successful charge with nothing recorded on our side. Reconciling via Toss's
-  webhook is a known fast-follow, not yet built.
-- **Dev testing**: `POST /api/dev/run-billing-renewal` (dev-only route, same
-  `ENVIRONMENT === 'development'` gate as the other `routes/dev.ts` tools)
-  runs `runBillingRenewals` + `runPremiumExpirySweep` immediately instead of
-  waiting for the daily cron — useful after manually backdating a test
-  subscription's `current_period_end` in D1.
-- **Secrets**: `TOSS_SECRET_KEY` (backend, Basic-auth secret — `.dev.vars`
-  locally, `wrangler secret put TOSS_SECRET_KEY` in prod; test keys look like
-  `test_sk_...`, live keys `live_sk_...`). `VITE_TOSS_CLIENT_KEY` is **not**
-  secret (it's meant to ship in frontend JS) — it lives in
-  `frontend/.env.dev` / `.env.production`, not in the Workers `Env` at all.
-  Both key types come from developers.tosspayments.com (free signup, no
-  business registration needed for test keys — a trial store is auto-created).
-- **Migration**: `migrations/0011_add_billing_tables.sql` added `subscriptions`
-  and `payments` tables plus `users.premium_expires_at` /
-  `users.toss_customer_key`. Like every migration, `db:migrate:local` doesn't
-  touch prod — run `db:migrate:remote` (or `wrangler d1 migrations apply
-  remindue-db --remote`) before/at the same time this ships to production, or
-  billing routes will 500 in prod with no obvious cause (see the migration
-  warning under `## Backend` above — this bit the project once already).
+If billing is ever reintroduced (new business registration, etc.), rebuilding
+it from scratch is more likely to be correct than trying to resurrect the
+deleted files verbatim — check git history around this date for reference,
+but re-verify current pricing/legal requirements rather than copying the old
+flow blind.
 
 ### Dev-only testing tools (`routes/dev.ts`)
 
@@ -236,57 +161,18 @@ restart (kill + `npm run dev` again) rather than trusting the file-watcher
 hot-reload — hot-reload picks up source changes but has been observed to
 serve a stale `vars`/`.dev.vars` snapshot until the process restarts.
 
-## Billing (KakaoPay)
-
-A second payment provider alongside Toss, in `routes/billing-kakao.ts` +
-`lib/kakaopay.ts`. Mounted at `/api/kakao-billing`, **not** `/api/billing` —
-`billing.ts` applies `authMiddleware` to the whole `/api/billing/*` prefix,
-and mounting there once caused the unauthenticated `/success` redirect
-callback to hit a bare 401 instead of redirecting (real bug, already fixed —
-don't remount it there). Auth uses KakaoPay's newer `Authorization: SECRET_KEY
-{key}` header (the older `KakaoAK {admin_key}` scheme is deprecated).
-
-- **One-time flow**: `POST /kakao-billing/checkout` → `/ready` → redirect →
-  `/kakao-billing/success` → `/approve`, mirroring the Toss one-time flow.
-- **Subscription flow**: `POST /kakao-billing/subscribe` → `/ready` →
-  redirect → `/kakao-billing/subscribe-success` → `/approve` (returns a
-  `sid`, stored as `subscriptions.kakao_sid`) → `lib/billing-renewal.ts`
-  charges it every cycle via `/subscription`, same cron as Toss.
-- **`KAKAO_CHARGE_ITEM_NAME`** (`lib/billing-plans.ts`) — the `/subscription`
-  charge endpoint rejects Korean text in `item_name` (`invalid param` — found
-  by direct testing, not documented anywhere). `/ready`/`/approve` accept
-  Korean fine and keep using `PLAN_CONFIG.orderName`; only the recurring
-  charge call uses this ASCII-only map.
-- **⚠️ Still on the public test CIDs** (`TC0ONETIME` / `TCSUBSCRIP` in
-  `wrangler.jsonc`) **pending merchant review approval** — every KakaoPay
-  checkout in production today, including from real users, goes through a
-  real-looking flow that doesn't actually charge anything. The pay button is
-  labeled "카카오페이로 결제 (테스트)" so this is visible to users, and
-  `routes/billing-kakao.ts` logs a `kakaopay.test_cid_in_production` warning
-  on every attempt so it can't go unnoticed in the Workers Logs either — but
-  neither of those replaces actually finishing this checklist once approval
-  comes through:
-  1. `wrangler.jsonc`'s `KAKAOPAY_CID`/`KAKAOPAY_SUBSCRIPTION_CID` → the real
-     merchant codes from the approved application.
-  2. `PricingPage.tsx` — remove the "(테스트)" suffix from the button label.
-  3. Re-verify one real (small-amount) checkout end-to-end on the `dev`
-     preview before touching `main`.
-  4. Confirm the `kakaopay.test_cid_in_production` warning stops appearing
-     in production logs after deploying.
-
 ## Notification preferences (`users.notification_days`)
 
-Free plan is hard-locked to `7,3,0` regardless of what's stored in the
-column — `lib/notification-prefs.ts`'s `effectiveNotificationDays(isPremium,
-raw)` is the only place that's allowed to decide what days actually apply, and
-both `lib/digest.ts` (daily D-day mail/push) and `routes/settings.ts`
-(`GET`/`PUT /api/settings/notification-days`) go through it. Premium users can
-pick any 1–10 integers in `[0, 60]` from `NOTIFICATION_DAY_OPTIONS` (`[10, 7,
-5, 3, 2, 1, 0]` — mirrored as a plain array literal in
-`frontend/src/pages/SettingsPage.tsx` since there's no shared package between
-frontend/backend). Downgrading to free doesn't clear the stored value — it's
-just ignored until premium comes back, so a lapsed subscriber's custom
-schedule reappears automatically on renewal instead of needing to be re-entered.
+Anyone can pick any 1–10 integers in `[0, 60]` from `NOTIFICATION_DAY_OPTIONS`
+(`[10, 7, 5, 3, 2, 1, 0]`, in `shared/domain-policy.ts`) via `GET`/`PUT
+/api/settings/notification-days` — `lib/notification-prefs.ts`'s
+`effectiveNotificationDays(raw)` is the only place that's allowed to decide
+what days actually apply (both `lib/digest.ts`'s daily D-day mail/push and the
+settings route go through it), and it just parses the stored value with
+`DEFAULT_NOTIFICATION_DAYS` (`[7, 3, 0]`) as the fallback for an unset/corrupt
+value. There used to be a free/premium split here (free hard-locked to
+`7,3,0`) — removed along with the rest of billing, see `## Premium plan`
+above.
 
 ## Confirmation nudges (`purchases.discontinued_at`, "유지하기"/"유지 안 함")
 
@@ -316,11 +202,11 @@ for recurring subscriptions/deliveries, not deadline reminders.
   weekly, or dDay-exact triggers on non-matching weekdays get silently
   skipped forever) — four stages per recurring item, all in KRW-agnostic
   dDay terms:
-  1. **Advance** (dDay === `effectiveConfirmationAdvanceDays(isPremium, user.confirmation_advance_days)`,
-     default/free-locked 3, premium-customizable via `GET`/`PUT
-     /api/settings/confirmation-advance-days` — same free-lock pattern as
-     `notification_days`) — fires unconditionally every cycle, batched per
-     user into one email/push alongside the other stages below.
+  1. **Advance** — anyone can customize how many days ahead this fires via
+     `renewal_notification_days` (same `effectiveNotificationDays` helper as
+     `## Notification preferences` above, just a separate column) — fires
+     unconditionally every cycle, batched per user into one email/push
+     alongside the other stages below.
   2. **Same-day** (dDay === 0) — fires unconditionally every cycle, but
      *individually* per item (not batched) because it carries a Web Push
      `actions` array (`유지하기`/`나중에`) that must map to exactly one
@@ -345,7 +231,7 @@ for recurring subscriptions/deliveries, not deadline reminders.
 
 ## Data export (CSV/PDF)
 
-`GET /api/purchases/export?format=csv|pdf` (premium-gated, 402 for free) in
+`GET /api/purchases/export?format=csv|pdf` (open to everyone) in
 `routes/purchases.ts`, built by `lib/export.ts`. Exports **all** items
 (active + archived) — export is meant to be a full-history dump, unlike the
 dashboard's default active-only view.
@@ -375,23 +261,18 @@ dashboard's default active-only view.
 
 ## Sharing (`shared_access` table)
 
-Premium-gated invite (`POST /api/sharing/invite`, owner must be premium) by
-raw email — no invite token/link. `shared_with_email` just has to match
-whatever email the invitee eventually logs in with; if they don't have an
-account yet, the invite sits `pending` until they sign up with that exact
-address. `GET /api/sharing/received` doesn't require the viewer to be
-premium — anyone can be invited and view what's shared with them, only
-*inviting* is gated. Accepted shares are read-only (`GET
-/api/sharing/:id/purchases` — active/non-archived items only, no
-mutation endpoints exposed to the invitee). `routes/sharing.ts` has the full
-invite/accept/revoke/view lifecycle.
+Invite (`POST /api/sharing/invite`, open to everyone) by raw email — no
+invite token/link. `shared_with_email` just has to match whatever email the
+invitee eventually logs in with; if they don't have an account yet, the
+invite sits `pending` until they sign up with that exact address. Accepted
+shares are read-only (`GET /api/sharing/:id/purchases` — active/non-archived
+items only, no mutation endpoints exposed to the invitee). `routes/sharing.ts`
+has the full invite/accept/revoke/view lifecycle.
 
 ## Archive (`purchases.archived_at`)
 
-Premium-gated action (`POST /api/purchases/:id/archive`, 402 for free),
-but **unarchive is not gated** (`POST /api/purchases/:id/unarchive`) — a
-downgraded user can still pull old items back into their active list, they
-just can't send new ones to the archive. `GET /api/purchases` defaults to
+Open to everyone (`POST /api/purchases/:id/archive` /
+`POST /api/purchases/:id/unarchive`). `GET /api/purchases` defaults to
 `archived_at IS NULL`; pass `?archived=true` for the archive view instead.
 Archived items are excluded from both digest crons (`lib/digest.ts`,
 `lib/weekly-digest.ts` both filter `archived_at IS NULL`) — archiving means
@@ -447,10 +328,7 @@ but it stops accruing projected future-month spend.
   after the fact by `pending-purchase-intake.ts`'s sanitize functions instead.
 - **`lib/email-extract.ts`** — wraps the email subject+body as a text content
   block, called from `lib/email-intake.ts` (the Cloudflare Email Routing
-  handler). Available to free and premium alike (used to be premium-gated
-  before calling Claude at all; the gate was removed so free users can use
-  email auto-registration too — the free registration cap still applies at
-  confirm time, see `## Premium plan` above).
+  handler). Available to everyone, no gating.
 - **`lib/pending-purchase-intake.ts`** — turns a raw `ExtractedOrder` into a
   `pending_purchases` row: `sanitizeEstimatedType`/`sanitizeReturnDeadlineDays`/
   `sanitizeFixedDayOfMonth` never trust the model's output at face value, and
@@ -478,9 +356,11 @@ not deleted**: `email` → a random `deleted-{id}-{uuid}@remindue.invalid`,
 `password_hash` → an unusable random hash (login becomes impossible),
 `nickname` → `"탈퇴한 회원"`, `forwarding_token` → regenerated (so the old
 `add-{token}@...` address stops accepting mail immediately), `is_premium` → 0,
-`premium_expires_at`/`toss_customer_key` → NULL. Any `ACTIVE` subscription is
-flipped to `CANCELED`/`auto_renew=0`/`toss_billing_key=NULL`, identical to
-what `/api/billing/cancel` does.
+`premium_expires_at`/`toss_customer_key` → NULL. Any `ACTIVE` subscription row
+is flipped to `CANCELED`/`auto_renew=0`/`toss_billing_key=NULL`. (Billing
+itself was removed — see `## Billing` above — but this logic is untouched:
+it's still correct for any pre-existing historical subscription rows, and
+costs nothing to leave in place.)
 
 **Why anonymize instead of delete:** 전자상거래법 시행령 제6조 requires
 "계약 또는 청약철회 등에 관한 기록" (`subscriptions`) and "대금결제 및 재화

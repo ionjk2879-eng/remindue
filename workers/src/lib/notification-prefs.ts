@@ -1,14 +1,12 @@
-// 커스텀 알림 시점(프리미엄) — "D-day가 며칠일 때 알릴지"를 사용자가 고를 수 있게 한다.
-// 무료 플랜은 이 값을 저장은 해도(나중에 다시 프리미엄이 되면 되살아나게) 실제 알림
-// 발송/조회 시점에는 항상 DEFAULT_NOTIFICATION_DAYS로 강제한다 — effectiveNotificationDays가
-// 그 강제를 담당하는 유일한 통로다.
+// 커스텀 알림 시점 — "D-day가 며칠일 때 알릴지"를 사용자가 고를 수 있게 한다. 모든 계정이
+// 자유롭게 설정할 수 있고, 저장된 값이 없거나 손상됐으면 DEFAULT_NOTIFICATION_DAYS로 대체한다.
 
 import {
-  FREE_NOTIFICATION_DAYS,
+  DEFAULT_NOTIFICATION_DAYS as SHARED_DEFAULT_NOTIFICATION_DAYS,
   NOTIFICATION_DAY_OPTIONS as SHARED_NOTIFICATION_DAY_OPTIONS,
 } from '../../../shared/domain-policy';
 
-export const DEFAULT_NOTIFICATION_DAYS: readonly number[] = FREE_NOTIFICATION_DAYS;
+export const DEFAULT_NOTIFICATION_DAYS: readonly number[] = SHARED_DEFAULT_NOTIFICATION_DAYS;
 export const MIN_NOTIFICATION_DAY = 0;
 export const MAX_NOTIFICATION_DAY = 60;
 /** 사용자가 선택할 수 있는 알림 시점 후보 — 프론트 설정 화면의 체크박스 목록과 동일하다. */
@@ -29,9 +27,8 @@ export function parseNotificationDays(raw: string): number[] {
   return unique.length > 0 ? unique : [...DEFAULT_NOTIFICATION_DAYS];
 }
 
-/** 무료 플랜은 저장된 값과 무관하게 항상 고정값을 쓴다 — 알림 발송/조회 로직은 반드시 이 함수를 통해서만 알림 시점을 얻어야 한다. */
-export function effectiveNotificationDays(isPremium: boolean, rawNotificationDays: string): number[] {
-  if (!isPremium) return [...DEFAULT_NOTIFICATION_DAYS];
+/** 알림 발송/조회 로직은 반드시 이 함수를 통해서만 알림 시점을 얻어야 한다. */
+export function effectiveNotificationDays(rawNotificationDays: string): number[] {
   return parseNotificationDays(rawNotificationDays);
 }
 

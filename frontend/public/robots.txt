@@ -1,7 +1,2 @@
 User-agent: *
-Allow: /
-Disallow: /dashboard
-Disallow: /settings
-Disallow: /billing/
-
-Sitemap: https://remindue.kr/sitemap.xml
+Disallow: /

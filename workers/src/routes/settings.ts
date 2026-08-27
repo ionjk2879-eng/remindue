@@ -1,9 +1,9 @@
-// 사용자 설정 — 닉네임 변경, 커스텀 알림 시점(프리미엄) 등 계정 단위 설정.
-// purchases.ts/billing.ts와 같은 패턴: 이 라우터 전체가 인증 필요.
+// 사용자 설정 — 닉네임 변경, 커스텀 알림 시점 등 계정 단위 설정.
+// purchases.ts와 같은 패턴: 이 라우터 전체가 인증 필요.
 
 import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
-import { BadRequestError, PaymentRequiredError } from '../lib/errors';
+import { BadRequestError } from '../lib/errors';
 import {
   effectiveNotificationDays,
   parseNotificationDays,
@@ -14,7 +14,6 @@ import {
 import { generateForwardingToken } from './auth';
 import { FX_CARD_BRANDS, FX_CARD_ISSUERS, type FxCardBrand, type FxCardIssuer } from '../lib/fx-card';
 import type { Env, UserRow } from '../types';
-import { FREE_NOTIFICATION_DAYS, formatNotificationDays } from '../../../shared/domain-policy';
 
 const settings = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
 settings.use('*', authMiddleware);
@@ -30,22 +29,15 @@ async function getUserByEmail(db: D1Database, email: string): Promise<UserRow> {
 settings.get('/notification-days', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
   return c.json({
-    notificationDays: effectiveNotificationDays(user.is_premium === 1, user.notification_days),
-    // 무료 플랜이어도 예전에 프리미엄이었을 때 저장해둔 값은 그대로 보여준다 — 다시 프리미엄이
-    // 되면 이 값이 살아난다는 걸 설정 화면에서 알 수 있게. 실제 알림에는 위 notificationDays만 쓰인다.
+    notificationDays: effectiveNotificationDays(user.notification_days),
     savedNotificationDays: parseNotificationDays(user.notification_days),
-    renewalNotificationDays: effectiveNotificationDays(user.is_premium === 1, user.renewal_notification_days),
+    renewalNotificationDays: effectiveNotificationDays(user.renewal_notification_days),
     savedRenewalNotificationDays: parseNotificationDays(user.renewal_notification_days),
-    isPremium: user.is_premium === 1,
   });
 });
 
-/** 프리미엄만 실제로 값을 바꿀 수 있다 — 무료 플랜이 호출하면 402로 막고 업그레이드를 안내한다. */
 settings.put('/notification-days', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
-  if (user.is_premium !== 1) {
-    throw new PaymentRequiredError(`커스텀 알림 시점은 프리미엄 전용 기능이에요. 무료 플랜은 ${formatNotificationDays(FREE_NOTIFICATION_DAYS)}일 전으로 고정됩니다.`);
-  }
 
   const body = await c.req.json<{ notificationDays?: unknown }>().catch(() => ({}) as { notificationDays?: unknown });
   let days: number[];
@@ -60,15 +52,12 @@ settings.put('/notification-days', async (c) => {
     .bind(serializeNotificationDays(days), user.id)
     .run();
 
-  return c.json({ notificationDays: days.sort((a, b) => b - a), isPremium: true });
+  return c.json({ notificationDays: days.sort((a, b) => b - a) });
 });
 
 /** 정기배송·구독 유지 확인의 D-day는 반품/A·S 기한 알림과 별도로 저장한다. */
 settings.put('/renewal-notification-days', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
-  if (user.is_premium !== 1) {
-    throw new PaymentRequiredError('정기배송·구독 유지 확인 시점 설정은 프리미엄 전용 기능입니다. 무료 플랜은 예정일 당일에 안내합니다.');
-  }
   const body = await c.req.json<{ notificationDays?: unknown }>().catch(() => ({}) as { notificationDays?: unknown });
   let days: number[];
   try {
@@ -80,7 +69,7 @@ settings.put('/renewal-notification-days', async (c) => {
   await c.env.DB.prepare('UPDATE users SET renewal_notification_days = ? WHERE id = ?')
     .bind(serializeNotificationDays(days), user.id)
     .run();
-  return c.json({ notificationDays: days.sort((a, b) => b - a), isPremium: true });
+  return c.json({ notificationDays: days.sort((a, b) => b - a) });
 });
 
 settings.post('/forwarding-address/regenerate', async (c) => {

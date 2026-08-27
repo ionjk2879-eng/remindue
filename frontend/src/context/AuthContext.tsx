@@ -1,35 +1,19 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { fetchBillingStatus } from '../api/billing';
 import { logoutSession } from '../api/auth';
 import { refreshSession, setAccessToken } from '../api/client';
 import { clearNativeRefreshToken } from '../lib/native-auth';
-import type { BillingStatus } from '../types';
-
-let billingFetchedAt = 0;
-const BILLING_CACHE_MS = 5 * 60 * 1000;
 
 interface AuthContextValue {
   nickname: string | null;
   isAuthenticated: boolean;
   isInitializing: boolean;
-  /** 프리미엄 접근 권한 — 무제한 등록, 이번 주 배송 요약, 커스텀 알림 시점, CSV/PDF 내보내기, 가족 공유, 이력 보관. */
-  isPremium: boolean;
-  /** 최초 결제 승인 시각. 결제 이력이 없는 계정(결제 연동 이전부터 프리미엄이었던 계정)은 null. */
-  premiumSince: string | null;
-  /** 성공한 결제 총 횟수 — 프리미엄 뱃지의 "N회차"에 쓴다. */
-  paymentCount: number;
-  /** 요금제/자동갱신 여부/만료일 등 설정 화면 전용 상세 정보 — 로그인 시점에 한 번 가져와 캐싱되고,
-   * 결제/해지 시점에만 refreshPremium으로 갱신된다. 아직 못 가져왔으면 null(스켈레톤 표시용). */
-  billingStatus: BillingStatus | null;
   /** 3단계 온보딩 안내를 완료했거나 건너뛰었는지 — false면 대시보드가 빈 목록일 때 온보딩을 띄운다. */
   hasSeenOnboarding: boolean;
-  setAuth: (accessToken: string, nickname: string, isPremium: boolean, hasSeenOnboarding: boolean) => void;
+  setAuth: (accessToken: string, nickname: string, hasSeenOnboarding: boolean) => void;
   /** 닉네임 변경 직후 토큰 재발급 없이 닉네임만 갱신한다. */
   updateNickname: (newNickname: string) => void;
   /** 온보딩 완료/건너뛰기 직후 서버 응답을 기다리지 않고 즉시 모달을 숨기기 위한 낙관적 갱신. */
   completeOnboarding: () => void;
-  /** 결제/해지 직후 토큰 재발급 없이 프리미엄 상태만 갱신한다 — 액세스 토큰은 그대로 둔다. */
-  refreshPremium: (status: BillingStatus) => void;
   logout: () => Promise<void>;
 }
 
@@ -37,17 +21,12 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [nickname, setNickname] = useState<string | null>(null);
-  const [isPremium, setIsPremium] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [premiumSince, setPremiumSince] = useState<string | null>(null);
-  const [paymentCount, setPaymentCount] = useState(0);
-  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
 
-  const setAuth = (accessToken: string, nickname: string, isPremium: boolean, hasSeenOnboarding: boolean) => {
+  const setAuth = (accessToken: string, nickname: string, hasSeenOnboarding: boolean) => {
     setAccessToken(accessToken);
     setNickname(nickname);
-    setIsPremium(isPremium);
     setHasSeenOnboarding(hasSeenOnboarding);
   };
 
@@ -59,22 +38,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setNickname(newNickname);
   };
 
-  const refreshPremium = (status: BillingStatus) => {
-    setIsPremium(status.isPremium);
-    setPremiumSince(status.premiumSince);
-    setPaymentCount(status.paymentCount);
-    setBillingStatus(status);
-    billingFetchedAt = Date.now();
-  };
-
   const clearAuth = () => {
     if (nickname) localStorage.removeItem(`purchases_cache_${nickname}`);
     setAccessToken(null);
     setNickname(null);
-    setIsPremium(false);
-    setPremiumSince(null);
-    setPaymentCount(0);
-    setBillingStatus(null);
     setHasSeenOnboarding(false);
   };
 
@@ -94,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('isPremium');
     localStorage.removeItem('hasSeenOnboarding');
     refreshSession()
-      .then((session) => setAuth(session.accessToken, session.nickname, session.isPremium, session.hasSeenOnboarding))
+      .then((session) => setAuth(session.accessToken, session.nickname, session.hasSeenOnboarding))
       .catch(() => clearAuth())
       .finally(() => setIsInitializing(false));
 
@@ -105,39 +72,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // isPremium/premiumSince/paymentCount는 로그인 시점/결제 성공 리다이렉트에서만 갱신되므로,
-  // 그 사이(다른 기기에서 결제했거나 리다이렉트 페이지를 완전히 못 거쳤을 때) 값이 낡을 수 있다 —
-  // 앱을 열 때마다, 그리고 로그인해서 nickname이 채워질 때마다(같은 SPA 세션 안에서 로그인한
-  // 경우도 포함) 서버 기준 최신 상태로 한 번 더 맞춰둔다. deps를 []로 두면 로그인 전에 마운트된
-  // 첫 실행에서 nickname이 아직 없어 조용히 스킵된 뒤 로그인해도 다시 안 돌아 낡은 값(특히
-  // premiumSince/paymentCount)이 남는 버그가 있었다. 로그인 안 된 상태/일시적 오류는 조용히
-  // 무시하고 기존 값을 유지한다(로그아웃 처리는 apiClient의 401 인터셉터가 이미 담당).
-  useEffect(() => {
-    if (!nickname) return;
-    const now = Date.now();
-    if (now - billingFetchedAt < BILLING_CACHE_MS) return;
-    billingFetchedAt = now;
-    fetchBillingStatus()
-      .then(refreshPremium)
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nickname]);
-
   return (
     <AuthContext.Provider
       value={{
         nickname,
         isAuthenticated: !!nickname,
         isInitializing,
-        isPremium,
-        premiumSince,
-        paymentCount,
-        billingStatus,
         hasSeenOnboarding,
         setAuth,
         updateNickname,
         completeOnboarding,
-        refreshPremium,
         logout,
       }}
     >

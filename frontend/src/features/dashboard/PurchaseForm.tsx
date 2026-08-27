@@ -1,5 +1,4 @@
 import type { FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import type { PurchaseCategory, PurchaseType } from '../../types';
 import { isRecurringType } from '../../types';
 import { formatOriginalAmount } from '../../components/dashboard/PurchaseMoney';
@@ -16,7 +15,6 @@ interface PurchaseFormProps {
   onSubmit: (event: FormEvent) => void;
   onCancel: () => void;
   errorMessage: string | null;
-  showPremiumUpsell: boolean;
 }
 
 export default function PurchaseForm({
@@ -24,7 +22,6 @@ export default function PurchaseForm({
   onSubmit: handleSubmit,
   onCancel: handleCancelEdit,
   errorMessage,
-  showPremiumUpsell,
 }: PurchaseFormProps) {
   const {
     editingId, pendingConfirmId, type, setType, itemName, setItemName, baseDate, setBaseDate,
@@ -345,12 +342,6 @@ export default function PurchaseForm({
         </button>
       </div>
       {errorMessage && <p className="form-error" style={{ marginTop: 12 }}>{errorMessage}</p>}
-      {showPremiumUpsell && (
-        <p className="premium-upsell" style={{ marginTop: 6 }}>
-          ✨ 프리미엄으로 업그레이드하면 등록 개수 제한 없이 이용할 수 있어요.{' '}
-          <Link to="/pricing">업그레이드하기 →</Link>
-        </p>
-      )}
     </form>
   );
 }
