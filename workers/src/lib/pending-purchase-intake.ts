@@ -362,10 +362,13 @@ export async function buildPendingPurchaseFields(
 }
 
 /**
- * 이 사용자의 활성(archived 아님) 정기배송/구독 중 상품명이 같은 항목을 찾는다 — "가격 인상
- * 감지"의 기반이 되는 매칭이다. 상품명은 대소문자만 다른 표기 차이(예: "Netflix"/"netflix")를
- * 같은 항목으로 보기 위해 COLLATE NOCASE로 비교한다. 여러 개가 매칭되면(흔치 않지만) 가장 최근
- * 등록한 것을 기준으로 삼는다.
+ * 이 사용자의 활성(archived·discontinued·discarded 아님) 정기배송/구독 중 상품명이 같은 항목을
+ * 찾는다 — "가격 인상 감지"의 기반이 되는 매칭이다. discontinued_at/discarded_at도 걸러야
+ * 한다 — 안 그러면 "유지 안 함" 처리해서 지난 항목으로 넘어간 옛 구독을 다시 구독했을 때, 새
+ * 등록이 아니라 그 죽은 항목의 "가격 변동"으로 오판된다(사용자가 재등록한 항목이 "내 목록"이
+ * 아니라 지난 항목에 그대로 묶여버림). 상품명은 대소문자만 다른 표기 차이(예: "Netflix"/
+ * "netflix")를 같은 항목으로 보기 위해 COLLATE NOCASE로 비교한다. 여러 개가 매칭되면(흔치
+ * 않지만) 가장 최근 등록한 것을 기준으로 삼는다.
  */
 async function findMatchingActivePurchase(
   db: D1Database,
@@ -376,7 +379,8 @@ async function findMatchingActivePurchase(
   const match = await db
     .prepare(
       `SELECT id, amount FROM purchases
-        WHERE user_id = ? AND type = ? AND archived_at IS NULL AND item_name = ? COLLATE NOCASE
+        WHERE user_id = ? AND type = ? AND archived_at IS NULL AND discontinued_at IS NULL
+          AND discarded_at IS NULL AND item_name = ? COLLATE NOCASE
         ORDER BY created_at DESC LIMIT 1`
     )
     .bind(userId, type, itemName)
