@@ -155,6 +155,34 @@ describe('Worker route integration', () => {
     expect(created.deliveryRound).toBe(6);
   });
 
+  it('links round numbering to a past item via PUT (edit) too, overriding the normal round-preserving offset', async () => {
+    const userId = seedUser(db, 'resub3@example.com');
+    const pastId = db.raw.prepare(
+      `INSERT INTO purchases
+        (user_id, type, item_name, base_date, amount, schedule_type, fixed_day_of_month, fixed_day_interval_months, discarded_at)
+       VALUES (?, 'SUBSCRIPTION', '네이버플러스 월간 이용권', '2026-07-09', 5000, 'FIXED_DAY', 9, 1, '2026-08-07 12:49:28')`
+    ).run(userId).lastInsertRowid;
+    const editedId = db.raw.prepare(
+      `INSERT INTO purchases
+        (user_id, type, item_name, base_date, amount, schedule_type, fixed_day_of_month, fixed_day_interval_months)
+       VALUES (?, 'SUBSCRIPTION', '네이버플러스 월간 이용권', '2026-08-18', 5000, 'FIXED_DAY', 18, 1)`
+    ).run(userId).lastInsertRowid;
+
+    const request = await authorizedRequest('resub3@example.com', `/api/purchases/${editedId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        type: 'SUBSCRIPTION', itemName: '네이버플러스 월간 이용권', baseDate: '2026-08-18',
+        scheduleType: 'FIXED_DAY', fixedDayOfMonth: 18, fixedDayIntervalMonths: 1,
+        linkedPastPurchaseId: Number(pastId),
+      }),
+    });
+    const response = await app.fetch(request, testEnv(db));
+    expect(response.status).toBe(200);
+    const updated = await response.json<{ deliveryRound: number | null }>();
+    // 삭제 시점(8/7) 기준 지난 항목은 2회차까지였다 — 새 항목은 3회차부터 이어진다.
+    expect(updated.deliveryRound).toBe(3);
+  });
+
   it('ignores linkedPastPurchaseId when it does not belong to the user (no round offset applied)', async () => {
     const otherUserId = seedUser(db, 'owner2@example.com');
     seedUser(db, 'resub2@example.com');

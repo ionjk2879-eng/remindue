@@ -291,14 +291,21 @@ export function recomputeRoundOffsetForEdit(existing: DeadlineInput, updated: De
 
 /**
  * "지난 항목"이 된 정기 항목이 마지막으로 도달한 회차 — 재구독 시 새로 등록되는 항목의 회차를
- * 이어붙이는 기준점(routes/purchases.ts POST /purchases의 linkedPastPurchaseId). 명시적으로
- * "유지 안 함"을 눌러 지난 항목이 됐으면 그 순간 얼려둔 discontinued_round(없으면 그 시점 기준
- * 재계산)를 쓰고, 그 외(미확인 만료·삭제·1회성 만료처럼 명시적 중단이 아닌 경우)는 오늘 기준
- * 현재 회차를 그대로 쓴다.
+ * 이어붙이는 기준점(routes/purchases.ts POST /purchases의 linkedPastPurchaseId). "그 순간"을
+ * 특정할 수 있는 경우(명시적 "유지 안 함" → discontinued_round, 없으면 그 시점 기준 재계산;
+ * "삭제" → discarded_at 시점 기준 재계산)는 얼려서 쓴다 — 안 그러면 실제로 멈춘 지 한참
+ * 지난 뒤에 재구독을 등록할수록 그 사이 지나간 달만큼 회차가 계속 불어나 버린다(오늘 날짜로
+ * 재계산하면 "언제 등록하느냐"에 따라 같은 지난 항목인데도 답이 달라짐). 그 외(미확인
+ * 만료·1회성 만료처럼 얼릴 시점 자체가 없는 경우)만 오늘 기준 현재 회차를 그대로 쓴다.
  */
-export function lastReachedRound(row: DeadlineInput & { discontinued_at: string | null; discontinued_round: number | null }): number {
+export function lastReachedRound(
+  row: DeadlineInput & { discontinued_at: string | null; discontinued_round: number | null; discarded_at: string | null }
+): number {
   if (row.discontinued_at !== null) {
     return row.discontinued_round ?? computeDeadlineAt(row, row.discontinued_at.slice(0, 10)).deliveryRound ?? 0;
+  }
+  if (row.discarded_at !== null) {
+    return computeDeadlineAt(row, row.discarded_at.slice(0, 10)).deliveryRound ?? 0;
   }
   return computeDeadline(row).deliveryRound ?? 0;
 }

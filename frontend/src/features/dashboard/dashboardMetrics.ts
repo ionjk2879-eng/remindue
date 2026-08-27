@@ -118,11 +118,12 @@ export function calculateSelectedSpend(purchases: Purchase[], selectedIds: numbe
   }, 0));
 }
 
-/** 특정 지출 계산기에는 선택한 달에 실제 지출이 있고, 사용자가 삭제하지 않은 기록만 보여준다. */
+/** 특정 지출 계산기에는 선택한 달에 실제 지출이 있는 기록만 보여준다. "삭제"(discardedAt)는
+ *  목록에서만 뺀 거고 실제 지출은 그대로 집계 대상이라(CLAUDE.md 계정 삭제/discard 정책 참고),
+ *  다른 지출 합계(월별/연간/카테고리)와 마찬가지로 여기서도 걸러내지 않는다. */
 export function selectCalculatorPurchases(purchases: Purchase[], year: number, month: number) {
   return purchases.filter((purchase) =>
     purchase.amount !== null
-    && purchase.discardedAt === null
     && totalSpendInMonth([purchase], year, month) > 0
   );
 }
