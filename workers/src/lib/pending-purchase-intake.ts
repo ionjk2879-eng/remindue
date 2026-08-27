@@ -2,12 +2,13 @@
 // "AI 추출 결과 → pending_purchases 행" 변환 로직. AI가 준 값을 그대로 믿지 않고 항상
 // sanitize를 거쳐 저장한다(모델이 스키마를 벗어난 값을 줄 수 있으므로).
 
-import { DEFAULT_RETURN_DEADLINE_DAYS, DEFAULT_INTERVAL_DAYS, DEFAULT_WARRANTY_MONTHS } from './purchase-logic';
+import { DEFAULT_RETURN_DEADLINE_DAYS, DEFAULT_INTERVAL_DAYS, DEFAULT_WARRANTY_MONTHS, computeDDay, computeDeadline, isPastDueUnconfirmed } from './purchase-logic';
 import { businessDaysBetween } from './date';
 import { isNonDeliveryDay } from './kr-holidays';
 import { applyCardFee, estimateTtSellingRate, type FxCardBrand, type FxCardIssuer } from './fx-card';
 import { fetchEximRate } from './eximbank';
-import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES, type PurchaseCategory, type PurchaseType } from '../types';
+import { isRecurringType, PURCHASE_CATEGORIES, PURCHASE_TYPES, type PurchaseCategory, type PurchaseType, type PurchaseRow } from '../types';
+import { isPastItem } from '../../../shared/domain-policy';
 import type { ExtractedOrder } from './order-extraction';
 
 /** AI가 준 종류 추정값이 유효한 3종 중 하나가 아니면(모델 오류 등) 안전하게 기본값으로 되돌린다. */
@@ -388,6 +389,44 @@ async function findMatchingActivePurchase(
   return match ?? null;
 }
 
+/**
+ * 이 사용자의 "지난 항목"(유지 안 함/미확인 만료/삭제/1회성 만료) 중 상품명이 같은 항목을
+ * 찾는다 — 자동 매칭·자동 병합은 하지 않고, 확인 대기 카드에서 "재구독인가요?"를 물어볼 수
+ * 있게 후보 id만 남긴다(사용자가 명시적으로 답해야만 routes/purchases.ts에서 실제로 회차가
+ * 이어진다). findMatchingActivePurchase와 반대로 "지난 항목"만 대상으로 하며, isPastItem
+ * 판정 자체가 SQL로 표현하기 번거로운 파생값(pastDueUnconfirmed)을 포함해 애플리케이션에서
+ * 걸러낸다. 여러 개가 매칭되면 가장 최근 등록한 것을 기준으로 삼는다.
+ */
+async function findMatchingPastPurchase(
+  db: D1Database,
+  userId: number,
+  type: PurchaseType,
+  itemName: string
+): Promise<{ id: number } | null> {
+  const { results } = await db
+    .prepare(
+      `SELECT * FROM purchases
+        WHERE user_id = ? AND type = ? AND archived_at IS NULL AND item_name = ? COLLATE NOCASE
+        ORDER BY created_at DESC`
+    )
+    .bind(userId, type, itemName)
+    .all<PurchaseRow>();
+
+  for (const row of results) {
+    const { deadline } = computeDeadline(row);
+    const past = isPastItem({
+      type: row.type,
+      dDay: computeDDay(deadline),
+      isOneTime: row.is_one_time === 1,
+      discontinuedAt: row.discontinued_at,
+      discardedAt: row.discarded_at,
+      pastDueUnconfirmed: isPastDueUnconfirmed(row),
+    });
+    if (past) return { id: row.id };
+  }
+  return null;
+}
+
 /** 삽입된 pending_purchases.id를 반환한다 — 호출부가 바로 조회해 응답에 쓸 수 있게. */
 export async function insertPendingPurchase(
   db: D1Database,
@@ -413,11 +452,20 @@ export async function insertPendingPurchase(
     }
   }
 
+  // 재구독 감지: 같은 이름의 "지난 항목"이 있으면 후보 id만 남긴다 — 자동으로 연결하지 않고,
+  // 확인 대기 카드에서 사용자가 "재구독인가요?"에 직접 답해야만(routes/purchases.ts
+  // linkedPastPurchaseId) 실제로 회차가 이어진다.
+  let matchedPastPurchaseId: number | null = null;
+  if (isRecurringType(fields.type) && extracted.itemName) {
+    const pastMatch = await findMatchingPastPurchase(db, userId, fields.type, extracted.itemName);
+    matchedPastPurchaseId = pastMatch?.id ?? null;
+  }
+
   const result = await db
     .prepare(
       `INSERT INTO pending_purchases
-         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, warranty_months, interval_days, schedule_type, fixed_day_of_month, fixed_day_interval_months, schedule_estimated, arrival_offset_days, amount, category, category_tags, matched_purchase_id, previous_amount, brand, brand_domain, original_amount, original_currency, exchange_rate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (user_id, source, type, item_name, order_date, expected_delivery_date, return_deadline_days, return_deadline_estimated, warranty_months, interval_days, schedule_type, fixed_day_of_month, fixed_day_interval_months, schedule_estimated, arrival_offset_days, amount, category, category_tags, matched_purchase_id, previous_amount, matched_past_purchase_id, brand, brand_domain, original_amount, original_currency, exchange_rate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       userId,
@@ -440,6 +488,7 @@ export async function insertPendingPurchase(
       JSON.stringify(fields.categoryTags),
       matchedPurchaseId,
       previousAmount,
+      matchedPastPurchaseId,
       fields.brand,
       fields.brandDomain,
       fields.originalAmount,

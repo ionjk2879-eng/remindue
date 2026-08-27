@@ -4,7 +4,8 @@ import { Hono } from 'hono';
 import { authMiddleware, type AuthVariables } from '../middleware/auth';
 import { toPurchaseResponse } from '../lib/mapper';
 import { getPaymentHistoryByPurchaseIds, recordConfirmedPaymentCycle } from '../lib/recurring-fx';
-import { computeDDay, computeDeadline, computeDeadlineAt, InvalidPurchaseOperationError, confirmReceiptToday, recomputeRoundOffsetForEdit } from '../lib/purchase-logic';
+import { computeDDay, computeDeadline, computeDeadlineAt, InvalidPurchaseOperationError, confirmReceiptToday, recomputeRoundOffsetForEdit, lastReachedRound, isPastDueUnconfirmed } from '../lib/purchase-logic';
+import { isPastItem } from '../../../shared/domain-policy';
 import {
   convertToKrw,
   sanitizeBrandDomain,
@@ -79,6 +80,39 @@ async function resumePurchaseSchedule(db: D1Database, existing: PurchaseRow): Pr
   ).bind(nextOffset, JSON.stringify(pausePeriods), existing.id).run();
 
   return (await db.prepare('SELECT * FROM purchases WHERE id = ?').bind(existing.id).first<PurchaseRow>())!;
+}
+
+/**
+ * linkedPastPurchaseId(재구독 연결, POST /purchases 전용)가 실제로 이 사용자의 같은 이름·같은
+ * 종류 "지난 항목"을 가리킬 때만 회차를 이어붙일 오프셋을 계산한다. 소유자가 아니거나, 이름·
+ * 종류가 다르거나, 그 사이에 이미 "유지하기"로 복귀해 더 이상 지난 항목이 아니면 조용히 0(회차
+ * 1부터 시작)으로 되돌아간다 — 이 링크는 회차 번호를 보기 좋게 이어주는 부가 기능일 뿐이라,
+ * 어긋난다고 등록 자체를 막을 이유는 없다.
+ */
+async function resolveLinkedPastPurchaseOffset(
+  db: D1Database,
+  userId: number,
+  type: PurchaseRequestBody['type'],
+  itemName: string,
+  linkedPastPurchaseId: number | null | undefined
+): Promise<number> {
+  if (linkedPastPurchaseId == null) return 0;
+  const pastRow = await db.prepare('SELECT * FROM purchases WHERE id = ?').bind(linkedPastPurchaseId).first<PurchaseRow>();
+  if (!pastRow || pastRow.user_id !== userId || pastRow.type !== type) return 0;
+  if (pastRow.item_name.trim().toLowerCase() !== itemName.trim().toLowerCase()) return 0;
+
+  const { deadline } = computeDeadline(pastRow);
+  const stillPast = isPastItem({
+    type: pastRow.type,
+    dDay: computeDDay(deadline),
+    isOneTime: pastRow.is_one_time === 1,
+    discontinuedAt: pastRow.discontinued_at,
+    discardedAt: pastRow.discarded_at,
+    pastDueUnconfirmed: isPastDueUnconfirmed(pastRow),
+  });
+  if (!stillPast) return 0;
+
+  return -lastReachedRound(pastRow);
 }
 
 function validatePurchaseRequest(body: Partial<PurchaseRequestBody>): PurchaseRequestBody {
@@ -255,17 +289,24 @@ purchases.get('/export', async (c) => {
 
 purchases.post('/', async (c) => {
   const user = await getUserByEmail(c.env.DB, c.get('userEmail'));
-  const validated = validatePurchaseRequest(await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({})));
+  const rawBody = await c.req.json<Partial<PurchaseRequestBody>>().catch(() => ({} as Partial<PurchaseRequestBody>));
+  const validated = validatePurchaseRequest(rawBody);
   const { body, evidence } = await applyPaymentDateExchangeRate(validated, user, c.env.KOREA_EXIM_API_KEY);
 
   // lastDeliveredDate는 이제 "마지막 수령 확인" 참고 로그일 뿐 배송일 계산에 쓰이지 않으므로,
   // 등록 시점엔 아직 아무것도 확인된 게 없다는 뜻으로 null로 둔다.
   const lastDeliveredDate = null;
 
+  // 재구독 연결 — 확인 대기 카드에서 사용자가 "재구독인가요?"에 예라고 답했을 때만 온다
+  // (rawBody.linkedPastPurchaseId). 유효하지 않으면 0(회차 1부터 시작)으로 조용히 되돌아간다.
+  const deliveryRoundOffset = await resolveLinkedPastPurchaseOffset(
+    c.env.DB, user.id, body.type, body.itemName, rawBody.linkedPastPurchaseId
+  );
+
   const insert = await c.env.DB.prepare(
     `INSERT INTO purchases
-       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, fixed_day_interval_months, is_one_time, expected_delivery_date, arrival_offset_days, last_delivered_date, category, category_tags, brand, brand_domain, original_amount, original_currency, exchange_rate)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (user_id, type, item_name, base_date, amount, memo, warranty_months, return_deadline_days, interval_days, schedule_type, fixed_day_of_month, fixed_day_interval_months, is_one_time, expected_delivery_date, arrival_offset_days, last_delivered_date, category, category_tags, brand, brand_domain, original_amount, original_currency, exchange_rate, delivery_round_offset)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
       user.id,
@@ -290,7 +331,8 @@ purchases.post('/', async (c) => {
       body.brandDomain,
       body.originalAmount,
       body.originalCurrency,
-      body.exchangeRate
+      body.exchangeRate,
+      deliveryRoundOffset
     )
     .run();
 

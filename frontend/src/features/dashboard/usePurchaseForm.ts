@@ -28,6 +28,11 @@ export function usePurchaseForm() {
   const [originalAmount, setOriginalAmount] = useState<number | null>(null);
   const [originalCurrency, setOriginalCurrency] = useState<string | null>(null);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  // 재구독 연결 — suggestedPastPurchaseId는 확인 대기 항목이 알려준 "지난 항목" 힌트(불변),
+  // linkPastPurchase는 사용자가 실제로 이어붙이길 원하는지 고르는 체크박스. 제출 시
+  // linkPastPurchase가 true일 때만 suggestedPastPurchaseId를 서버로 보낸다.
+  const [suggestedPastPurchaseId, setSuggestedPastPurchaseId] = useState<number | null>(null);
+  const [linkPastPurchase, setLinkPastPurchase] = useState(false);
   const itemNameInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
@@ -54,6 +59,8 @@ export function usePurchaseForm() {
     setOriginalAmount(null);
     setOriginalCurrency(null);
     setExchangeRate(null);
+    setSuggestedPastPurchaseId(null);
+    setLinkPastPurchase(false);
     setShowRegisterForm(false);
   };
 
@@ -147,6 +154,7 @@ export function usePurchaseForm() {
     isOneTime, setIsOneTime, category, setCategory, categoryTags, setCategoryTags,
     brand, setBrand, brandDomain, setBrandDomain, originalAmount, setOriginalAmount,
     originalCurrency, setOriginalCurrency, exchangeRate, setExchangeRate,
+    suggestedPastPurchaseId, setSuggestedPastPurchaseId, linkPastPurchase, setLinkPastPurchase,
     itemNameInputRef, resetForm, beginEdit, beginPendingRegistration,
   };
 }

@@ -122,6 +122,9 @@ export interface PurchaseInput {
   originalAmount?: number | null;
   originalCurrency?: string | null;
   exchangeRate?: number | null;
+  /** 재구독 연결 — 같은 이름의 "지난 항목" id를 넘기면 그 항목의 마지막 회차 다음 번호로 이
+   *  새 항목의 회차가 이어진다. 신규 등록에서만 의미 있다. */
+  linkedPastPurchaseId?: number | null;
 }
 
 export interface AuthResponse {
@@ -177,6 +180,8 @@ export interface PendingPurchase {
   matchedPurchaseId: number | null;
   /** matchedPurchaseId가 있을 때 그 항목의 변경 전 금액. 그 외 null. */
   previousAmount: number | null;
+  /** 같은 상품명의 "지난 항목"이 있을 때만 그 항목의 id — 재구독 여부를 물어보는 용도. 그 외 null. */
+  matchedPastPurchaseId: number | null;
   status: PendingPurchaseStatus;
   createdAt: string;
 }

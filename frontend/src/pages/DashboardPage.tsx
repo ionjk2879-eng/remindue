@@ -153,6 +153,7 @@ export default function DashboardPage() {
     isOneTime, setIsOneTime, category, setCategory, categoryTags, setCategoryTags,
     brand, setBrand, brandDomain, setBrandDomain, originalAmount, setOriginalAmount, originalCurrency, setOriginalCurrency,
     exchangeRate, setExchangeRate, itemNameInputRef, resetForm, beginEdit,
+    suggestedPastPurchaseId, setSuggestedPastPurchaseId, linkPastPurchase, setLinkPastPurchase,
   } = purchaseForm;
 
   // "오늘 주문하신 물건이 오셨나요?" 푸시 알림의 "받았어요"를 탭하면 대시보드가
@@ -299,6 +300,8 @@ export default function DashboardPage() {
     setOriginalCurrency(item.originalCurrency ?? null);
     setExchangeRate(item.exchangeRate ?? null);
     setPendingConfirmId(item.id);
+    setSuggestedPastPurchaseId(item.matchedPastPurchaseId);
+    setLinkPastPurchase(false);
   };
 
   const handleIgnorePending = async (id: number) => {
@@ -474,6 +477,7 @@ export default function DashboardPage() {
       originalAmount,
       originalCurrency,
       exchangeRate,
+      linkedPastPurchaseId: linkPastPurchase ? suggestedPastPurchaseId : null,
     };
     const confirmingPendingId = pendingConfirmId;
     try {
