@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, Link } from 'react-rout
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import TesterRecruitBanner from './components/TesterRecruitBanner';
 import KakaoChatButton from './components/KakaoChatButton';
 import NativeTabBar from './components/NativeTabBar';
 import NativeHeader from './components/NativeHeader';
@@ -76,7 +75,6 @@ function Layout() {
   }
   return (
     <>
-      <TesterRecruitBanner />
       <Header />
       <Suspense fallback={<RouteLoading />}>
         <Outlet />
