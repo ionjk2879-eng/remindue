@@ -30,4 +30,14 @@ describe('shared domain policy', () => {
     expect(isPastItem({ type: 'SUBSCRIPTION', dDay: 10, isOneTime: false, discontinuedAt: '2026-08-01' })).toBe(true);
     expect(isPastItem({ type: 'SUBSCRIPTION', dDay: 10, isOneTime: true, discontinuedAt: '2026-08-01' })).toBe(true);
   });
+
+  it('sends a one-time recurring item past once its single deadline passes, even without an explicit discontinue', () => {
+    expect(isPastItem({ type: 'SUBSCRIPTION', dDay: -1, isOneTime: true, discontinuedAt: null })).toBe(true);
+    expect(isPastItem({ type: 'SUBSCRIPTION', dDay: 5, isOneTime: true, discontinuedAt: null })).toBe(false);
+  });
+
+  it('sends an ongoing recurring item past once the last round goes unconfirmed through the full nudge cycle', () => {
+    expect(isPastItem({ type: 'RECURRING_DELIVERY', dDay: 20, isOneTime: false, discontinuedAt: null, pastDueUnconfirmed: true })).toBe(true);
+    expect(isPastItem({ type: 'RECURRING_DELIVERY', dDay: 20, isOneTime: false, discontinuedAt: null, pastDueUnconfirmed: false })).toBe(false);
+  });
 });

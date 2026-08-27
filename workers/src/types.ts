@@ -376,6 +376,12 @@ export interface PurchaseResponse {
    *  카드 목록 등 다른 조회에서는 항상 빈 배열이다(불필요한 조회/페이로드를 피하려고). */
   paymentHistory: PaymentHistoryEntry[];
   createdAt: string;
+  /** 정기배송·구독 전용 — 마지막 회차가 결제일로부터 1주일(confirmation-nudge.ts "절약 검토 대상"
+   *  알림 시점)까지도 미확인 상태로 남아있으면 true. shared/domain-policy.ts의 isPastItem이 이
+   *  값을 받아 "지난 항목"으로 분류한다(discontinuedAt을 명시로 찍은 게 아니므로 "사용 안 함"
+   *  단정은 아니다 — "유지하기"를 누르면 즉시 false로 돌아온다). 1회성/이미 유지 안 함 항목은
+   *  항상 false. */
+  pastDueUnconfirmed: boolean;
 }
 
 export interface PushSubscriptionRow {

@@ -10,7 +10,9 @@ import {
   computePreviousScheduleDeadline,
   computeStatusLabel,
   confirmReceiptToday,
+  isPastDueUnconfirmed,
   isValidArrivalDaysAgo,
+  recomputeRoundOffsetForEdit,
   resolveArrivalDate,
 } from './purchase-logic';
 
@@ -296,5 +298,58 @@ describe('INTERVAL(주·일 단위) + arrival_offset_days — 토요일 원시 �
     expect(computeDeadline(weeklySaturdayAnchor()).deliveryRound).toBe(2);
     vi.setSystemTime(new Date('2026-08-07T03:00:00.000Z'));
     expect(computeDeadline(weeklySaturdayAnchor())).toEqual({ deadline: '2026-08-13', deliveryRound: 3 });
+  });
+});
+
+describe('isPastDueUnconfirmed — 마지막 회차가 결제일로부터 1주일까지 미확인이면 지난 항목으로 취급', () => {
+  beforeEach(() => vi.setSystemTime(new Date('2026-07-27T03:00:00.000Z')));
+  afterEach(() => vi.useRealTimers());
+
+  const overdueSubscription = (overrides: Partial<{ delivery_confirm_count: number; renewal_decision_for: string | null; discontinued_at: string | null; is_one_time: number }> = {}) => ({
+    ...row('SUBSCRIPTION', { base_date: '2026-06-01', interval_days: 30 }),
+    delivery_confirm_count: 0,
+    renewal_decision_for: null,
+    discontinued_at: null,
+    ...overrides,
+  });
+
+  it('직전 회차 결제일로부터 1주일 넘게 미확인이면 true', () => {
+    expect(isPastDueUnconfirmed(overdueSubscription())).toBe(true);
+  });
+
+  it('이미 그 회차를 확인했으면(delivery_confirm_count가 따라잡음) false', () => {
+    expect(isPastDueUnconfirmed(overdueSubscription({ delivery_confirm_count: 2 }))).toBe(false);
+  });
+
+  it('"유지 안 함"으로 이미 명시했으면 false — discontinuedAt 쪽 판정과 겹치지 않는다', () => {
+    expect(isPastDueUnconfirmed(overdueSubscription({ discontinued_at: '2026-07-01 00:00:00' }))).toBe(false);
+  });
+
+  it('1회성 항목은 false — dDay<0 판정을 따로 쓴다', () => {
+    expect(isPastDueUnconfirmed(overdueSubscription({ is_one_time: 1 }))).toBe(false);
+  });
+
+  it('최근에 시작한 항목(아직 1주일 안 지남)은 false', () => {
+    expect(isPastDueUnconfirmed({ ...overdueSubscription(), base_date: '2026-07-25' })).toBe(false);
+  });
+});
+
+describe('recomputeRoundOffsetForEdit — 항목 수정으로 시작일/스케줄이 바뀌어도 표시 회차는 그대로', () => {
+  beforeEach(() => vi.setSystemTime(new Date('2026-09-01T03:00:00.000Z')));
+  afterEach(() => vi.useRealTimers());
+
+  it('시작일만 최근으로 당겨도 회차 번호가 유지되도록 오프셋을 보정한다', () => {
+    const existing = row('SUBSCRIPTION', { base_date: '2026-01-26', fixed_day_of_month: 26, schedule_type: 'FIXED_DAY' });
+    const previousRound = computeDeadline(existing).deliveryRound;
+
+    const updated = { ...existing, base_date: '2026-08-25', fixed_day_of_month: 26 };
+    const offset = recomputeRoundOffsetForEdit(existing, updated);
+
+    expect(computeDeadline({ ...updated, delivery_round_offset: offset }).deliveryRound).toBe(previousRound);
+  });
+
+  it('스케줄이 안 바뀌면 오프셋도 그대로(무변화)', () => {
+    const existing = { ...row('RECURRING_DELIVERY', { base_date: '2026-01-01', interval_days: 14 }), delivery_round_offset: 3 };
+    expect(recomputeRoundOffsetForEdit(existing, existing)).toBe(3);
   });
 });
